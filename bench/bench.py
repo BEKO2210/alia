@@ -21,6 +21,7 @@ Measurement notes
 import argparse
 import datetime as dt
 import json
+import math
 import os
 import random
 import re
@@ -250,7 +251,7 @@ def stats(xs):
     result = {"median": statistics.median(xs), "min": xs[0], "max": xs[-1],
               "stdev": statistics.stdev(xs) if len(xs) > 1 else 0.0, "n": len(xs)}
     if len(xs) >= 20:
-        result["p95"] = xs[int(0.95 * len(xs)) - 1]
+        result["p95"] = xs[math.ceil(0.95 * len(xs)) - 1]  # nearest-rank percentile
     return result
 
 

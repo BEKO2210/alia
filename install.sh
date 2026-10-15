@@ -24,6 +24,8 @@ try:
     config = json.loads(config_path.read_text(encoding="utf-8"))
 except (OSError, ValueError):
     config = {}
+if not isinstance(config, dict):
+    config = {}
 candidate = os.environ.get("ALIA_LANG") or config.get("lang")
 if not candidate or str(candidate).lower() == "auto":
     candidate = next((os.environ.get(name) for name in ("LC_ALL", "LC_MESSAGES", "LANG") if os.environ.get(name)), "en")

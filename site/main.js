@@ -47,7 +47,7 @@ const DE = {
   "q.json": "JSON mit / ohne Schema",
   "q.pp": "Prompt-Tempo 4K / 32K",
   "q.dl": "Download",
-  "bench.fine": "Alle Werte nutzen exakt die Flags und die Kontextgröße, mit denen das Profil startet (35B: 65.536, 9B: 33.408). Langer Kontext braucht freien RAM: Mit offenem Browser und anderen Programmen wurde das 35B-Modell von der SSD gestreamt und fiel auf 24,6 Tok/s bei 32K und 9,7 bei 60K. Für lange Kontexte sind 32 GB RAM empfohlen. Die Qualitätswerte stammen aus separaten Läufen. <a href=\"https://github.com/BEKO2210/alia/tree/main/bench/results\">Rohdaten und Methodik →</a>",
+  "bench.fine": "Alle Werte nutzen die Flags und die Kontextgröße, mit denen das Profil startet (35B: 65.536, 9B: 33.408); der 35B-Wert bei 60K stammt aus einem früheren Lauf mit denselben Flags ohne <code>--jinja</code>, das nur die Chat-Vorlage wählt. Langer Kontext braucht freien RAM: Mit offenem Browser und anderen Programmen wurde das 35B-Modell von der SSD gestreamt und fiel auf 24,6 Tok/s bei 32K und 9,7 bei 60K. Für lange Kontexte sind 32 GB RAM empfohlen. Die Qualitätswerte stammen aus separaten Läufen. <a href=\"https://github.com/BEKO2210/alia/tree/main/bench/results\">Rohdaten und Methodik →</a>",
   "shots.eyebrow": "Im Einsatz",
   "shots.title": "Dein Terminal. Oder dein Browser.",
   "shots.term": "Terminal",

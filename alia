@@ -1362,7 +1362,11 @@ def main(argv: list[str] | None = None) -> int:
         if argv and argv[0] == "stop":
             if len(argv) != 1:
                 raise RuntimeError(tr("args.stop_usage"))
-            return 0 if stop_server(paths) else 1
+            # Take the same mandatory lock as startup so a stop can never run between
+            # the state write and the PID write and orphan a starting server.
+            ensure_private_dir(paths["state"])
+            with GpuStartLock(paths["start_lock"], 300.0):
+                return 0 if stop_server(paths) else 1
         if argv and argv[0] == "logs":
             if len(argv) != 1:
                 raise RuntimeError(tr("args.logs_usage"))

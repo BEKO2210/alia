@@ -202,7 +202,7 @@
             </dl>
           </div>
         </div>
-        <p class="fine" data-i18n="bench.fine">All speeds use exactly the flags and context size each profile launches with (35B: 65,536, 9B: 33,408). Long-context speed needs free RAM: with a browser and other apps open, the 35B model streamed from the SSD and fell to 24.6 tok/s at 32K and 9.7 at 60K. 32 GB RAM is recommended for long contexts. Quality scores come from separate runs. <a href="https://github.com/BEKO2210/alia/tree/main/bench/results">Raw results and methodology →</a></p>
+        <p class="fine" data-i18n="bench.fine">All speeds use the flags and context size each profile launches with (35B: 65,536, 9B: 33,408); the 35B 60K value comes from an earlier run with the same flags except <code>--jinja</code>, which only selects the chat template. Long-context speed needs free RAM: with a browser and other apps open, the 35B model streamed from the SSD and fell to 24.6 tok/s at 32K and 9.7 at 60K. 32 GB RAM is recommended for long contexts. Quality scores come from separate runs. <a href="https://github.com/BEKO2210/alia/tree/main/bench/results">Raw results and methodology →</a></p>
       </div>
     </section>
 
