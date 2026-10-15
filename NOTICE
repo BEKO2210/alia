@@ -1,0 +1,18 @@
+Alia
+Copyright 2026 Alia contributors
+
+Alia code and the benchmark scripts in bench/ are licensed under the
+Apache License, Version 2.0. See LICENSE.
+
+This project integrates with, but does not redistribute:
+
+- Qwen Code, Copyright QwenLM contributors, licensed under Apache-2.0.
+- llama.cpp, Copyright ggml-org contributors, licensed under the MIT License.
+
+Models are downloaded from Hugging Face and remain subject to their own model
+and repository licenses. Qwen3.6 is licensed under Apache-2.0.
+
+
+The Alia logo mark and wordmark (brand/logo-mark.svg, brand/logo-wordmark.svg) are
+outlined glyphs from the Outfit typeface, Copyright 2021 The Outfit Project Authors,
+licensed under the SIL Open Font License 1.1 (https://openfontlicense.org).

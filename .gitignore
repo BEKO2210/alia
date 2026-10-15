@@ -1,0 +1,7 @@
+tasks/*.log
+tasks/*.pid
+__pycache__/
+_internal/
+.coverage
+coverage.xml
+.ruff_cache/

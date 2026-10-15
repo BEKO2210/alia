@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit config for Alia: a stdlib-only Python launcher that starts a local
+# llama-server and opens Qwen Code. Reviews should focus on what can hurt a user
+# on their own machine: wrong processes killed, servers left running, and
+# performance claims that the benchmark data does not back.
+language: en-US
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  collapse_walkthrough: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!bench/results/**"
+    - "!brand/**"
+    - "!docs/screenshots/**"
+  path_instructions:
+    - path: "alia"
+      instructions: >-
+        Main launcher, Python standard library only (no third-party imports).
+        Check process lifecycle carefully: a PID is only forgotten after the
+        process is verified gone, reuse of a running server must match argv,
+        model path and binary, Ctrl+C during startup must stop the server we
+        started, and nothing may kill processes by name pattern. The server
+        must bind to 127.0.0.1 only. Every user-facing string goes through
+        i18n (en + de).
+    - path: "profiles.json"
+      instructions: >-
+        Every value under `measured` must be traceable to a file in
+        bench/results/ with the same flags and context size as the profile's
+        server_args. Flag any number whose source run differs from the
+        launched configuration.
+    - path: "bench/**"
+      instructions: >-
+        Benchmark harness. Measurement errors matter more than style: check
+        that each metric measures what its name claims (prompt cache hits,
+        context shift, leftover servers on the port, CPU offload).
+    - path: "tests/**"
+      instructions: >-
+        Check that tests would actually fail on a regression; a test that is
+        always green is not a test. No test may start a real GPU server.
+    - path: "README*.md"
+      instructions: >-
+        README.md and README.de.md must say the same thing. Numbers must match
+        profiles.json.
+  tools:
+    ruff:
+      enabled: true
+    shellcheck:
+      enabled: true
+    markdownlint:
+      enabled: true
+    gitleaks:
+      enabled: true
+chat:
+  auto_reply: true

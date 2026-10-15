@@ -1,0 +1,7 @@
+target-version = "py312"
+line-length = 120
+
+[lint]
+select = ["E", "F", "W", "B", "UP"]
+# Long lines are mostly user-facing strings and table rows; the formatter is not enforced.
+ignore = ["E501"]
