@@ -1,0 +1,224 @@
+[
+  {
+    "id": "rtx8gb-16gb-qwen36-35b",
+    "rank": 400,
+    "title_key": "profile.title.balanced",
+    "match": {
+      "min_vram_gb": 7.5,
+      "max_vram_gb": 11.9,
+      "min_ram_gb": 15
+    },
+    "model": {
+      "hf_repo": "unsloth/Qwen3.6-35B-A3B-MTP-GGUF",
+      "file": "Qwen3.6-35B-A3B-UD-IQ3_XXS.gguf",
+      "local_candidates": [
+        "~/models/gguf/mtp/Qwen3.6-35B-A3B-UD-IQ3_XXS.gguf"
+      ],
+      "size_gb": 14.07
+    },
+    "server_args": [
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-np",
+      "1",
+      "--jinja",
+      "-b",
+      "2048",
+      "-ub",
+      "2048",
+      "--spec-type",
+      "draft-mtp",
+      "--spec-draft-n-max",
+      "2",
+      "-ctkd",
+      "q8_0",
+      "-ctvd",
+      "q8_0"
+    ],
+    "ctx": 65536,
+    "sampling": {
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0,
+      "presence_penalty": 0
+    },
+    "measured": {
+      "tg_tps_4k": 53.6,
+      "tg_tps_32k": 48.5,
+      "pp_tps_4k": 1093,
+      "pp_tps_32k": 1452,
+      "mtp_acceptance": 0.75,
+      "code_pass": "9/10",
+      "tool_pass": "7/8",
+      "json_pass": "6/6",
+      "llama_cpp": "a0e6dc7 (2026-10-14)",
+      "notes": "MTP n=2 +14 % TG @4K, +10 % @32K vs. no MTP; --moe-cache-mib 1024 measured slower on 8 GB and is off",
+      "source": "4K/32K: bench/results/llamacpp-20261015-023913.jsonl, ctx 33792 (different from launched ctx 65536); 60K: bench/results/llamacpp-20261015-024711.jsonl, ctx 65536; both without --cache-ram. Quality: bench/results/quality-20261015-014745.jsonl, ctx 32768 (different evaluation config).",
+      "metric_sources": {
+        "tg_tps_4k": "bench/results/llamacpp-20261015-023913.jsonl, ctx 33792, final-4-mtp2-nocache",
+        "tg_tps_32k": "bench/results/llamacpp-20261015-023913.jsonl, ctx 33792, final-4-mtp2-nocache",
+        "pp_tps_4k": "bench/results/llamacpp-20261015-023913.jsonl, ctx 33792, final-4-mtp2-nocache",
+        "pp_tps_32k": "bench/results/llamacpp-20261015-023913.jsonl, ctx 33792, final-4-mtp2-nocache",
+        "mtp_acceptance": "bench/results/llamacpp-20261015-023913.jsonl, ctx 33792, final-4-mtp2-nocache",
+        "tg_tps_60k": "bench/results/llamacpp-20261015-024711.jsonl, ctx 65536, MTP n=2 without --cache-ram",
+        "pp_tps_60k": "bench/results/llamacpp-20261015-024711.jsonl, ctx 65536, MTP n=2 without --cache-ram"
+      },
+      "tg_tps_60k": 38.2,
+      "pp_tps_60k": 1041,
+      "note_128k": "128K works (120K prompt: 25.0 t/s TG, 543 t/s PP, ~3.7 min to first token) but is too slow as a default"
+    }
+  },
+  {
+    "id": "rtx8gb-qwen35-9b-fast",
+    "rank": 300,
+    "title_key": "profile.title.fast",
+    "match": {
+      "min_vram_gb": 7.5,
+      "max_vram_gb": 11.9,
+      "min_ram_gb": 12
+    },
+    "model": {
+      "hf_repo": "unsloth/Qwen3.5-9B-GGUF",
+      "file": "Qwen3.5-9B-Q4_K_M.gguf",
+      "local_candidates": [
+        "~/models/gguf/Qwen3.5-9B-Q4_K_M.gguf"
+      ],
+      "size_gb": 5.7
+    },
+    "server_args": [
+      "-ngl",
+      "99",
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-np",
+      "1",
+      "--jinja",
+      "-b",
+      "1024",
+      "-ub",
+      "1024"
+    ],
+    "ctx": 33408,
+    "sampling": {
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0,
+      "presence_penalty": 0
+    },
+    "measured": {
+      "tg_tps_4k": 66.7,
+      "tg_tps_32k": 58.1,
+      "pp_tps_4k": 2562,
+      "pp_tps_32k": 2373,
+      "code_pass": "8/10",
+      "tool_pass": "8/8",
+      "source": "Performance: bench/results/llamacpp-20261015-021754.jsonl, ctx 33408, ub1024 config only. Quality: bench/results/quality-20261015-005015.jsonl, ctx 32768 via Ollama (different binary/config).",
+      "metric_sources": {
+        "tg_tps_4k": "bench/results/llamacpp-20261015-021754.jsonl, ctx 33408, ub1024",
+        "tg_tps_32k": "bench/results/llamacpp-20261015-021754.jsonl, ctx 33408, ub1024",
+        "pp_tps_4k": "bench/results/llamacpp-20261015-021754.jsonl, ctx 33408, ub1024",
+        "pp_tps_32k": "bench/results/llamacpp-20261015-021754.jsonl, ctx 33408, ub1024"
+      },
+      "binary_source": "/usr/local/lib/ollama/llama-server from Ollama 0.40.2; launched builds may differ"
+    }
+  },
+  {
+    "id": "rtx12-16gb-qwen36-35b-q4",
+    "rank": 500,
+    "title_key": "profile.title.12_16gb",
+    "match": {
+      "min_vram_gb": 11.5,
+      "max_vram_gb": 19.9,
+      "min_ram_gb": 30
+    },
+    "model": {
+      "hf_repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
+      "file": "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
+      "local_candidates": [
+        "~/models/gguf/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf"
+      ],
+      "size_gb": 20.8
+    },
+    "server_args": [
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-np",
+      "1",
+      "--jinja",
+      "-b",
+      "2048",
+      "-ub",
+      "2048",
+      "--cache-ram",
+      "4096"
+    ],
+    "ctx": 32768,
+    "sampling": {
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0,
+      "presence_penalty": 0
+    },
+    "unmeasured": true,
+    "note_key": "profile.note.12_16gb"
+  },
+  {
+    "id": "rtx24gb-qwen36-35b-q4",
+    "rank": 600,
+    "title_key": "profile.title.24gb",
+    "match": {
+      "min_vram_gb": 20,
+      "min_ram_gb": 30
+    },
+    "model": {
+      "hf_repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
+      "file": "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
+      "local_candidates": [
+        "~/models/gguf/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf"
+      ],
+      "size_gb": 20.8
+    },
+    "server_args": [
+      "-ngl",
+      "99",
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-np",
+      "1",
+      "--jinja",
+      "-b",
+      "2048",
+      "-ub",
+      "2048"
+    ],
+    "ctx": 32768,
+    "sampling": {
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0,
+      "presence_penalty": 0
+    },
+    "unmeasured": true,
+    "note_key": "profile.note.24gb"
+  }
+]
