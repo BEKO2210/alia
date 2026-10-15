@@ -11,6 +11,7 @@ Below are all prompts in order, verbatim.
 - **Round 1 (long session):** Alia invented its own hero text, reported layout fixes it had not made and started an unrequested web server. Exact, short prompts in fresh sessions fixed this from round 2 on.
 - **Two discarded attempts:** one round on the 35B profile slowed to almost an hour while free RAM was low (the model streamed from the SSD). A retry on the 9B profile wrote broken `sed` commands, reported success and hit the context limit. Both diffs were thrown away; the same work was then split into the small rounds r4b1–r4f, which took two to eight minutes each.
 - **r4d** dropped one edge label while moving a block; r4e put it back.
+- **r4h and r4i** address findings from the automated pull-request review (CodeRabbit).
 
 ## Prompts
 
@@ -96,4 +97,16 @@ In index.html make exactly these edits and nothing else, do not start any server
 
 ```text
 In index.html make exactly these edits and nothing else, do not start any server. Work efficiently: locate each spot with grep -n and edit only those lines, do not read the whole file. When done, show the changed lines with git diff. (Y) In the <footer>, in the paragraph that starts with "This page was written by Alia itself", turn the words "All prompts are published alongside." into a link: <a href="https://github.com/BEKO2210/alia/blob/main/site/showcase/architecture/PROMPTS.md">All prompts are published alongside.</a>
+```
+
+### r4h: Review findings: duplicate attribute, scoped benchmark claim (18:08)
+
+```text
+In index.html make exactly these edits and nothing else, do not start any server. Work efficiently: locate each spot with grep -n and edit only those lines, do not read the whole file. When done, show the changed lines with git diff. (Z1) In the logo <svg> in the header, the <path fill="#0B0D12" ...> has two transform attributes. Delete the second one, transform="scale(1.6)", and keep transform="translate(145.8 350.8)". (Z2) In section id="benchmarks", the lead paragraph claims more than profiles.json says. Replace the text after the </code> element, which is " — measured on RTX 3070 8 GB, Ryzen 7 5800X, 16 GB RAM with llama.cpp commit a0e6dc7.", with " — speeds measured on RTX 3070 8 GB, Ryzen 7 5800X, 16 GB RAM with llama.cpp commit a0e6dc7 and each profile's launch flags. The 35B values at 60K come from an earlier run without --jinja; quality scores come from separate runs." (Z3) In the 35B card (the first card), add <div class="note">Separate run, server args not recorded</div> as the last child of the metric-item with label "Code Quality" and also of the metric-item with label "Tool Use". In the 9B card (the second card), add <div class="note">Measured via Ollama (not launch config)</div> as the last child of the metric-item with label "Tool Use".
+```
+
+### r4i: Review finding: keyboard access to the diagram (18:10)
+
+```text
+In index.html make exactly these edits and nothing else, do not start any server. Work efficiently: locate each spot with grep -n and edit only those lines, do not read the whole file. When done, show the changed lines with git diff. (K1) The diagram boxes cannot be used with a keyboard. In the svg with class "arch-svg", give each of the six <g class="arch-box" ...> elements the attributes tabindex="0" and role="button" and an aria-label: "User Terminal details", "Browser details", "Alia Launcher details", "Qwen Code details", "llama-server details", "GPU and RAM details" (match by data-detail: terminal, browser, launcher, qwen, server, hardware). (K2) In the <script>, inside the loop that adds the 'click' and 'mouseenter' listeners to each box, add a 'keydown' listener: if event.key is 'Enter' or ' ', call event.preventDefault() and box.dispatchEvent(new Event('click')). (K3) In the <style> block add .arch-box:focus{outline:none}.arch-box:focus-visible .box-bg{stroke:var(--cyan);stroke-width:2.5}
 ```

@@ -120,6 +120,8 @@ section p.lead{color:var(--fg2);max-width:720px;margin-bottom:1.5rem}
 .arch-box .box-title{fill:var(--fg);font-size:13px;font-weight:600;font-family:inherit}
 .arch-box .box-sub{fill:var(--fg2);font-size:11px;font-family:inherit}
 .arch-box .box-badge{fill:var(--purple);font-size:10px;font-family:inherit}
+.arch-box:focus{outline:none}
+.arch-box:focus-visible .box-bg{stroke:var(--cyan);stroke-width:2.5}
 
 /* arrows */
 .flow-arrow{
@@ -265,7 +267,7 @@ footer a{color:var(--blue)}
           </linearGradient>
         </defs>
         <rect width="512" height="512" rx="116" fill="url(#logoGrad)"/>
-        <path fill="#0B0D12" transform="translate(145.8 350.8)" d="M100.23 3.9Q74.1 3.9 53.53 -8.97Q32.96 -21.84 21.16 -44.07Q9.36 -66.3 9.36 -94.575Q9.36 -123.045 21.16 -145.37Q32.96 -167.7 53.53 -180.57Q74.1 -193.44 100.23 -193.44Q119.34 -193.44 134.75 -186.03Q150.15 -178.62 159.8 -165.55Q169.45 -152.49 170.82 -135.72V-53.82Q169.45 -37.05 159.9 -23.99Q150.35 -10.92 134.84 -3.51Q119.34 3.9 100.23 3.9ZM112.32 -49.92Q131.43 -49.92 143.13 -62.48Q154.83 -75.08 154.83 -94.77Q154.83 -108.03 149.57 -118.07Q144.3 -128.12 134.75 -133.87Q125.19 -139.62 112.52 -139.62Q100.04 -139.62 90.48 -133.87Q80.93 -128.12 75.37 -117.98Q69.82 -107.84 69.82 -94.77Q69.82 -81.71 75.28 -71.57Q80.74 -61.43 90.38 -55.67Q100.04 -49.92 112.32 -49.92ZM152.3 -49.92V-142.94L161.27 -197.14H211V-49.92Z" transform="scale(1.6)"/>
+        <path fill="#0B0D12" transform="translate(145.8 350.8)" d="M100.23 3.9Q74.1 3.9 53.53 -8.97Q32.96 -21.84 21.16 -44.07Q9.36 -66.3 9.36 -94.575Q9.36 -123.045 21.16 -145.37Q32.96 -167.7 53.53 -180.57Q74.1 -193.44 100.23 -193.44Q119.34 -193.44 134.75 -186.03Q150.15 -178.62 159.8 -165.55Q169.45 -152.49 170.82 -135.72V-53.82Q169.45 -37.05 159.9 -23.99Q150.35 -10.92 134.84 -3.51Q119.34 3.9 100.23 3.9ZM112.32 -49.92Q131.43 -49.92 143.13 -62.48Q154.83 -75.08 154.83 -94.77Q154.83 -108.03 149.57 -118.07Q144.3 -128.12 134.75 -133.87Q125.19 -139.62 112.52 -139.62Q100.04 -139.62 90.48 -133.87Q80.93 -128.12 75.37 -117.98Q69.82 -107.84 69.82 -94.77Q69.82 -81.71 75.28 -71.57Q80.74 -61.43 90.38 -55.67Q100.04 -49.92 112.32 -49.92ZM152.3 -49.92V-142.94L161.27 -197.14H211V-49.92Z"/>
       </svg>
     </div>
     <div class="header-text">
@@ -342,7 +344,7 @@ footer a{color:var(--blue)}
       <circle class="token-particle token-backward" r="6" fill="url(#tokenGrad)" filter="url(#glow)" style="offset-path:path('M990,340 L900,340 L840,340 L720,300 L840,240 L840,100 L600,100 Q600,130 550,150 L290,170 L250,70')"/>
 
       <!-- User Terminal -->
-      <g class="arch-box" data-detail="terminal">
+      <g class="arch-box" data-detail="terminal" tabindex="0" role="button" aria-label="User Terminal details">
         <rect class="box-bg" x="30" y="20" width="220" height="110" filter="url(#shadow)"/>
         <rect class="box-accent" x="30" y="20" width="4" height="110" fill="var(--cyan)" rx="2"/>
         <text class="box-icon" x="50" y="52" font-size="22">⌘</text>
@@ -353,7 +355,7 @@ footer a{color:var(--blue)}
       </g>
 
       <!-- Browser (Web Shell) -->
-      <g class="arch-box" data-detail="browser">
+      <g class="arch-box" data-detail="browser" tabindex="0" role="button" aria-label="Browser details">
         <rect class="box-bg" x="30" y="140" width="220" height="100" filter="url(#shadow)"/>
         <rect class="box-accent" x="30" y="140" width="4" height="100" fill="var(--cyan)" rx="2"/>
         <text class="box-icon" x="50" y="172" font-size="22">🌐</text>
@@ -365,7 +367,7 @@ footer a{color:var(--blue)}
 
       <!-- ═══ ROW 2: ALIA LAYER ═══ -->
       <!-- Alia Launcher -->
-      <g class="arch-box" data-detail="launcher">
+      <g class="arch-box" data-detail="launcher" tabindex="0" role="button" aria-label="Alia Launcher details">
         <rect class="box-bg" x="290" y="100" width="260" height="200" rx="12" ry="12" fill="url(#boxGrad1)" stroke="var(--cyan)" stroke-width="1.5" filter="url(#shadow)"/>
         <rect class="box-accent" x="290" y="100" width="4" height="200" fill="var(--cyan)" rx="2"/>
         <text class="box-icon" x="315" y="135" font-size="22">🔧</text>
@@ -381,7 +383,7 @@ footer a{color:var(--blue)}
 
       <!-- ═══ ROW 3: INFRA LAYER ═══ -->
       <!-- Qwen Code -->
-      <g class="arch-box" data-detail="qwen">
+      <g class="arch-box" data-detail="qwen" tabindex="0" role="button" aria-label="Qwen Code details">
         <rect class="box-bg" x="600" y="20" width="240" height="190" rx="10" ry="10" fill="url(#boxGrad2)" stroke="var(--blue)" stroke-width="1.5" filter="url(#shadow)"/>
         <rect class="box-accent" x="600" y="20" width="4" height="190" fill="var(--blue)" rx="2"/>
         <text class="box-icon" x="625" y="55" font-size="22">💻</text>
@@ -395,7 +397,7 @@ footer a{color:var(--blue)}
       </g>
 
       <!-- llama-server -->
-      <g class="arch-box" data-detail="server" transform="translate(0,40)">
+      <g class="arch-box" data-detail="server" transform="translate(0,40)" tabindex="0" role="button" aria-label="llama-server details">
         <rect class="box-bg" x="600" y="200" width="240" height="200" rx="10" ry="10" fill="url(#boxGrad3)" stroke="var(--purple)" stroke-width="1.5" filter="url(#shadow)"/>
         <rect class="box-accent" x="600" y="200" width="4" height="200" fill="var(--purple)" rx="2"/>
         <text class="box-icon" x="625" y="235" font-size="22">🦙</text>
@@ -409,7 +411,7 @@ footer a{color:var(--blue)}
       </g>
 
       <!-- GPU / RAM -->
-      <g class="arch-box" data-detail="hardware" transform="translate(0,40)">
+      <g class="arch-box" data-detail="hardware" transform="translate(0,40)" tabindex="0" role="button" aria-label="GPU and RAM details">
         <rect class="box-bg" x="900" y="200" width="180" height="200" rx="10" ry="10" fill="url(#boxGrad1)" stroke="var(--green)" stroke-width="1.5" filter="url(#shadow)"/>
         <rect class="box-accent" x="900" y="200" width="4" height="200" fill="var(--green)" rx="2"/>
         <text class="box-icon" x="925" y="235" font-size="22">🎮</text>
@@ -556,7 +558,7 @@ footer a{color:var(--blue)}
 <!-- ════════════ BENCHMARKS ════════════ -->
 <section id="benchmarks" class="reveal">
   <h2>Measured Benchmarks</h2>
-  <p class="lead">Real numbers from <code style="background:var(--bg4);padding:.15rem .4rem;border-radius:4px">profiles.json</code> — measured on RTX 3070 8 GB, Ryzen 7 5800X, 16 GB RAM with llama.cpp commit a0e6dc7.</p>
+  <p class="lead">Real numbers from <code style="background:var(--bg4);padding:.15rem .4rem;border-radius:4px">profiles.json</code> — speeds measured on RTX 3070 8 GB, Ryzen 7 5800X, 16 GB RAM with llama.cpp commit a0e6dc7 and each profile's launch flags. The 35B values at 60K come from an earlier run without --jinja; quality scores come from separate runs.</p>
 
   <div class="metrics-grid">
 
@@ -597,10 +599,12 @@ footer a{color:var(--blue)}
         <div class="metric-item">
           <div class="label">Code Quality</div>
           <div class="value">9<span class="unit">/10</span></div>
+          <div class="note">Separate run, server args not recorded</div>
         </div>
         <div class="metric-item">
           <div class="label">Tool Use</div>
           <div class="value">7<span class="unit">/8</span></div>
+          <div class="note">Separate run, server args not recorded</div>
         </div>
         <div class="metric-item full-width">
           <div class="label">RAM Pressure (low free RAM)</div>
@@ -643,6 +647,7 @@ footer a{color:var(--blue)}
         <div class="metric-item">
           <div class="label">Tool Use</div>
           <div class="value">8<span class="unit">/8</span></div>
+          <div class="note">Measured via Ollama (not launch config)</div>
         </div>
         <div class="metric-item full-width">
           <div class="label">Model Size</div>
@@ -904,6 +909,12 @@ document.querySelectorAll('.arch-box').forEach(box => {
     if (!d) return;
     content.innerHTML = `<h3>${d.icon} ${d.title}</h3>${d.content}`;
     panel.classList.add('open');
+  });
+  box.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      box.dispatchEvent(new Event('click'));
+    }
   });
 });
 
