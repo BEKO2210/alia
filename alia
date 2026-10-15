@@ -1,0 +1,1401 @@
+#!/usr/bin/env python3
+"""Alia: hardware-aware launcher for Qwen Code and llama.cpp."""
+
+from __future__ import annotations
+
+import json
+import os
+import fcntl
+import math
+import re
+import socket
+import shlex
+import shutil
+import signal
+import stat
+import subprocess
+import sys
+import time
+import unicodedata
+import urllib.error
+import urllib.request
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from typing import Any
+
+VERSION = "0.1.0"
+HOST = "127.0.0.1"
+PORT = 8090
+ROOT = Path(__file__).resolve().parent
+PROFILES_FILE = ROOT / "profiles.json"
+BRANDING_DIR = ROOT / "branding"
+I18N_DIR = ROOT / "i18n"
+WEB_PORT = 4170
+API_KEY = "local"
+MAX_BRAND_LOGO_BYTES = 32 * 1024
+MAX_BANNER_BYTES = 64 * 1024
+MAX_BANNER_LINES = 200
+MAX_BANNER_COLUMNS = 200
+_LANGUAGE = "en"
+_MESSAGES: dict[str, str] = {}
+_EN_MESSAGES: dict[str, str] = {}
+
+
+def load_messages(language: str, i18n_dir: Path = I18N_DIR) -> dict[str, str]:
+    path = i18n_dir / f"{language}.json"
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Cannot load language file {path}: {exc}") from exc
+    if not isinstance(value, dict) or not all(
+        isinstance(key, str) and isinstance(message, str)
+        for key, message in value.items()
+    ):
+        raise RuntimeError(f"Language file must be a flat string map: {path}")
+    return value
+
+
+def available_languages(i18n_dir: Path = I18N_DIR) -> set[str]:
+    return {path.stem.lower() for path in i18n_dir.glob("*.json") if path.is_file()}
+
+
+def normalize_language(value: str | None, i18n_dir: Path = I18N_DIR) -> str | None:
+    if not value:
+        return None
+    normalized = value.strip().lower().replace("_", "-").split(".", 1)[0].split("@", 1)[0]
+    if normalized == "auto":
+        return "auto"
+    languages = available_languages(i18n_dir)
+    if normalized in languages:
+        return normalized
+    base = normalized.split("-", 1)[0]
+    return base if base in languages else "en"
+
+
+def resolve_language(
+    flag: str | None = None, env: dict[str, str] | None = None,
+    config: dict[str, Any] | None = None, i18n_dir: Path = I18N_DIR,
+) -> str:
+    env = os.environ if env is None else env
+    config = config or {}
+    preferred = flag if flag is not None else env.get("ALIA_LANG")
+    if preferred is None:
+        configured = config.get("lang")
+        preferred = configured if isinstance(configured, str) else None
+    normalized = normalize_language(preferred, i18n_dir)
+    if normalized and normalized != "auto":
+        return normalized
+    for name in ("LC_ALL", "LC_MESSAGES", "LANG"):
+        if env.get(name):
+            locale_language = normalize_language(env[name], i18n_dir)
+            return "en" if locale_language == "auto" else (locale_language or "en")
+    return "en"
+
+
+def set_language(language: str, i18n_dir: Path = I18N_DIR) -> None:
+    global _LANGUAGE, _MESSAGES, _EN_MESSAGES
+    _LANGUAGE = normalize_language(language, i18n_dir) or "en"
+    if _LANGUAGE == "auto":
+        _LANGUAGE = "en"
+    _EN_MESSAGES = load_messages("en", i18n_dir)
+    _MESSAGES = _EN_MESSAGES if _LANGUAGE == "en" else load_messages(_LANGUAGE, i18n_dir)
+
+
+def tr(key: str, **values: Any) -> str:
+    if not _EN_MESSAGES:
+        set_language("en")
+    template = _MESSAGES.get(key, _EN_MESSAGES.get(key, key))
+    return template.format(**values)
+
+
+def tr_for(language: str, key: str, **values: Any) -> str:
+    normalized = normalize_language(language) or "en"
+    english = load_messages("en")
+    messages = english if normalized == "en" else load_messages(normalized)
+    return messages.get(key, english.get(key, key)).format(**values)
+
+
+def extract_language_flag(args: list[str]) -> tuple[str | None, list[str]]:
+    remaining: list[str] = []
+    language: str | None = None
+    index = 0
+    while index < len(args):
+        item = args[index]
+        if item == "--":
+            remaining.extend(args[index:])
+            break
+        if item == "--lang":
+            if index + 1 >= len(args):
+                raise RuntimeError(tr("args.lang_value"))
+            language = args[index + 1]
+            index += 2
+            continue
+        if item.startswith("--lang="):
+            language = item.split("=", 1)[1]
+            index += 1
+            continue
+        remaining.append(item)
+        index += 1
+    return language, remaining
+
+
+def user_paths(home: Path | None = None) -> dict[str, Path]:
+    home = home or Path.home()
+    state = home / ".local/state/alia"
+    return {
+        "config": home / ".config/alia/config.json",
+        "state": state,
+        "pid": state / "server.pid",
+        "server_state": state / "server.json",
+        "log": state / "server.log",
+        "start_lock": state / "start.lock",
+        "qwen_home": state / "qwen-home",
+        "models": home / ".local/share/alia/models",
+    }
+
+
+def ensure_private_dir(path: Path) -> None:
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path.chmod(0o700)
+
+
+def write_private_text(path: Path, text: str, encoding: str = "utf-8") -> None:
+    ensure_private_dir(path.parent)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "w", encoding=encoding) as handle:
+            handle.write(text)
+        os.replace(temporary, path)
+        path.chmod(0o600)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def color(code: str, text: str, stream: Any = sys.stdout) -> str:
+    if os.environ.get("NO_COLOR") is not None or not getattr(stream, "isatty", lambda: False)():
+        return text
+    return f"\033[{code}m{text}\033[0m"
+
+
+def load_profiles(path: Path = PROFILES_FILE) -> list[dict[str, Any]]:
+    with path.open(encoding="utf-8") as handle:
+        value = json.load(handle)
+    if not isinstance(value, list):
+        raise ValueError(tr("error.profiles_not_list"))
+    return value
+
+
+def _run_text(args: list[str]) -> str:
+    try:
+        return subprocess.run(args, check=False, capture_output=True, text=True, timeout=4).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+def detect_hardware() -> dict[str, Any]:
+    gpu_name: str | None = None
+    gpu_index: int | None = None
+    vram_gb = 0.0
+    raw_gpu = _run_text([
+        "nvidia-smi", "--query-gpu=index,name,memory.total", "--format=csv,noheader,nounits"
+    ])
+    if raw_gpu:
+        # Select the NVIDIA GPU with the most VRAM when several are present.
+        parsed: list[tuple[float, int, str]] = []
+        for line in raw_gpu.splitlines():
+            try:
+                index, name, mib = line.split(",", 2)
+                parsed.append((float(mib.strip()) / 1024, int(index.strip()), name.strip()))
+            except ValueError:
+                continue
+        # Honor an inherited CUDA_VISIBLE_DEVICES allocation (e.g. from a scheduler):
+        # nvidia-smi ignores it, so only consider the GPUs it lists by index.
+        mask = os.environ.get("CUDA_VISIBLE_DEVICES")
+        if mask is not None:
+            allowed = [item.strip() for item in mask.split(",") if item.strip()]
+            if all(item.isdigit() for item in allowed):
+                parsed = [item for item in parsed if str(item[1]) in allowed]
+        if parsed:
+            vram_gb, gpu_index, gpu_name = max(parsed, key=lambda item: item[0])
+
+    ram_gb = 0.0
+    try:
+        for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+            if line.startswith("MemTotal:"):
+                ram_gb = int(line.split()[1]) / 1024 / 1024
+                break
+    except (OSError, ValueError):
+        pass
+
+    cpu_name = tr("hardware.unknown")
+    lscpu = _run_text(["lscpu"])
+    for line in lscpu.splitlines():
+        if line.lower().startswith(("model name:", "modellname:")):
+            cpu_name = line.split(":", 1)[1].strip()
+            break
+    return {
+        "gpu_name": gpu_name,
+        "gpu_index": gpu_index,
+        "vram_gb": round(vram_gb, 1),
+        "ram_gb": round(ram_gb, 1),
+        "cpu_name": cpu_name,
+        "cpu_count": os.cpu_count() or 1,
+    }
+
+
+def profile_fits(profile: dict[str, Any], hw: dict[str, Any]) -> bool:
+    match = profile.get("match", {})
+    if not hw.get("gpu_name"):
+        return False
+    if hw.get("vram_gb", 0) < match.get("min_vram_gb", 0):
+        return False
+    if hw.get("ram_gb", 0) < match.get("min_ram_gb", 0):
+        return False
+    maximum = match.get("max_vram_gb")
+    return maximum is None or hw.get("vram_gb", 0) <= maximum
+
+
+def read_config(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(tr("config.unreadable", path=path, error=exc)) from exc
+    if not isinstance(value, dict):
+        raise RuntimeError(tr("config.not_object", path=path))
+    return value
+
+
+def write_config(path: Path, profile_id: str | None) -> None:
+    ensure_private_dir(path.parent)
+    data = read_config(path)
+    if profile_id is None:
+        data.pop("profile", None)
+    else:
+        data["profile"] = profile_id
+    write_private_text(path, json.dumps(data, indent=2) + "\n")
+
+
+def write_language_config(path: Path, language: str) -> None:
+    ensure_private_dir(path.parent)
+    data = read_config(path)
+    data["lang"] = language
+    write_private_text(path, json.dumps(data, indent=2) + "\n")
+
+
+def choose_profile(
+    profiles: list[dict[str, Any]], hw: dict[str, Any], pinned: str | None = None
+) -> tuple[dict[str, Any] | None, str, bool]:
+    if pinned:
+        found = next((item for item in profiles if item["id"] == pinned), None)
+        if not found:
+            return None, tr("profile.pinned_missing", profile=pinned), False
+        warning = not profile_fits(found, hw)
+        reason = tr("profile.pinned")
+        if warning:
+            reason += "; " + tr("profile.outside_limits")
+        return found, reason, warning
+
+    fitting = [item for item in profiles if profile_fits(item, hw)]
+    measured = [item for item in fitting if not item.get("unmeasured")]
+    if measured:
+        winner = max(measured, key=lambda item: item.get("rank", 0))
+        return winner, tr("profile.best_measured"), False
+    if fitting:
+        winner = max(fitting, key=lambda item: item.get("rank", 0))
+        return winner, tr("profile.only_unmeasured"), True
+    if not hw.get("gpu_name"):
+        return None, tr("profile.no_gpu"), True
+    return None, tr("profile.no_match"), True
+
+
+def model_file_complete(path: Path, expected_gb: float | int | None) -> bool:
+    if not path.is_file():
+        return False
+    if not isinstance(expected_gb, (int, float)) or expected_gb <= 0:
+        return True
+    try:
+        return path.stat().st_size >= float(expected_gb) * 1_000_000_000 * 0.95
+    except OSError:
+        return False
+
+
+def find_model(profile: dict[str, Any], paths: dict[str, Path]) -> Path | None:
+    model = profile["model"]
+    candidates = [Path(os.path.expanduser(item)) for item in model["local_candidates"]]
+    candidates.append(paths["models"] / model["hf_repo"].replace("/", "--") / model["file"])
+    return next(
+        (path for path in candidates if model_file_complete(path, model.get("size_gb"))),
+        None,
+    )
+
+
+def download_command(profile: dict[str, Any], paths: dict[str, Path]) -> list[str]:
+    model = profile["model"]
+    target = paths["models"] / model["hf_repo"].replace("/", "--")
+    return ["hf", "download", model["hf_repo"], model["file"], "--local-dir", str(target)]
+
+
+def ensure_model(profile: dict[str, Any], paths: dict[str, Path]) -> Path | None:
+    existing = find_model(profile, paths)
+    if existing:
+        return existing
+    command = download_command(profile, paths)
+    print(color("33", tr("model.missing")))
+    print(tr("model.download_command"))
+    print("  " + shlex.join(command))
+    try:
+        answer = input(tr("model.download_prompt")).strip().lower()
+    except EOFError:
+        answer = ""
+    if answer not in {"y", "yes", "j", "ja"}:
+        return None
+    if shutil.which("hf") is None:
+        raise RuntimeError(tr("model.hf_missing"))
+    command[-1] = str(Path(command[-1]).expanduser())
+    Path(command[-1]).mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(command, check=False)
+    if result.returncode != 0:
+        raise RuntimeError(tr("model.download_failed", code=result.returncode))
+    return find_model(profile, paths)
+
+
+def find_llama_server() -> tuple[Path | None, dict[str, str]]:
+    def library_env(binary: Path) -> dict[str, str]:
+        existing = os.environ.get("LD_LIBRARY_PATH")
+        value = str(binary.parent) + (os.pathsep + existing if existing else "")
+        return {"LD_LIBRARY_PATH": value}
+
+    configured = os.environ.get("ALIA_LLAMA_SERVER")
+    if configured:
+        binary = Path(configured).expanduser()
+        if binary.is_file() and os.access(binary, os.X_OK):
+            return binary, library_env(binary)
+    preferred = Path.home() / "src/llama.cpp/build/bin/llama-server"
+    if preferred.is_file() and os.access(preferred, os.X_OK):
+        return preferred, library_env(preferred)
+    return None, {}
+
+
+def build_server_args(binary: Path, profile: dict[str, Any], model_path: Path) -> list[str]:
+    profile_args = [str(value) for value in profile["server_args"]]
+    forbidden = {"--host", "--port", "-a"}
+    if any(
+        value in forbidden or value.startswith(("--host=", "--port=", "-a="))
+        for value in profile_args
+    ):
+        raise RuntimeError(tr("server.profile_network_args"))
+    return [
+        str(binary), "-m", str(model_path), "-c", str(profile["ctx"]),
+        *profile_args, "--no-webui", "--api-key", API_KEY,
+        "--host", HOST, "--port", str(PORT), "--alias", profile["id"],
+    ]
+
+
+def health_ok(timeout: float = 0.7) -> bool:
+    try:
+        request = urllib.request.Request(
+            f"http://{HOST}:{PORT}/health",
+            headers={"Authorization": f"Bearer {API_KEY}"},
+        )
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return response.status == 200
+    except (OSError, urllib.error.URLError):
+        return False
+
+
+def process_start_ticks(pid: int) -> str | None:
+    try:
+        # starttime is field 22; splitting after ')' handles spaces in comm.
+        fields = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(")", 1)[1].split()
+        if fields[0] == "Z":
+            return None
+        return fields[19]
+    except (OSError, IndexError):
+        return None
+
+
+def terminate_process(process: subprocess.Popen[bytes], timeout: float = 2) -> None:
+    """Terminate and reap a child we own, escalating after a bounded wait."""
+    if process.poll() is not None:
+        process.wait()
+        return
+    try:
+        process.terminate()
+        process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            pass
+    except OSError:
+        pass
+
+
+def read_pid(path: Path) -> int | None:
+    try:
+        pid = int(path.read_text(encoding="ascii").strip())
+        return pid if pid > 1 else None
+    except (OSError, ValueError):
+        return None
+
+
+def read_server_state(paths: dict[str, Path]) -> dict[str, Any]:
+    try:
+        return json.loads(paths["server_state"].read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def managed_pid(paths: dict[str, Path]) -> int | None:
+    pid = read_pid(paths["pid"])
+    if pid is None:
+        return None
+    state = read_server_state(paths)
+    saved_ticks = state.get("start_ticks")
+    if not saved_ticks or state.get("pid") != pid:
+        return None
+    current_ticks = process_start_ticks(pid)
+    if current_ticks is None or str(saved_ticks) != current_ticks:
+        return None
+    return pid
+
+
+def clear_server_files(paths: dict[str, Path], expected_pid: int | None = None) -> None:
+    if expected_pid is not None and read_pid(paths["pid"]) not in (None, expected_pid):
+        return
+    for key in ("pid", "server_state"):
+        try:
+            paths[key].unlink()
+        except FileNotFoundError:
+            pass
+
+
+def signal_managed_process(pid: int, expected_ticks: str, signum: int) -> bool:
+    if process_start_ticks(pid) != expected_ticks:
+        return False
+    pidfd_open = getattr(os, "pidfd_open", None)
+    pidfd_send_signal = getattr(signal, "pidfd_send_signal", None)
+    if pidfd_open is not None and pidfd_send_signal is not None:
+        descriptor = pidfd_open(pid)
+        try:
+            if process_start_ticks(pid) != expected_ticks:
+                return False
+            pidfd_send_signal(descriptor, signum)
+        finally:
+            os.close(descriptor)
+    else:
+        if process_start_ticks(pid) != expected_ticks:
+            return False
+        os.kill(pid, signum)
+    return True
+
+
+def wait_until_gone(pid: int, expected_ticks: str, seconds: float) -> bool:
+    deadline = time.monotonic() + seconds
+    while process_start_ticks(pid) == expected_ticks:
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.1)
+    return True
+
+
+def stop_server(
+    paths: dict[str, Path], quiet: bool = False, wait_seconds: float = 5.0,
+    kill_wait_seconds: float = 2.0,
+) -> bool:
+    pid = managed_pid(paths)
+    if pid is None:
+        clear_server_files(paths)
+        if not quiet:
+            print(tr("server.none"))
+        return False
+    expected_ticks = str(read_server_state(paths).get("start_ticks"))
+
+    try:
+        if not signal_managed_process(pid, expected_ticks, signal.SIGTERM):
+            clear_server_files(paths, expected_pid=pid)
+            return False
+    except ProcessLookupError:
+        clear_server_files(paths, expected_pid=pid)
+        return False
+    if not wait_until_gone(pid, expected_ticks, wait_seconds):
+        try:
+            signal_managed_process(pid, expected_ticks, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        if not wait_until_gone(pid, expected_ticks, kill_wait_seconds):
+            if not quiet:
+                print(tr("server.stop_failed", pid=pid), file=sys.stderr)
+            return False
+    clear_server_files(paths, expected_pid=pid)
+    if not quiet:
+        print(tr("server.stopped", pid=pid))
+    return True
+
+
+def unload_ollama() -> int:
+    def loaded_models() -> list[dict[str, Any]] | None:
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:11434/api/ps", timeout=1.0) as response:
+                value = json.load(response).get("models", [])
+                return value if isinstance(value, list) else []
+        except (OSError, ValueError, urllib.error.URLError):
+            return None
+
+    models = loaded_models()
+    if models is None:
+        return 0
+    unloaded = 0
+    for item in models:
+        name = item.get("name") or item.get("model")
+        if not name:
+            continue
+        payload = json.dumps({"model": name, "keep_alive": 0}).encode()
+        request = urllib.request.Request(
+            "http://127.0.0.1:11434/api/generate", data=payload,
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=3.0):
+                unloaded += 1
+        except (OSError, urllib.error.URLError):
+            pass
+    if models:
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            remaining = loaded_models()
+            if remaining == []:
+                return unloaded
+            if remaining is None:
+                break
+            time.sleep(0.25)
+        raise RuntimeError(tr("ollama.unload_failed"))
+    return unloaded
+
+
+def process_owns_listen_port(pid: int, port: int) -> bool:
+    socket_inodes: set[str] = set()
+    for table in (Path("/proc/net/tcp"), Path("/proc/net/tcp6")):
+        try:
+            lines = table.read_text(encoding="ascii").splitlines()[1:]
+        except OSError:
+            continue
+        for line in lines:
+            fields = line.split()
+            if len(fields) > 9 and fields[3] == "0A":
+                try:
+                    local_port = int(fields[1].rsplit(":", 1)[1], 16)
+                except (ValueError, IndexError):
+                    continue
+                if local_port == port:
+                    socket_inodes.add(fields[9])
+    if not socket_inodes:
+        return False
+    try:
+        return any(
+            entry.is_symlink()
+            and os.readlink(entry).removeprefix("socket:[").removesuffix("]") in socket_inodes
+            for entry in Path(f"/proc/{pid}/fd").iterdir()
+        )
+    except OSError:
+        return False
+
+
+def server_state_matches_profile(
+    state: dict[str, Any], profile: dict[str, Any], model_path: Path | None = None,
+    binary: Path | None = None, gpu_index: int | None = None,
+) -> bool:
+    if state.get("profile") != profile["id"] or state.get("ctx") != profile["ctx"]:
+        return False
+    if model_path is None or binary is None:
+        return True
+    expected_argv = build_server_args(binary, profile, model_path)
+    return (
+        state.get("model_path") == str(model_path)
+        and state.get("binary") == str(binary)
+        and state.get("argv") == expected_argv
+        and state.get("port") == PORT
+        and state.get("gpu_index") == gpu_index
+    )
+
+
+def start_server(
+    profile: dict[str, Any], model_path: Path, paths: dict[str, Path], gpu_index: int | None = None,
+) -> tuple[int, bool, subprocess.Popen[bytes] | None]:
+    binary, env_extra = find_llama_server()
+    if binary is None:
+        raise RuntimeError(tr("server.binary_missing"))
+    args = build_server_args(binary, profile, model_path)
+    pid = managed_pid(paths)
+    state = read_server_state(paths)
+    if (
+        pid and server_state_matches_profile(state, profile, model_path, binary, gpu_index)
+        and process_owns_listen_port(pid, PORT) and health_ok()
+    ):
+        return pid, True, None
+    if pid:
+        if not stop_server(paths, quiet=True):
+            raise RuntimeError(tr("server.stop_failed", pid=pid))
+    elif paths["pid"].exists():
+        clear_server_files(paths)
+    if health_ok():
+        raise RuntimeError(tr("server.port_foreign", port=PORT))
+
+    unload_ollama()
+    ensure_private_dir(paths["state"])
+    env = os.environ.copy()
+    env.update(env_extra)
+    # Pin the server to the detected GPU unless the caller already restricted the
+    # visible devices; an inherited allocation is never widened or replaced.
+    if gpu_index is not None and "CUDA_VISIBLE_DEVICES" not in os.environ:
+        env["CUDA_VISIBLE_DEVICES"] = str(gpu_index)
+    process: subprocess.Popen[bytes] | None = None
+    try:
+        descriptor = os.open(paths["log"], os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(descriptor, "ab", buffering=0) as log:
+            process = subprocess.Popen(
+                args, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                env=env, start_new_session=True,
+            )
+        start_ticks = process_start_ticks(process.pid)
+        if start_ticks is None:
+            if process.poll() is None:
+                raise RuntimeError(tr("server.start_time_failed"))
+            process.wait()
+            raise RuntimeError(tr("server.exited", log=paths["log"]))
+        state = {
+            "pid": process.pid,
+            "start_ticks": start_ticks,
+            "profile": profile["id"],
+            "ctx": profile["ctx"],
+            "gpu_index": gpu_index,
+            "model": profile["model"]["file"],
+            "model_path": str(model_path),
+            "port": PORT,
+            "binary": str(binary),
+            "argv": args,
+            "started_at": int(time.time()),
+        }
+        write_private_text(paths["server_state"], json.dumps(state, indent=2) + "\n")
+        pid_descriptor = os.open(paths["pid"], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(pid_descriptor, "w", encoding="ascii") as handle:
+            handle.write(f"{process.pid}\n")
+    except BaseException:
+        if process is not None:
+            terminate_process(process)
+            clear_server_files(paths, expected_pid=process.pid)
+        raise
+    assert process is not None
+    return process.pid, False, process
+
+
+def resolve_gpu_lock(
+    config: dict[str, Any], env: dict[str, str] | None = None,
+) -> Path | None:
+    """Resolve the optional start-sequence lock, with the environment winning."""
+    env = os.environ if env is None else env
+    value: Any = env.get("ALIA_GPU_LOCK", config.get("gpu_lock"))
+    if value in (None, ""):
+        return None
+    if not isinstance(value, str):
+        raise RuntimeError(tr("gpu_lock.invalid_config"))
+    return Path(os.path.expandvars(value)).expanduser()
+
+
+class GpuStartLock:
+    """Non-blocking flock with a bounded wait; release explicitly after startup."""
+
+    def __init__(self, path: Path | None, wait_seconds: float = 0) -> None:
+        self.path = path
+        self.wait_seconds = wait_seconds
+        self.handle: Any = None
+
+    def __enter__(self) -> GpuStartLock:
+        if self.path is None:
+            return self
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            descriptor = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o600)
+            os.fchmod(descriptor, 0o600)
+            self.handle = os.fdopen(descriptor, "a+", encoding="utf-8")
+        except OSError as exc:
+            raise RuntimeError(tr("gpu_lock.open_failed", path=self.path, error=exc)) from exc
+        deadline = time.monotonic() + self.wait_seconds
+        announced = False
+        while True:
+            try:
+                fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                self.handle.seek(0)
+                self.handle.truncate()
+                self.handle.write(f"alia pid={os.getpid()}\n")
+                self.handle.flush()
+                return self
+            except BlockingIOError as exc:
+                if not announced:
+                    print(tr("gpu_lock.busy", path=self.path))
+                    announced = True
+                if time.monotonic() >= deadline:
+                    self.handle.close()
+                    self.handle = None
+                    raise RuntimeError(tr(
+                        "gpu_lock.timeout", path=self.path, seconds=self.wait_seconds,
+                    )) from exc
+                time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+
+    def __exit__(self, *_: Any) -> None:
+        if self.handle is not None:
+            fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
+            self.handle.close()
+            self.handle = None
+
+
+def wait_for_health(
+    pid: int, paths: dict[str, Path], timeout: float = 300.0,
+    process: subprocess.Popen[bytes] | None = None,
+) -> None:
+    started = time.monotonic()
+    frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    index = 0
+    interactive = sys.stdout.isatty()
+    last_plain_second = -1
+    try:
+        while time.monotonic() - started < timeout:
+            elapsed = int(time.monotonic() - started)
+            if process is not None and process.poll() is not None:
+                process.wait()
+                clear_server_files(paths, expected_pid=pid)
+                raise RuntimeError(tr("server.exited", log=paths["log"]))
+            if health_ok():
+                if interactive:
+                    print(f"\r{color('32', '✓')} {tr('server.ready_tty', seconds=elapsed)}" + " " * 15)
+                else:
+                    print(tr("server.ready", seconds=elapsed))
+                return
+            if process_start_ticks(pid) is None:
+                if process is not None:
+                    process.poll()
+                clear_server_files(paths, expected_pid=pid)
+                raise RuntimeError(tr("server.exited", log=paths["log"]))
+            if interactive:
+                bar_count = min(10, elapsed // 3)
+                bar = "█" * bar_count + "░" * (10 - bar_count)
+                print(f"\r{frames[index % len(frames)]} {tr('server.loading', bar=bar, seconds=elapsed)}", end="", flush=True)
+                index += 1
+            elif elapsed and elapsed % 10 == 0 and elapsed != last_plain_second:
+                print(tr("server.loading_plain", seconds=elapsed))
+                last_plain_second = elapsed
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        if process is not None and process.poll() is None:
+            terminate_process(process)
+            clear_server_files(paths, expected_pid=pid)
+        else:
+            stop_server(paths, quiet=True)
+        raise
+    if interactive:
+        print()
+    if process is not None and process.poll() is None:
+        terminate_process(process)
+        clear_server_files(paths, expected_pid=pid)
+    else:
+        stop_server(paths, quiet=True)
+    raise RuntimeError(tr("server.timeout", seconds=int(timeout), log=paths["log"]))
+
+
+def generate_settings(
+    profile: dict[str, Any], hw: dict[str, Any], target_dir: Path,
+    branding_dir: Path = BRANDING_DIR, approval_mode: str = "default",
+    language: str | None = None, fast: bool = False,
+) -> Path:
+    language = language or _LANGUAGE
+    ensure_private_dir(target_dir)
+    for filename, validator in (
+        ("logo-small.txt", validate_banner_logo),
+        ("logo-large.txt", validate_banner_logo),
+        ("logo-mark.svg", validate_svg_logo),
+    ):
+        valid, reason = validator(branding_dir / filename)
+        if not valid:
+            raise RuntimeError(tr("validation.branding_failed", file=filename, error=reason))
+    for filename in ("logo-small.txt", "logo-large.txt", "theme.json"):
+        shutil.copyfile(branding_dir / filename, target_dir / filename)
+        (target_dir / filename).chmod(0o600)
+    target_branding = target_dir / "branding"
+    ensure_private_dir(target_branding)
+    shutil.copyfile(branding_dir / "logo-mark.svg", target_branding / "logo-mark.svg")
+    (target_branding / "logo-mark.svg").chmod(0o600)
+    measured = profile.get("measured", {})
+    tg = measured.get("tg_tps_32k")
+    tg_text = f"{tg:g}" if isinstance(tg, (int, float)) else "—"
+    subtitle = tr_for(
+        language,
+        "banner.subtitle", gpu=short_gpu_name(hw.get("gpu_name")), model=profile_title(profile, language),
+        speed=tg_text,
+        status=tr_for(language, "banner.measured") if tg is not None else tr_for(language, "banner.unmeasured"),
+        mode=(" · " + tr_for(language, "banner.mode.fast")) if fast else "",
+    )
+    sampling = profile["sampling"]
+    generation_config: dict[str, Any] = {
+        "timeout": 300000,
+        "streamIdleTimeoutMs": 600000,
+        "maxRetries": 1,
+        "contextWindowSize": profile["ctx"],
+        "samplingParams": dict(sampling),
+    }
+    if fast:
+        # llama.cpp and other non-DashScope OpenAI-compatible Qwen servers read
+        # the hybrid-thinking switch from the server-side chat template kwargs.
+        generation_config["extra_body"] = {
+            "chat_template_kwargs": {"enable_thinking": False},
+        }
+    settings = {
+        "$version": 4,
+        "general": {"language": language, "outputLanguage": "auto"},
+        "env": {"ALIA_LOCAL_API_KEY": API_KEY},
+        "security": {"auth": {"selectedType": "openai"}},
+        "tools": {"approvalMode": approval_mode},
+        "model": {"name": profile["id"], "baseUrl": f"http://{HOST}:{PORT}/v1"},
+        "modelProviders": {"openai": [{
+            "id": profile["id"],
+            "name": profile_title(profile, language),
+            "envKey": "ALIA_LOCAL_API_KEY",
+            "baseUrl": f"http://{HOST}:{PORT}/v1",
+            "wireApi": "chat-completions",
+            "generationConfig": generation_config,
+        }]},
+        "ui": {
+            "brand": {"name": "Alia", "logoPath": "branding/logo-mark.svg"},
+            "customBannerTitle": f"Alia {VERSION}",
+            "customBannerSubtitle": subtitle,
+            "customAsciiArt": {
+                "small": {"path": str(target_dir / "logo-small.txt")},
+                "large": {"path": str(target_dir / "logo-large.txt")},
+            },
+            "theme": str(target_dir / "theme.json"),
+            "hideTips": True,
+        },
+        "privacy": {"usageStatisticsEnabled": False},
+        "telemetry": {"enabled": False},
+    }
+    output = target_dir / "settings.json"
+    write_private_text(output, json.dumps(settings, indent=2, ensure_ascii=False) + "\n")
+    write_private_text(
+        target_dir / "output-language.md",
+        """# Output language preference: auto
+<!-- qwen-code:llm-output-language: auto -->
+
+## Rule
+Respond in the same language as the user's input.
+
+## Exception
+If the user explicitly requests a response in a specific language, use that language.
+
+## Mixed-language input
+If the user mixes languages, use the language that best matches the main request.
+
+## Keep technical artifacts unchanged
+Do not translate code, commands, paths, logs, JSON keys, identifiers, or exact quotes.
+""",
+    )
+    return output
+
+
+def build_qwen_command(extra_args: list[str], qwen: str | None = None) -> list[str]:
+    executable = qwen or shutil.which("qwen") or str(Path.home() / ".npm-global/bin/qwen")
+    return [executable, *extra_args]
+
+
+def build_web_command(
+    port: int = WEB_PORT, open_browser: bool = True,
+    workspace: Path | None = None, qwen: str | None = None,
+) -> list[str]:
+    command = build_qwen_command(
+        ["serve", "--hostname", HOST, "--port", str(port)], qwen=qwen
+    )
+    if open_browser:
+        command.append("--open")
+    if workspace is not None:
+        command.extend(["--workspace", str(workspace)])
+    return command
+
+
+def qwen_environment(paths: dict[str, Path]) -> dict[str, str]:
+    env = os.environ.copy()
+    env.update({
+        "QWEN_HOME": str(paths["qwen_home"]),
+        "QWEN_RUNTIME_DIR": str(paths["qwen_home"] / "runtime"),
+        "ALIA_LOCAL_API_KEY": API_KEY,
+        "QWEN_CODE_MODELS_DEV": "off",
+        "QWEN_CODE_LANG": _LANGUAGE,
+        "QWEN_USAGE_STATISTICS_ENABLED": "false",
+        "QWEN_TELEMETRY_ENABLED": "false",
+    })
+    return env
+
+
+def run_qwen(command: list[str], paths: dict[str, Path]) -> int:
+    if not Path(command[0]).exists() and shutil.which(command[0]) is None:
+        raise RuntimeError(tr("error.qwen_missing"))
+    return subprocess.run(command, env=qwen_environment(paths), check=False).returncode
+
+
+def launch_qwen(paths: dict[str, Path], extra: list[str]) -> int:
+    return run_qwen(build_qwen_command(extra), paths)
+
+
+def display_width(text: str) -> int:
+    """Approximate terminal cells using Unicode East Asian Width."""
+    return sum(2 if unicodedata.east_asian_width(char) in {"W", "F"} else 1 for char in text)
+
+
+def validate_banner_logo(path: Path) -> tuple[bool, str]:
+    """Validate a text logo against Qwen's file, row, and column caps."""
+    try:
+        size = path.stat().st_size
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        return False, tr("validation.unreadable_utf8", error=exc)
+    if size > MAX_BANNER_BYTES:
+        return False, tr("validation.bytes_exceeded", actual=size, maximum=MAX_BANNER_BYTES)
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    if len(lines) > MAX_BANNER_LINES:
+        return False, tr("validation.lines_exceeded", actual=len(lines), maximum=MAX_BANNER_LINES)
+    for number, line in enumerate(lines, 1):
+        width = display_width(line.replace("\t", "  ").rstrip())
+        if width > MAX_BANNER_COLUMNS:
+            return False, tr(
+                "validation.line_too_wide", line=number, actual=width,
+                maximum=MAX_BANNER_COLUMNS,
+            )
+    return (bool(lines), tr("validation.ok") if lines else tr("validation.empty"))
+
+
+def validate_svg_logo(path: Path) -> tuple[bool, str]:
+    """Check the stable, externally observable Web Shell logo constraints."""
+    try:
+        metadata = path.lstat()
+        if stat.S_ISLNK(metadata.st_mode):
+            return False, tr("validation.symlink")
+        if not stat.S_ISREG(metadata.st_mode):
+            return False, tr("validation.not_regular")
+        if metadata.st_nlink != 1:
+            return False, tr("validation.hardlinks", count=metadata.st_nlink)
+        data = path.read_bytes()
+    except OSError as exc:
+        return False, tr("validation.unreadable", error=exc)
+    if len(data) > MAX_BRAND_LOGO_BYTES:
+        return False, tr("validation.bytes_exceeded", actual=len(data), maximum=MAX_BRAND_LOGO_BYTES)
+    try:
+        text = data.decode("utf-8")
+        root = ET.fromstring(text)
+    except (UnicodeError, ET.ParseError) as exc:
+        return False, tr("validation.invalid_svg", error=exc)
+    if root.tag != "{http://www.w3.org/2000/svg}svg":
+        return False, tr("validation.svg_root")
+    view_box = root.attrib.get("viewBox", "").strip()
+    if not view_box and not (root.attrib.get("width", "").strip() and root.attrib.get("height", "").strip()):
+        return True, tr("validation.svg_geometry")
+    return True, tr("validation.ok")
+
+
+def format_table(headers: list[str], rows: list[list[str]]) -> str:
+    widths = [len(header) for header in headers]
+    for row in rows:
+        for index, cell in enumerate(row):
+            widths[index] = max(widths[index], len(cell))
+    def render(row: list[str]) -> str:
+        return "  ".join(cell.ljust(widths[index]) for index, cell in enumerate(row)).rstrip()
+
+    return "\n".join([render(headers), render(["─" * width for width in widths]), *(render(row) for row in rows)])
+
+
+def short_gpu_name(name: str | None) -> str:
+    """'NVIDIA GeForce RTX 3070' -> 'RTX 3070' so the banner subtitle fits on one line."""
+    if not name:
+        return "CPU"
+    return re.sub(r"^(NVIDIA\s+)?(GeForce\s+)?", "", name).strip() or name
+
+
+def profile_title(profile: dict[str, Any], language: str | None = None) -> str:
+    if not profile.get("title_key"):
+        return profile["title"]
+    return tr_for(language, profile["title_key"]) if language else tr(profile["title_key"])
+
+
+def cmd_profiles(profiles: list[dict[str, Any]], hw: dict[str, Any], selected: str | None) -> int:
+    rows = []
+    for item in sorted(profiles, key=lambda value: value.get("rank", 0), reverse=True):
+        mark = "●" if item["id"] == selected else ("✓" if profile_fits(item, hw) else " ")
+        measured = item.get("measured")
+        if measured:
+            def metrics(prefix: str, measured: dict[str, Any] = measured) -> str:
+                values = []
+                base = measured.get(f"{prefix}_tps")
+                if isinstance(base, (int, float)):
+                    context = measured.get(f"{prefix}_context")
+                    values.append(f"{base:g}" + (f" @{context}" if context else ""))
+                for context in ("4k", "32k", "60k"):
+                    value = measured.get(f"{prefix}_tps_{context}")
+                    if isinstance(value, (int, float)):
+                        values.append(f"{context.upper()} {value:g}")
+                return " / ".join(values) + (" " + tr("profiles.unit_tps") if values else "—")
+
+            speed = metrics("tg")
+            pp = metrics("pp")
+            quality_parts = []
+            for key, label in (("code_pass", "profiles.quality.code"), ("tool_pass", "profiles.quality.tools"), ("json_pass", "profiles.quality.json")):
+                if key in measured:
+                    quality_parts.append(f"{tr(label)} {measured[key]}")
+            quality = " · ".join(quality_parts) or "—"
+            source = str(measured.get("source", "—"))
+            if item.get("flags_pending_final"):
+                source += " · " + tr("profiles.pending_flags")
+        else:
+            note = tr(item["note_key"]) if item.get("note_key") else item.get("note", "—")
+            speed, pp, quality, source = tr("profiles.unmeasured"), "—", "—", note
+        rows.append([mark, item["id"], speed, pp, quality, source])
+    print(format_table([
+        "", tr("profiles.header.profile"), tr("profiles.header.tg"), tr("profiles.header.pp"),
+        tr("profiles.header.quality"), tr("profiles.header.source"),
+    ], rows))
+    print("\n" + tr("profiles.legend"))
+    return 0
+
+
+def _version(command: list[str]) -> str:
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=5, check=False)
+        return (result.stdout or result.stderr).strip().splitlines()[0]
+    except (OSError, subprocess.TimeoutExpired, IndexError):
+        return tr("version.not_found")
+
+
+def qwen_version_supported(output: str) -> bool:
+    return any(
+        match.group(1) == "0.25.1"
+        for match in re.finditer(r"(?<![\d.])v?(\d+\.\d+\.\d+)(?![\w.-])", output)
+    )
+
+
+def port_open(host: str = HOST, port: int = PORT) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=0.3):
+            return True
+    except OSError:
+        return False
+
+
+def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[str, Path]) -> int:
+    config = read_config(paths["config"])
+    profile, reason, warning = choose_profile(profiles, hw, config.get("profile"))
+    pid = managed_pid(paths)
+    state = read_server_state(paths) if pid else {}
+    llama, _ = find_llama_server()
+    qwen = shutil.which("qwen") or str(Path.home() / ".npm-global/bin/qwen")
+    qwen_version = _version([qwen, "--version"])
+    model = find_model(profile, paths) if profile else None
+    hf = shutil.which("hf")
+    foreign_port = port_open() and not (pid and process_owns_listen_port(pid, PORT))
+    disk_free = shutil.disk_usage(Path.home()).free / 1_000_000_000
+    gpu_index = hw.get("gpu_index")
+    gpu_text = f"{hw['gpu_name']} · {hw['vram_gb']:.1f} GB"
+    if gpu_index is not None:
+        gpu_text += f" · index {gpu_index}"
+    rows = [
+        [tr("doctor.label.gpu"), gpu_text if hw["gpu_name"] else tr("doctor.no_gpu")],
+        [tr("doctor.label.ram"), f"{hw['ram_gb']:.1f} GB"],
+        [tr("doctor.label.cpu"), f"{hw['cpu_name']} · {hw['cpu_count']} {tr('doctor.threads')}"],
+        [tr("doctor.label.profile"), profile["id"] if profile else tr("doctor.none")],
+        [tr("doctor.label.selection"), reason + (" ⚠" if warning else "")],
+        [tr("doctor.label.server"), f"PID {pid} · {tr('doctor.healthy') if health_ok() else tr('doctor.not_ready')} · Port {state.get('port', PORT)}" if pid else tr("doctor.stopped")],
+        [tr("doctor.label.model"), str(model) if model else tr("doctor.model_missing")],
+        ["Qwen", f"{qwen_version} · {qwen}" + (f" · {tr('doctor.qwen_version_warning', expected='0.25.1')}" if qwen_version != tr("version.not_found") and not qwen_version_supported(qwen_version) else "")],
+        ["llama-server", str(llama) if llama else tr("version.not_found")],
+        ["hf", hf or tr("version.not_found")],
+        [tr("doctor.label.port"), tr("doctor.port_foreign") if foreign_port else tr("doctor.port_available")],
+        [tr("doctor.label.disk"), f"{disk_free:.1f} GB"],
+        [tr("doctor.label.profiles"), str(PROFILES_FILE)],
+        [tr("doctor.label.config"), str(paths["config"])],
+        [tr("doctor.label.qwen_home"), str(paths["qwen_home"])],
+        [tr("doctor.label.models"), str(paths["models"])],
+        [tr("doctor.label.log"), str(paths["log"])],
+    ]
+    print(color("1;36", tr("doctor.title")))
+    width = max(len(row[0]) for row in rows)
+    for label, value in rows:
+        print(f"{color('36', label.ljust(width))}  {value}")
+    download_ready = bool(model or (hf and profile and disk_free >= profile["model"]["size_gb"] * 1.1))
+    return 0 if profile and llama and qwen_version != tr("version.not_found") and download_ready and not foreign_port else 1
+
+
+def cmd_logs(paths: dict[str, Path]) -> int:
+    log = paths["log"]
+    if not log.exists():
+        print(tr("logs.none", path=log))
+        return 1
+    try:
+        return subprocess.run(["tail", "-n", "80", "-f", str(log)], check=False).returncode
+    except KeyboardInterrupt:
+        return 130
+
+
+def prepare_runtime(
+    profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[str, Path],
+    approval_mode: str = "default", fast: bool = False, wait_gpu: float = 0,
+) -> dict[str, Any] | None:
+    config = read_config(paths["config"])
+    profile, reason, warning = choose_profile(profiles, hw, config.get("profile"))
+    gpu = f"{hw['gpu_name']} ({hw['vram_gb']:.1f} GB)" if hw["gpu_name"] else tr("startup.no_gpu")
+    print(f"{color('32', '✓')} {tr('startup.hardware', gpu=gpu, ram=hw['ram_gb'])}")
+    if profile is None:
+        raise RuntimeError(reason)
+    print(f"{color('32', '✓')} {tr('startup.profile', profile=profile['id'], reason=reason)}")
+    if warning:
+        print(color("33", tr("startup.profile_warning")))
+    if profile.get("flags_pending_final"):
+        print(color("33", tr("startup.flags_warning")))
+    model_path = ensure_model(profile, paths)
+    if model_path is None:
+        print(tr("startup.cancelled"))
+        return None
+    print(f"{color('32', '✓')} {tr('startup.model', path=model_path)}")
+    lock_path = resolve_gpu_lock(config)
+    ensure_private_dir(paths["state"])
+    # The state lock is mandatory and spans reuse checks, state writes, and
+    # readiness. The optional external lock coordinates unrelated GPU jobs.
+    with GpuStartLock(paths["start_lock"], max(300.0, wait_gpu)):
+        with GpuStartLock(lock_path, wait_gpu):
+            pid, reused, process = start_server(profile, model_path, paths, hw.get("gpu_index"))
+            if reused:
+                print(f"{color('32', '✓')} {tr('startup.server_reused', pid=pid)}")
+            else:
+                wait_for_health(pid, paths, process=process)
+    generate_settings(
+        profile, hw, paths["qwen_home"], approval_mode=approval_mode,
+        language=_LANGUAGE, fast=fast,
+    )
+    return profile
+
+
+def warn_approval_mode(approval_mode: str) -> None:
+    if approval_mode == "yolo":
+        print(color(
+            "1;31",
+            tr("warning.yolo"),
+            stream=sys.stderr,
+        ), file=sys.stderr)
+
+
+def parse_start_args(args: list[str]) -> tuple[str, list[str], bool, float]:
+    args = list(args)
+    approval_mode = "default"
+    fast = False
+    wait_gpu = 0.0
+    before, extra = args, []
+    if "--" in args:
+        split = args.index("--")
+        before, extra = args[:split], args[split + 1:]
+    index = 0
+    while index < len(before):
+        option = before[index]
+        if option in {"--auto-edit", "--yolo"}:
+            requested = option[2:]
+            if approval_mode != "default" and approval_mode != requested:
+                raise RuntimeError(tr("args.modes_exclusive"))
+            approval_mode = requested
+        elif option == "--fast":
+            fast = True
+        elif option == "--wait-gpu":
+            if index + 1 >= len(before):
+                raise RuntimeError(tr("args.wait_gpu_number"))
+            index += 1
+            wait_gpu = parse_wait_gpu(before[index])
+        else:
+            raise RuntimeError(tr("args.qwen_after_separator"))
+        index += 1
+    if any(item in {"--auto-edit", "--yolo"} for item in extra):
+        raise RuntimeError(tr("args.alia_before_separator"))
+    return approval_mode, extra, fast, wait_gpu
+
+
+def parse_wait_gpu(value: str) -> float:
+    try:
+        seconds = float(value)
+    except ValueError as exc:
+        raise RuntimeError(tr("args.wait_gpu_number")) from exc
+    if not math.isfinite(seconds) or seconds < 0:
+        raise RuntimeError(tr("args.wait_gpu_nonnegative"))
+    return seconds
+
+
+def cmd_start(
+    extra: list[str], profiles: list[dict[str, Any]], hw: dict[str, Any],
+    paths: dict[str, Path], approval_mode: str = "default", fast: bool = False,
+    wait_gpu: float = 0,
+) -> int:
+    warn_approval_mode(approval_mode)
+    profile = prepare_runtime(profiles, hw, paths, approval_mode, fast, wait_gpu)
+    if profile is None:
+        return 1
+    return launch_qwen(paths, extra)
+
+
+def parse_web_args(args: list[str]) -> tuple[int, bool, Path | None, str, bool, float]:
+    port = WEB_PORT
+    open_browser = True
+    workspace: Path | None = None
+    approval_mode = "default"
+    fast = False
+    wait_gpu = 0.0
+    index = 0
+    while index < len(args):
+        option = args[index]
+        if option == "--no-open":
+            open_browser = False
+            index += 1
+            continue
+        if option in {"--auto-edit", "--yolo"}:
+            requested = option[2:]
+            if approval_mode != "default" and approval_mode != requested:
+                raise RuntimeError(tr("args.modes_exclusive"))
+            approval_mode = requested
+            index += 1
+            continue
+        if option == "--fast":
+            fast = True
+            index += 1
+            continue
+        if option not in {"--port", "--workspace", "--wait-gpu"} or index + 1 >= len(args):
+            raise RuntimeError(tr("args.web_usage"))
+        value = args[index + 1]
+        if option == "--port":
+            try:
+                port = int(value)
+            except ValueError as exc:
+                raise RuntimeError(tr("args.port_integer")) from exc
+            if not 1 <= port <= 65535:
+                raise RuntimeError(tr("args.port_range"))
+            if port == PORT:
+                raise RuntimeError(tr("args.port_reserved", port=PORT))
+        elif option == "--workspace":
+            workspace = Path(value).expanduser().resolve()
+            if not workspace.is_dir():
+                raise RuntimeError(tr("args.workspace_directory", path=workspace))
+        else:
+            wait_gpu = parse_wait_gpu(value)
+        index += 2
+    return port, open_browser, workspace, approval_mode, fast, wait_gpu
+
+
+def cmd_web(
+    args: list[str], profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[str, Path]
+) -> int:
+    port, open_browser, workspace, approval_mode, fast, wait_gpu = parse_web_args(args)
+    warn_approval_mode(approval_mode)
+    if prepare_runtime(profiles, hw, paths, approval_mode, fast, wait_gpu) is None:
+        return 1
+    url = f"http://{HOST}:{port}/"
+    print(f"{color('1;36', tr('web.title'))}  {url}")
+    return run_qwen(build_web_command(port, open_browser, workspace), paths)
+
+
+def usage() -> None:
+    print(tr("usage.text"))
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    paths = user_paths()
+    try:
+        language_flag, argv = extract_language_flag(argv)
+        # Establish flag/env/locale language before reading the optional config,
+        # so even a malformed config error is localized when possible.
+        set_language(resolve_language(language_flag))
+        config = read_config(paths["config"])
+        set_language(resolve_language(language_flag, config=config))
+        if argv in (["--version"], ["-V"]):
+            print(f"alia {VERSION}")
+            return 0
+        if argv in (["--help"], ["-h"], ["help"]):
+            usage()
+            return 0
+        profiles = load_profiles()
+        if argv and argv[0] == "doctor":
+            if len(argv) != 1:
+                raise RuntimeError(tr("args.doctor_usage"))
+            return cmd_doctor(profiles, detect_hardware(), paths)
+        if argv and argv[0] == "profiles":
+            if len(argv) != 1:
+                raise RuntimeError(tr("args.profiles_usage"))
+            hw = detect_hardware()
+            config = read_config(paths["config"])
+            selected, _, _ = choose_profile(profiles, hw, config.get("profile"))
+            return cmd_profiles(profiles, hw, selected["id"] if selected else None)
+        if argv and argv[0] == "use":
+            if len(argv) != 2:
+                raise RuntimeError(tr("args.use_usage"))
+            if argv[1] == "auto":
+                write_config(paths["config"], None)
+                print(tr("config.profile_auto"))
+                return 0
+            chosen = next((item for item in profiles if item["id"] == argv[1]), None)
+            if chosen is None:
+                raise RuntimeError(tr("config.profile_unknown", profile=argv[1]))
+            write_config(paths["config"], argv[1])
+            print(tr("config.profile_pinned", profile=argv[1]))
+            if not profile_fits(chosen, detect_hardware()):
+                print(color("33", tr("config.profile_pinned_warning")))
+            return 0
+        if argv and argv[0] == "lang":
+            if len(argv) != 2:
+                raise RuntimeError(tr("args.lang_usage"))
+            requested = normalize_language(argv[1])
+            if requested is None:
+                raise RuntimeError(tr("config.lang_unknown", language=argv[1]))
+            if argv[1].strip().lower() != "auto" and requested == "en" and not argv[1].lower().startswith("en"):
+                raise RuntimeError(tr("config.lang_unknown", language=argv[1]))
+            write_language_config(paths["config"], requested)
+            if requested == "auto":
+                print(tr("config.lang_auto"))
+            else:
+                set_language(requested)
+                print(tr("config.lang_set", language=requested))
+            return 0
+        if argv and argv[0] == "stop":
+            if len(argv) != 1:
+                raise RuntimeError(tr("args.stop_usage"))
+            # Take the same mandatory lock as startup so a stop can never run between
+            # the state write and the PID write and orphan a starting server.
+            ensure_private_dir(paths["state"])
+            with GpuStartLock(paths["start_lock"], 300.0):
+                return 0 if stop_server(paths) else 1
+        if argv and argv[0] == "logs":
+            if len(argv) != 1:
+                raise RuntimeError(tr("args.logs_usage"))
+            return cmd_logs(paths)
+        if argv and argv[0] == "web":
+            return cmd_web(argv[1:], profiles, detect_hardware(), paths)
+        approval_mode, extra, fast, wait_gpu = parse_start_args(argv)
+        return cmd_start(
+            extra, profiles, detect_hardware(), paths, approval_mode=approval_mode,
+            fast=fast, wait_gpu=wait_gpu,
+        )
+    except (RuntimeError, ValueError, OSError) as exc:
+        print(color("31", tr("error.prefix", error=exc)), file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("\n" + tr("error.cancelled"), file=sys.stderr)
+        return 130
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

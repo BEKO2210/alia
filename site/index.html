@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alia — a local coding agent for the GPU you already own</title>
+  <meta name="description" content="Alia detects your GPU, picks a benchmarked model profile, starts llama.cpp and opens a full coding agent in your terminal. No API key, no cloud.">
+  <meta name="theme-color" content="#07080c">
+  <meta property="og:title" content="Alia — local coding agent">
+  <meta property="og:description" content="A 35B MoE coding agent at 46.5 tok/s on an 8 GB RTX 3070. No API key, no cloud.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="logo-mark.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="preload" href="fonts/Outfit.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/Inter.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip" href="#main" data-i18n="skip">Skip to content</a>
+
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="#top" aria-label="Alia home">
+        <img src="logo-mark.svg" width="28" height="28" alt="">
+        <img src="logo-wordmark.svg" height="22" alt="Alia" class="wordmark">
+      </a>
+      <nav class="nav-links" aria-label="Sections">
+        <a href="#features" data-i18n="nav.features">Features</a>
+        <a href="#benchmarks" data-i18n="nav.bench">Benchmarks</a>
+        <a href="#install" data-i18n="nav.install">Install</a>
+      </nav>
+      <div class="nav-right">
+        <div class="lang" role="group" aria-label="Language">
+          <button type="button" data-lang="en" aria-pressed="true">EN</button>
+          <button type="button" data-lang="de" aria-pressed="false">DE</button>
+        </div>
+        <a class="btn btn-sm btn-glass" href="https://github.com/BEKO2210/alia">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="hero-bg" aria-hidden="true"></div>
+      <div class="wrap hero-in">
+        <a class="pill" href="https://github.com/BEKO2210/alia/releases">
+          <span class="pill-dot"></span><span data-i18n="hero.pill">v0.1.0 · open source · Apache-2.0</span>
+        </a>
+        <h1 data-i18n="hero.title">A local coding agent<br><span class="grad">for the GPU you already own.</span></h1>
+        <p class="lead" data-i18n="hero.lead">Alia detects your GPU, picks a benchmarked model profile, starts llama.cpp and opens a full coding agent in your terminal. No API key. No cloud. Nothing leaves your machine.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="#install"><span data-i18n="hero.cta">Get started</span> <span aria-hidden="true">→</span></a>
+          <a class="btn btn-glass" href="https://github.com/BEKO2210/alia" data-i18n="hero.github">View on GitHub</a>
+        </div>
+        <p class="meta" data-i18n="hero.meta">Linux · NVIDIA · tested on an RTX 3070 with 8 GB VRAM</p>
+      </div>
+
+      <div class="wrap">
+        <figure class="term" id="term" aria-label="Recorded Alia session">
+          <div class="term-bar">
+            <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="term-title">alia — ~/my-project</span>
+            <button type="button" class="replay" id="replay" data-i18n="term.replay">Replay</button>
+          </div>
+          <div class="term-body" id="term-body">
+            <div class="l" data-step><span class="ps">$</span> <span class="typed" data-text="alia"></span></div>
+            <div class="l" data-step><span class="ok">✓</span> Hardware detected  <span class="mut">NVIDIA GeForce RTX 3070 (8.0 GB) · 15.5 GB RAM</span></div>
+            <div class="l" data-step><span class="ok">✓</span> Profile            <span class="mut">rtx8gb-16gb-qwen36-35b — best matching measured profile</span></div>
+            <div class="l" data-step><span class="ok">✓</span> Model              <span class="mut">~/models/gguf/mtp/Qwen3.6-35B-A3B-UD-IQ3_XXS.gguf</span></div>
+            <div class="l" data-step="load"><span class="spin">⠋</span> Model loading <span class="bar"></span> <span class="secs">0 s</span></div>
+            <div class="l" data-step><span class="ok">✓</span> Model ready after 24 s</div>
+            <div class="banner" data-step>
+              <img src="logo-terminal.svg" alt="ALIA" class="banner-logo" width="324" height="144">
+              <div class="banner-box">
+                <div><b class="vio">Alia 0.1.0</b> <span class="mut">(v0.25.1)</span></div>
+                <div class="mut">local · RTX 3070 · 35.2 tok/s measured</div>
+                <div class="mut">API Key | Qwen3.6 35B-A3B IQ3_XXS (balanced)</div>
+                <div class="mut">~/my-project</div>
+              </div>
+            </div>
+            <div class="l prompt" data-step><span class="vio">&gt;</span> <span class="typed" data-text="Create primes.py that prints the first 10 prime numbers, then run it."></span></div>
+            <div class="l" data-step><span class="ok">✓</span> <b>WriteFile</b> <span class="mut">primes.py</span></div>
+            <div class="l" data-step><span class="err">x</span> <b>Shell</b> <span class="mut">python primes.py</span></div>
+            <div class="l ind mut" data-step>bash: Zeile 1: python: Befehl nicht gefunden · Exit Code: 127</div>
+            <div class="l" data-step><span class="ok">✓</span> <b>Shell</b> <span class="mut">python3 primes.py</span> <span class="dim">(Run primes.py with python3)</span></div>
+            <div class="l ind" data-step>[2, 3, 5, 7, 11, 13, 17, 19, 23, 29]</div>
+            <div class="l" data-step><span class="vio">◆</span> Done. <span class="cy">primes.py</span> prints the first 10 prime numbers.</div>
+          </div>
+        </figure>
+        <p class="caption" data-i18n="term.caption">A real session on an RTX 3070, replayed in the browser. The model's own self-correction (python → python3) is unedited; load time is shown faster than real.</p>
+      </div>
+    </section>
+
+    <section class="stats wrap" aria-label="Key numbers">
+      <div class="stat"><b>46.5<small> tok/s</small></b><span data-i18n="stat.tg">generation with a 35B MoE model at 4K context, exact launch configuration</span></div>
+      <div class="stat"><b>8<small> GB</small></b><span data-i18n="stat.vram">VRAM is enough: experts stream from system RAM</span></div>
+      <div class="stat"><b>9<small>/10</small></b><span data-i18n="stat.code">coding tasks passed, checked by unit tests</span></div>
+      <div class="stat"><b>0</b><span data-i18n="stat.cloud">API keys, accounts or cloud calls</span></div>
+    </section>
+
+    <section class="sec" id="features">
+      <div class="wrap">
+        <p class="eyebrow" data-i18n="feat.eyebrow">Why Alia</p>
+        <h2 data-i18n="feat.title">Everything a coding agent needs.<br><span class="mut2">Nothing that phones home.</span></h2>
+        <div class="bento">
+          <article class="card c-wide">
+            <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h2v4H7zM11 10h2v4h-2zM15 10h2v4h-2zM6 18v2M10 18v2M14 18v2M18 18v2"/></svg></div>
+            <h3 data-i18n="f1.t">Hardware-aware profiles</h3>
+            <p data-i18n="f1.d">Alia reads VRAM and RAM, then starts the best <em>measured</em> profile for your machine. Pin another one with <code>alia use</code>, compare them with <code>alia profiles</code>.</p>
+            <div class="profiles" aria-hidden="true">
+              <div class="pr on"><span>8 GB VRAM · 16 GB RAM</span><b>Qwen3.6 35B-A3B</b><i class="chip ok" data-i18n="chip.measured">measured</i></div>
+              <div class="pr"><span>8 GB VRAM</span><b>Qwen3.5 9B · fast</b><i class="chip ok" data-i18n="chip.measured">measured</i></div>
+              <div class="pr"><span>12–16 GB VRAM</span><b>Qwen3.6 35B Q4</b><i class="chip" data-i18n="chip.unmeasured">unmeasured</i></div>
+              <div class="pr"><span>24 GB VRAM</span><b>Qwen3.6 35B Q4 · full GPU</b><i class="chip" data-i18n="chip.unmeasured">unmeasured</i></div>
+            </div>
+          </article>
+          <article class="card">
+            <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h7"/><circle cx="18" cy="16" r="3"/></svg></div>
+            <h3 data-i18n="f2.t">35B on an 8 GB card</h3>
+            <p data-i18n="f2.d">A mixture-of-experts model activates only 3B parameters per token. Attention stays on the GPU, experts are offloaded to RAM.</p>
+          </article>
+          <article class="card">
+            <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h4l2-6 3 12 2-6h3"/></svg></div>
+            <h3 data-i18n="f3.t">Speculative decoding</h3>
+            <p data-i18n="f3.d">The model's own MTP head drafts two tokens ahead. 75 % are accepted: +14 % speed at 4K, +10 % at 32K.</p>
+          </article>
+          <article class="card">
+            <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7l5 5-5 5M12 17h7"/></svg></div>
+            <h3 data-i18n="f4.t">A real agent</h3>
+            <p data-i18n="f4.d">Built on Qwen Code: it edits files, runs commands, reads errors and fixes them. It asks before acting unless you choose <code>--auto-edit</code> or <code>--yolo</code>.</p>
+          </article>
+          <article class="card">
+            <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 8h18M8 21h8"/></svg></div>
+            <h3 data-i18n="f5.t">Terminal or browser</h3>
+            <p data-i18n="f5.d"><code>alia web</code> opens the same agent as a web shell, bound to 127.0.0.1 only.</p>
+          </article>
+          <article class="card">
+            <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-6"/></svg></div>
+            <h3 data-i18n="f6.t">Evidence, not claims</h3>
+            <p data-i18n="f6.d">Every benchmark number on this page links to raw JSONL; configuration gaps are identified explicitly.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="benchmarks">
+      <div class="wrap">
+        <p class="eyebrow" data-i18n="bench.eyebrow">Benchmarks</p>
+        <h2 data-i18n="bench.title">Measured, not estimated.</h2>
+        <p class="sub" data-i18n="bench.sub">Token generation speed as the context fills up, with each profile's exact launch configuration. RTX 3070 8 GB, Ryzen 7 5800X, 16 GB RAM, llama.cpp a0e6dc7.</p>
+
+        <div class="chart" role="table" aria-label="Generation speed by context depth">
+          <div class="legend" aria-hidden="true">
+            <span><i class="sw sw-a"></i>Qwen3.6 35B-A3B · IQ3_XXS · MTP <em data-i18n="bench.default">default</em></span>
+            <span><i class="sw sw-b"></i>Qwen3.5 9B · Q4_K_M <em data-i18n="bench.fast">fast</em></span>
+          </div>
+          <div class="grp" role="row">
+            <span class="dep" role="rowheader" data-i18n="bench.d4">4K context</span>
+            <div class="bars" role="cell">
+              <div class="b a" style="--v:46.5"><span>46.5</span></div>
+              <div class="b b2" style="--v:66.1"><span>66.1</span></div>
+            </div>
+          </div>
+          <div class="grp" role="row">
+            <span class="dep" role="rowheader" data-i18n="bench.d32">32K context</span>
+            <div class="bars" role="cell">
+              <div class="b a" style="--v:35.2"><span>35.2</span></div>
+              <div class="b b2" style="--v:57.7"><span>57.7</span></div>
+            </div>
+          </div>
+          <div class="grp" role="row">
+            <span class="dep" role="rowheader" data-i18n="bench.d60">60K context</span>
+            <div class="bars" role="cell">
+              <div class="b a" style="--v:38.2"><span>38.2</span></div>
+              <div class="b na" data-i18n="bench.na">9B profile is limited to 32K</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="qgrid">
+          <div class="q">
+            <h3>Qwen3.6 35B-A3B</h3>
+            <dl>
+              <div><dt data-i18n="q.code">Code tasks</dt><dd>9/10</dd></div>
+              <div><dt data-i18n="q.tools">Tool calls</dt><dd>7/8</dd></div>
+              <div><dt data-i18n="q.json">JSON with / without schema</dt><dd>3/3 · 3/3</dd></div>
+              <div><dt data-i18n="q.pp">Prompt speed 4K / 32K</dt><dd>1,008 / 1,301 tok/s</dd></div>
+              <div><dt data-i18n="q.dl">Download</dt><dd>14.07 GB</dd></div>
+            </dl>
+          </div>
+          <div class="q">
+            <h3>Qwen3.5 9B</h3>
+            <dl>
+              <div><dt data-i18n="q.code">Code tasks</dt><dd>8/10*</dd></div>
+              <div><dt data-i18n="q.tools">Tool calls</dt><dd>8/8*</dd></div>
+              <div><dt data-i18n="q.json">JSON schema</dt><dd>—</dd></div>
+              <div><dt data-i18n="q.pp">Prompt speed 4K / 32K</dt><dd>2,980 / 2,707 tok/s</dd></div>
+              <div><dt data-i18n="q.dl">Download</dt><dd>5.7 GB</dd></div>
+            </dl>
+            <p class="fine" data-i18n="q.note9b">* Measured via Ollama with Qwen's own GGUF, not the unsloth GGUF and llama-server configuration this profile launches.</p>
+          </div>
+        </div>
+        <p class="fine" data-i18n="bench.fine">All speeds use the flags and context size each profile launches with (35B: 65,536, 9B: 33,408); the 35B 60K value comes from an earlier run with the same flags except <code>--jinja</code>, which only selects the chat template. Long-context speed needs free RAM: with a browser and other apps open, the 35B model streamed from the SSD and fell to 24.6 tok/s at 32K and 9.7 at 60K. 32 GB RAM is recommended for long contexts. Quality scores come from separate runs. <a href="https://github.com/BEKO2210/alia/tree/main/bench/results">Raw results and methodology →</a></p>
+      </div>
+    </section>
+
+    <section class="sec" id="screens">
+      <div class="wrap">
+        <p class="eyebrow" data-i18n="shots.eyebrow">In use</p>
+        <h2 data-i18n="shots.title">Your terminal. Or your browser.</h2>
+        <div class="tabs" role="tablist" aria-label="Screenshots">
+          <button type="button" role="tab" aria-selected="true" aria-controls="shot-term" id="tab-term" data-i18n="shots.term">Terminal</button>
+          <button type="button" role="tab" aria-selected="false" aria-controls="shot-web" id="tab-web" tabindex="-1" data-i18n="shots.web">Web shell</button>
+        </div>
+        <div class="shot" id="shot-term" role="tabpanel" aria-labelledby="tab-term">
+          <img src="terminal-agent.webp" width="1110" height="720" loading="lazy" alt="Alia in the terminal: the agent writes primes.py, the first run fails because python is missing, it retries with python3 and succeeds">
+        </div>
+        <div class="shot" id="shot-web" role="tabpanel" aria-labelledby="tab-web" hidden>
+          <img src="web-shell.webp" width="1440" height="860" loading="lazy" alt="Alia web shell in the browser with the session list and a message box">
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="stack">
+      <div class="wrap stack-in">
+        <div>
+          <p class="eyebrow" data-i18n="stack.eyebrow">How it is built</p>
+          <h2 data-i18n="stack.title">Standing on proven open source.</h2>
+          <p class="sub" data-i18n="stack.sub">Alia does not reinvent the agent loop or the inference engine. It adds what was missing: hardware detection, measured profiles, a safe server lifecycle and one command to start it all.</p>
+        </div>
+        <ol class="layers">
+          <li class="me"><b>Alia</b><span data-i18n="stack.alia">hardware detection · profiles · server lifecycle · branding</span></li>
+          <li><b>Qwen Code</b><span data-i18n="stack.qwen">agent loop, tools, terminal UI, web shell</span></li>
+          <li><b>llama.cpp</b><span data-i18n="stack.llama">CUDA inference, expert offload, MTP drafting</span></li>
+          <li><b>Qwen3.6 · Unsloth GGUF</b><span data-i18n="stack.model">open-weight model, dynamic 3-bit quantization</span></li>
+          <li><b data-i18n="stack.hw">Your GPU</b><span>NVIDIA · Linux</span></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="sec" id="install">
+      <div class="wrap">
+        <p class="eyebrow" data-i18n="inst.eyebrow">Install</p>
+        <h2 data-i18n="inst.title">Up and running in four steps.</h2>
+        <ol class="steps">
+          <li>
+            <h3 data-i18n="inst.s1">Agent and downloader</h3>
+            <div class="code"><pre><code>npm install -g @qwen-code/qwen-code@0.25.1
+python3 -m pip install -U "huggingface_hub[cli]"</code></pre><button type="button" class="copy" data-i18n="copy">Copy</button></div>
+          </li>
+          <li>
+            <h3 data-i18n="inst.s2">llama.cpp with CUDA</h3>
+            <div class="code"><pre><code>git clone https://github.com/ggml-org/llama.cpp ~/src/llama.cpp
+cd ~/src/llama.cpp &amp;&amp; git checkout a0e6dc7
+cmake -S . -B build -DGGML_CUDA=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(nproc)" --target llama-server</code></pre><button type="button" class="copy" data-i18n="copy">Copy</button></div>
+          </li>
+          <li>
+            <h3 data-i18n="inst.s3">Alia</h3>
+            <div class="code"><pre><code>git clone https://github.com/BEKO2210/alia
+cd alia &amp;&amp; ./install.sh &amp;&amp; alia doctor</code></pre><button type="button" class="copy" data-i18n="copy">Copy</button></div>
+          </li>
+          <li>
+            <h3 data-i18n="inst.s4">Start</h3>
+            <div class="code"><pre><code>alia</code></pre><button type="button" class="copy" data-i18n="copy">Copy</button></div>
+            <p class="fine" data-i18n="inst.note">The first start shows the exact model download (14.07 GB for the default profile) and asks before fetching anything.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="final wrap">
+      <img src="logo-mark.svg" width="64" height="64" alt="">
+      <h2 data-i18n="final.title">Own your coding agent.</h2>
+      <p data-i18n="final.sub">Free, open source, and it runs on the hardware you already have.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/BEKO2210/alia" data-i18n="final.cta">Star on GitHub</a>
+        <a class="btn btn-glass" href="https://github.com/BEKO2210/alia/blob/main/CONTRIBUTING.md" data-i18n="final.contrib">Add your GPU profile</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot-in">
+      <span class="brand"><img src="logo-mark.svg" width="20" height="20" alt=""> Alia · Apache-2.0</span>
+      <span class="mut" data-i18n="foot.credit">Built on llama.cpp, Qwen Code and Qwen3.6.</span>
+      <a href="https://github.com/BEKO2210/alia/security/policy" data-i18n="foot.security">Security</a>
+    </div>
+  </footer>
+
+  <script src="main.js" defer></script>
+</body>
+</html>

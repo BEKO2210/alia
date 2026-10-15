@@ -1,0 +1,19 @@
+{
+  "name": "Alia",
+  "type": "custom",
+  "Background": "#10131A",
+  "Foreground": "#E8EEF7",
+  "LightBlue": "#76B9FF",
+  "AccentBlue": "#5C9DFF",
+  "AccentPurple": "#A78BFA",
+  "AccentCyan": "#5EEAD4",
+  "AccentGreen": "#6EE7A8",
+  "AccentYellow": "#F8D477",
+  "AccentRed": "#FB7185",
+  "Comment": "#8491A5",
+  "Gray": "#A4ADBD",
+  "DiffAdded": "#6EE7A8",
+  "DiffRemoved": "#FB7185",
+  "DiffModified": "#76B9FF",
+  "GradientColors": ["#5EEAD4", "#5C9DFF", "#A78BFA"]
+}

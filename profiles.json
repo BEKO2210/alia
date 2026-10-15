@@ -1,0 +1,242 @@
+[
+  {
+    "id": "rtx8gb-16gb-qwen36-35b",
+    "rank": 400,
+    "title_key": "profile.title.balanced",
+    "match": {
+      "min_vram_gb": 7.5,
+      "max_vram_gb": 11.9,
+      "min_ram_gb": 15
+    },
+    "model": {
+      "hf_repo": "unsloth/Qwen3.6-35B-A3B-MTP-GGUF",
+      "file": "Qwen3.6-35B-A3B-UD-IQ3_XXS.gguf",
+      "local_candidates": [
+        "~/models/gguf/mtp/Qwen3.6-35B-A3B-UD-IQ3_XXS.gguf"
+      ],
+      "size_gb": 14.07
+    },
+    "server_args": [
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-np",
+      "1",
+      "--jinja",
+      "-b",
+      "2048",
+      "-ub",
+      "2048",
+      "--spec-type",
+      "draft-mtp",
+      "--spec-draft-n-max",
+      "2",
+      "-ctkd",
+      "q8_0",
+      "-ctvd",
+      "q8_0"
+    ],
+    "ctx": 65536,
+    "sampling": {
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0,
+      "presence_penalty": 0
+    },
+    "measured": {
+      "tg_tps_4k": 46.5,
+      "tg_tps_32k": 35.2,
+      "tg_tps_60k": 38.2,
+      "pp_tps_4k": 1008,
+      "pp_tps_32k": 1301,
+      "pp_tps_60k": 1041,
+      "mtp_acceptance": 0.62,
+      "code_pass": "9/10",
+      "tool_pass": "7/8",
+      "json_schema_pass": "3/3",
+      "json_prompt_pass": "3/3",
+      "llama_cpp": "a0e6dc7 (2026-10-14)",
+      "source": "Performance with the exact launch configuration (ctx 65536, profile server_args): 4K/32K bench/results/llamacpp-20261015-100648.jsonl, 60K bench/results/llamacpp-20261015-024711.jsonl. Quality: bench/results/quality-20261015-014745.jsonl (server context/args not recorded).",
+      "metric_sources": {
+        "tg_tps_4k": "bench/results/llamacpp-20261015-100648.jsonl, ctx 65536, exact launch args",
+        "tg_tps_32k": "bench/results/llamacpp-20261015-100648.jsonl, ctx 65536, exact launch args",
+        "pp_tps_4k": "bench/results/llamacpp-20261015-100648.jsonl, ctx 65536, exact launch args",
+        "pp_tps_32k": "bench/results/llamacpp-20261015-100648.jsonl, ctx 65536, exact launch args",
+        "mtp_acceptance": "bench/results/llamacpp-20261015-100648.jsonl, ctx 65536, exact launch args",
+        "tg_tps_60k": "bench/results/llamacpp-20261015-024711.jsonl, ctx 65536, same flags without --jinja",
+        "pp_tps_60k": "bench/results/llamacpp-20261015-024711.jsonl, ctx 65536, same flags without --jinja",
+        "code_pass": "bench/results/quality-20261015-014745.jsonl",
+        "tool_pass": "bench/results/quality-20261015-014745.jsonl",
+        "json_schema_pass": "bench/results/quality-20261015-014745.jsonl",
+        "json_prompt_pass": "bench/results/quality-20261015-014745.jsonl"
+      },
+      "ram_pressure": {
+        "tg_tps_4k": 48.1,
+        "tg_tps_32k": 24.6,
+        "tg_tps_60k": 9.7,
+        "pp_tps_32k": 305,
+        "pp_tps_60k": 161,
+        "source": "bench/results/llamacpp-20261015-101143.jsonl, same launch configuration",
+        "note": "With less free RAM the 13 GB model drops out of the page cache (runner RSS 11.1 -> 7.4 GB, NVMe reads up to 626 MB/s) and deep-context speed collapses. 32 GB RAM is recommended for long contexts."
+      },
+      "notes": "4K speed is stable across three launch-config runs (46.5 / 48.1 / 49.7 tok/s); 32K/60K speed depends on free RAM. At ctx 33792 the same flags reached 53.6 / 48.5 tok/s (bench/results/llamacpp-20261015-023913.jsonl) because the smaller KV cache leaves more VRAM for experts. MTP n=2 +14 % TG @4K, +10 % @32K vs. no MTP (ctx 33792 runs). --moe-cache-mib 1024 measured slower on 8 GB and is off.",
+      "note_128k": "128K works (120K prompt: 25.0 t/s TG, 543 t/s PP, ~3.7 min to first token) but is too slow as a default"
+    }
+  },
+  {
+    "id": "rtx8gb-qwen35-9b-fast",
+    "rank": 300,
+    "title_key": "profile.title.fast",
+    "match": {
+      "min_vram_gb": 7.5,
+      "max_vram_gb": 11.9,
+      "min_ram_gb": 12
+    },
+    "model": {
+      "hf_repo": "unsloth/Qwen3.5-9B-GGUF",
+      "file": "Qwen3.5-9B-Q4_K_M.gguf",
+      "local_candidates": [
+        "~/models/gguf/Qwen3.5-9B-Q4_K_M.gguf"
+      ],
+      "size_gb": 5.7
+    },
+    "server_args": [
+      "-ngl",
+      "99",
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-np",
+      "1",
+      "--jinja",
+      "-b",
+      "1024",
+      "-ub",
+      "1024"
+    ],
+    "ctx": 33408,
+    "sampling": {
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0,
+      "presence_penalty": 0
+    },
+    "reference_benchmarks": {
+      "label": "Quality only; measured via Ollama with Qwen's own GGUF, not the launch configuration",
+      "code_pass": "8/10",
+      "tool_pass": "8/8",
+      "source": "bench/results/quality-20261015-005015.jsonl via Ollama; server context and arguments were not recorded."
+    },
+    "measured": {
+      "tg_tps_4k": 66.1,
+      "tg_tps_32k": 57.7,
+      "pp_tps_4k": 2980,
+      "pp_tps_32k": 2707,
+      "llama_cpp": "a0e6dc7 (2026-10-14)",
+      "source": "Performance with the exact launch configuration: bench/results/llamacpp-20261015-101002.jsonl, ctx 33408, exact launch args, Alia's llama.cpp build and the unsloth GGUF.",
+      "metric_sources": {
+        "tg_tps_4k": "bench/results/llamacpp-20261015-101002.jsonl, ctx 33408, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
+        "tg_tps_32k": "bench/results/llamacpp-20261015-101002.jsonl, ctx 33408, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
+        "pp_tps_4k": "bench/results/llamacpp-20261015-101002.jsonl, ctx 33408, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
+        "pp_tps_32k": "bench/results/llamacpp-20261015-101002.jsonl, ctx 33408, exact launch args, Alia's llama.cpp build and the unsloth GGUF"
+      }
+    }
+  },
+  {
+    "id": "rtx12-16gb-qwen36-35b-q4",
+    "rank": 500,
+    "title_key": "profile.title.12_16gb",
+    "match": {
+      "min_vram_gb": 11.5,
+      "max_vram_gb": 19.9,
+      "min_ram_gb": 30
+    },
+    "model": {
+      "hf_repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
+      "file": "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
+      "local_candidates": [
+        "~/models/gguf/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf"
+      ],
+      "size_gb": 20.8
+    },
+    "server_args": [
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-np",
+      "1",
+      "--jinja",
+      "-b",
+      "2048",
+      "-ub",
+      "2048",
+      "--cache-ram",
+      "4096"
+    ],
+    "ctx": 32768,
+    "sampling": {
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0,
+      "presence_penalty": 0
+    },
+    "unmeasured": true,
+    "note_key": "profile.note.12_16gb"
+  },
+  {
+    "id": "rtx24gb-qwen36-35b-q4",
+    "rank": 600,
+    "title_key": "profile.title.24gb",
+    "match": {
+      "min_vram_gb": 20,
+      "min_ram_gb": 30
+    },
+    "model": {
+      "hf_repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
+      "file": "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
+      "local_candidates": [
+        "~/models/gguf/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf"
+      ],
+      "size_gb": 20.8
+    },
+    "server_args": [
+      "-ngl",
+      "99",
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-np",
+      "1",
+      "--jinja",
+      "-b",
+      "2048",
+      "-ub",
+      "2048"
+    ],
+    "ctx": 32768,
+    "sampling": {
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0,
+      "presence_penalty": 0
+    },
+    "unmeasured": true,
+    "note_key": "profile.note.24gb"
+  }
+]
