@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Alia — Architecture</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0B0D12;--bg2:#10131A;--bg3:#181C27;--bg4:#1E2333;
+  --fg:#E8EEF7;--fg2:#A4ADBD;--fg3:#8491A5;
+  --cyan:#5EEAD4;--blue:#5C9DFF;--purple:#A78BFA;
+  --green:#6EE7A8;--yellow:#F8D477;--red:#FB7185;
+  --grad:linear-gradient(135deg,#5EEAD4,#5C9DFF,#A78BFA);
+  --grad-h:linear-gradient(90deg,#5EEAD4,#5C9DFF,#A78BFA);
+  --radius:12px;--shadow:0 4px 24px rgba(0,0,0,.45);
+}
+html{font-size:16px;scroll-behavior:smooth}
+
+/* ── local fonts ─────────────────────────────── */
+@font-face{font-family:'Outfit';src:url('fonts/Outfit.woff2')format('woff2');font-display:swap;font-weight:100 900;font-style:normal}
+@font-face{font-family:'Inter';src:url('fonts/Inter.woff2')format('woff2');font-display:swap;font-weight:400;font-style:normal}
+@font-face{font-family:'Inter';src:url('fonts/Inter.woff2')format('woff2');font-display:swap;font-weight:600;font-style:normal}
+@font-face{font-family:'Inter';src:url('fonts/Inter.woff2')format('woff2');font-display:swap;font-weight:700;font-style:normal}
+@font-face{font-family:'JetBrains Mono';src:url('fonts/JBM.woff2')format('woff2');font-display:swap;font-weight:400;font-style:normal}
+body{
+  font-family:'Inter',sans-serif;
+  background:var(--bg);color:var(--fg);
+  line-height:1.6;overflow-x:hidden;
+}
+/* headings use Outfit with tight letter-spacing */
+h1,h2,h3,h4,h5,h6{font-family:'Outfit',sans-serif;letter-spacing:-.02em}
+code{font-family:'JetBrains Mono',monospace}
+
+/* ── hero section ────────────────────────────── */
+.hero{
+  min-height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:4rem 2rem;position:relative;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 30%,rgba(94,234,212,.08) 0%,transparent 50%),
+             radial-gradient(ellipse at 60% 60%,rgba(92,157,255,.06) 0%,transparent 50%),
+             radial-gradient(ellipse at 40% 70%,rgba(167,139,250,.06) 0%,transparent 50%);
+}
+.hero h1{
+  font-size:clamp(2.2rem,5vw,4rem);font-weight:900;line-height:1.15;
+  background:var(--grad);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero .gradient-line{width:120px;height:3px;background:var(--grad);border-radius:2px;margin:1.25rem auto 0}
+.hero .subtitle{color:var(--fg2);font-size:clamp(1rem,2vw,1.25rem);max-width:600px;margin-top:1rem}
+.hero .cta-group{display:flex;gap:1rem;margin-top:2rem;flex-wrap:wrap;justify-content:center}
+.hero .cta{
+  padding:.75rem 1.75rem;border-radius:8px;font-size:.95rem;font-weight:600;text-decoration:none;
+  transition:transform .2s,box-shadow .2s;cursor:pointer;border:none;
+}
+.hero .cta-primary{
+  background:var(--grad);color:var(--bg);
+}
+.hero .cta-primary:hover{transform:translateY(-2px);box-shadow:0 4px 20px rgba(92,157,255,.3)}
+.hero .cta-secondary{
+  background:transparent;color:var(--cyan);border:1.5px solid rgba(94,234,212,.3);
+}
+.hero .cta-secondary:hover{border-color:var(--cyan);transform:translateY(-2px)}
+
+/* ── header ──────────────────────────────────── */
+header{
+  position:relative;
+  background:var(--bg2);
+  border-bottom:1px solid rgba(92,157,255,.15);
+  padding:2rem 2rem 1.5rem;
+  overflow:hidden;
+}
+header::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 30% 0%,rgba(94,234,212,.08) 0%,transparent 60%),
+             radial-gradient(ellipse at 70% 0%,rgba(167,139,250,.08) 0%,transparent 60%);
+  pointer-events:none;
+}
+.header-inner{position:relative;z-index:1;max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap}
+.logo-wrap{flex-shrink:0}
+.logo-wrap svg{width:56px;height:56px}
+.header-text h1{font-size:2rem;font-weight:700;background:var(--grad);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-text .tagline{color:var(--fg2);font-size:.95rem;margin-top:.25rem}
+.header-nav{margin-left:auto;display:flex;gap:1.5rem;flex-wrap:wrap}
+.header-nav a{color:var(--fg2);text-decoration:none;font-size:.85rem;transition:color .2s}
+.header-nav a:hover{color:var(--cyan)}
+
+/* ── sections ────────────────────────────────── */
+main{max-width:1200px;margin:0 auto;padding:2rem}
+section{margin-bottom:3.5rem}
+section h2{
+  font-size:1.4rem;font-weight:600;margin-bottom:1rem;
+  position:relative;padding-left:1.2rem;
+}
+section h2::before{
+  content:'';position:absolute;left:0;top:.15em;bottom:.15em;width:3px;
+  background:var(--grad);border-radius:2px;
+}
+section p.lead{color:var(--fg2);max-width:720px;margin-bottom:1.5rem}
+
+/* ── architecture diagram ────────────────────── */
+.arch-wrap{
+  position:relative;
+  background:var(--bg2);border:1px solid rgba(92,157,255,.1);
+  border-radius:var(--radius);padding:1.5rem;
+  overflow-x:auto;
+}
+.arch-svg{width:100%;max-width:1100px;margin:0 auto;display:block}
+
+/* boxes */
+.arch-box{
+  cursor:pointer;transition:filter .2s,transform .15s;
+}
+.arch-box:hover{filter:brightness(1.25);transform:translateY(-2px)}
+.arch-box .box-bg{
+  rx:10;ry:10;
+  fill:var(--bg3);stroke:rgba(92,157,255,.25);stroke-width:1.5;
+  transition:stroke .2s;
+}
+.arch-box:hover .box-bg{stroke:var(--blue);stroke-width:2}
+.arch-box .box-icon{fill:var(--cyan);font-size:14px}
+.arch-box .box-title{fill:var(--fg);font-size:13px;font-weight:600;font-family:inherit}
+.arch-box .box-sub{fill:var(--fg2);font-size:11px;font-family:inherit}
+.arch-box .box-badge{fill:var(--purple);font-size:10px;font-family:inherit}
+.arch-box:focus{outline:none}
+.arch-box:focus-visible .box-bg{stroke:var(--cyan);stroke-width:2.5}
+
+/* arrows */
+.flow-arrow{
+  stroke:var(--fg3);stroke-width:1.5;fill:none;
+  stroke-dasharray:6 3;
+}
+.flow-arrow.active{stroke:var(--blue);stroke-dasharray:none}
+
+/* detail panel */
+.detail-panel{
+  position:relative;display:none;
+  margin-top:1.25rem;
+  background:var(--bg4);border:1px solid rgba(92,157,255,.2);
+  border-radius:var(--radius);padding:1.25rem 1.5rem;
+  box-shadow:var(--shadow);
+}
+.detail-panel.open{display:block}
+.detail-panel h3{font-size:1rem;margin-bottom:.75rem;color:var(--cyan)}
+.detail-panel p{font-size:.85rem;color:var(--fg2);margin-bottom:.5rem}
+.detail-panel ul{list-style:none;padding:0}
+.detail-panel ul li{font-size:.82rem;color:var(--fg2);padding:.2rem 0;padding-left:.75rem;position:relative}
+.detail-panel ul li::before{content:'›';position:absolute;left:0;color:var(--blue)}
+.detail-close{
+  position:absolute;top:.75rem;right:.75rem;
+  background:none;border:none;color:var(--fg3);font-size:1.1rem;
+  cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+  border-radius:50%;transition:background .2s;
+}
+.detail-close:hover{background:rgba(255,255,255,.1)}
+
+/* ── animated flow ───────────────────────────── */
+.flow-wrap{
+  position:relative;
+  background:var(--bg2);border:1px solid rgba(92,157,255,.1);
+  border-radius:var(--radius);padding:2rem 1.5rem;
+  overflow-x:auto;
+}
+.flow-svg{width:100%;max-width:1100px;display:block}
+.token-particle{
+  r:6;fill:url(#tokenGrad);filter:url(#glow);
+}
+@keyframes tokenFlow{
+  0%{offset-distance:0%;opacity:0}
+  5%{opacity:1}
+  95%{opacity:1}
+  100%{offset-distance:100%;opacity:0}
+}
+@keyframes tokenFlowBack{
+  0%{offset-distance:100%;opacity:0}
+  5%{opacity:1}
+  95%{opacity:1}
+  100%{offset-distance:0%;opacity:0}
+}
+.token-forward{animation:tokenFlow 5s ease-in-out infinite}
+.token-backward{animation:tokenFlowBack 5s ease-in-out infinite}
+.token-forward:nth-child(2){animation-delay:.8s}
+.token-forward:nth-child(3){animation-delay:1.6s}
+.token-backward:nth-child(1){animation-delay:.4s}
+.token-backward:nth-child(2){animation-delay:1.2s}
+.token-backward:nth-child(3){animation-delay:2s}
+
+/* ── metrics cards ───────────────────────────── */
+.metrics-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1.25rem}
+.metric-card{
+  background:var(--bg2);border:1px solid rgba(92,157,255,.1);
+  border-radius:var(--radius);padding:1.5rem;
+  transition:border-color .2s,box-shadow .2s;
+}
+.metric-card:hover{border-color:rgba(92,157,255,.3);box-shadow:0 0 20px rgba(92,157,255,.08)}
+.metric-card h3{font-size:1rem;color:var(--cyan);margin-bottom:.25rem}
+.metric-card .profile-id{font-size:.78rem;color:var(--fg3);margin-bottom:1rem}
+.metric-card .profile-id code{background:var(--bg4);padding:.15rem .4rem;border-radius:4px}
+.metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem 1.5rem}
+.metric-item{padding:.5rem;background:var(--bg3);border-radius:8px}
+.metric-item .label{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--fg3);margin-bottom:.15rem}
+.metric-item .value{font-size:1.35rem;font-weight:700;color:var(--fg)}
+.metric-item .value .unit{font-size:.75rem;font-weight:400;color:var(--fg2);margin-left:.25rem}
+.metric-item .note{font-size:.72rem;color:var(--fg3);margin-top:.25rem}
+.metric-card .full-width{grid-column:1/-1}
+
+/* ── info cards row ──────────────────────────── */
+.info-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1rem}
+.info-card{
+  background:var(--bg2);border:1px solid rgba(92,157,255,.08);
+  border-radius:var(--radius);padding:1.25rem;
+}
+.info-card h4{font-size:.9rem;color:var(--blue);margin-bottom:.5rem}
+.info-card p,.info-card li{font-size:.82rem;color:var(--fg2)}
+.info-card ul{list-style:none;padding:0}
+.info-card ul li{padding:.15rem 0 .15rem .8rem;position:relative}
+.info-card ul li::before{content:'•';position:absolute;left:0;color:var(--cyan)}
+
+/* ── footer ──────────────────────────────────── */
+footer{
+  text-align:center;padding:2rem;color:var(--fg3);font-size:.78rem;
+  border-top:1px solid rgba(92,157,255,.08);margin-top:1rem;
+}
+footer a{color:var(--blue)}
+
+/* ── scroll hint ────────────────────────────── */
+.scroll-hint{display:none}
+
+/* ── responsive ──────────────────────────────── */
+@media(max-width:768px){
+  header{padding:1.25rem 1rem 1rem}
+  .header-inner{flex-direction:column;align-items:flex-start}
+  .header-nav{margin-left:0}
+  main{padding:1rem}
+  section h2{font-size:1.15rem}
+  .metrics-grid{grid-template-columns:1fr}
+  .info-row{grid-template-columns:1fr}
+  .metric-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:480px){
+  .metric-grid{grid-template-columns:1fr}
+  .header-text h1{font-size:1.5rem}
+}
+
+@media(max-width:768px){
+  .arch-wrap,.flow-wrap{overflow-x:auto}
+  .arch-svg,.flow-svg{min-width:900px}
+  .scroll-hint{display:block;margin-top:.5rem;font-size:.8rem;color:var(--fg3);text-align:right}
+}
+
+/* ── scroll reveal ──────────────────────────── */
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+@media (prefers-reduced-motion: reduce){.token-particle{display:none}.reveal{opacity:1;transform:none;transition:none}}
+</style>
+</head>
+<body>
+
+<!-- ════════════ HEADER ════════════ -->
+<header>
+  <div class="header-inner">
+    <div class="logo-wrap">
+      <svg viewBox="0 0 512 512" width="56" height="56" role="img" aria-label="Alia">
+        <defs>
+          <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#5EEAD4"/>
+            <stop offset=".5" stop-color="#5C9DFF"/>
+            <stop offset="1" stop-color="#A78BFA"/>
+          </linearGradient>
+        </defs>
+        <rect width="512" height="512" rx="116" fill="url(#logoGrad)"/>
+        <path fill="#0B0D12" transform="translate(145.8 350.8)" d="M100.23 3.9Q74.1 3.9 53.53 -8.97Q32.96 -21.84 21.16 -44.07Q9.36 -66.3 9.36 -94.575Q9.36 -123.045 21.16 -145.37Q32.96 -167.7 53.53 -180.57Q74.1 -193.44 100.23 -193.44Q119.34 -193.44 134.75 -186.03Q150.15 -178.62 159.8 -165.55Q169.45 -152.49 170.82 -135.72V-53.82Q169.45 -37.05 159.9 -23.99Q150.35 -10.92 134.84 -3.51Q119.34 3.9 100.23 3.9ZM112.32 -49.92Q131.43 -49.92 143.13 -62.48Q154.83 -75.08 154.83 -94.77Q154.83 -108.03 149.57 -118.07Q144.3 -128.12 134.75 -133.87Q125.19 -139.62 112.52 -139.62Q100.04 -139.62 90.48 -133.87Q80.93 -128.12 75.37 -117.98Q69.82 -107.84 69.82 -94.77Q69.82 -81.71 75.28 -71.57Q80.74 -61.43 90.38 -55.67Q100.04 -49.92 112.32 -49.92ZM152.3 -49.92V-142.94L161.27 -197.14H211V-49.92Z"/>
+      </svg>
+    </div>
+    <div class="header-text">
+      <h1>Alia Architecture</h1>
+      <p class="tagline">Your hardware. Your AI. No cloud. — Local coding agent launcher v0.1.0</p>
+    </div>
+    <nav class="header-nav">
+      <a href="#architecture">Architecture</a>
+      <a href="#flow">Request Flow</a>
+      <a href="#benchmarks">Benchmarks</a>
+      <a href="#components">Components</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ════ HERO SECTION ════ -->
+<section class="hero">
+  <h1>Alia, explained by Alia</h1>
+  <div class="gradient-line"></div>
+  <p class="subtitle">
+    A local coding agent drew its own architecture: launcher, llama.cpp server, Qwen Code and your GPU, with real benchmark numbers.
+  </p>
+  <div class="cta-group">
+    <a href="#architecture" class="cta cta-primary">Explore the architecture</a>
+    <a href="#benchmarks" class="cta cta-secondary">See the benchmarks</a>
+  </div>
+</section>
+
+<main>
+
+<!-- ════════════ ARCHITECTURE DIAGRAM ════════════ -->
+<section id="architecture" class="reveal">
+  <h2>Layered Architecture</h2>
+  <p class="lead">Alia sits between the user, the GPU, and Qwen Code — detecting hardware, selecting a profile, starting llama-server on loopback, and launching the agent. Everything stays local.</p>
+
+  <div class="arch-wrap">
+    <svg class="arch-svg" viewBox="0 0 1100 480" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="boxGrad1" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1E2333"/>
+          <stop offset="1" stop-color="#161922"/>
+        </linearGradient>
+        <linearGradient id="boxGrad2" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1A2235"/>
+          <stop offset="1" stop-color="#14182A"/>
+        </linearGradient>
+        <linearGradient id="boxGrad3" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#221A35"/>
+          <stop offset="1" stop-color="#1A142A"/>
+        </linearGradient>
+        <linearGradient id="tokenGrad" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+          <stop offset="0%" stop-color="#5EEAD4"/>
+          <stop offset="100%" stop-color="#5C9DFF"/>
+        </linearGradient>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="shadow">
+          <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity=".3"/>
+        </filter>
+        <marker id="arrowHead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L8,3 L0,6" fill="var(--fg3)" stroke="none"/>
+        </marker>
+        <marker id="arrowHeadBlue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L8,3 L0,6" fill="var(--blue)" stroke="none"/>
+        </marker>
+      </defs>
+
+      <!-- ═══ ROW 1: USER LAYER ═══ -->
+
+      <!-- ═══ ANIMATED TOKEN FLOW ═══ -->
+      <circle class="token-particle token-forward" r="6" fill="url(#tokenGrad)" filter="url(#glow)" style="offset-path:path('M250,70 L290,170 L550,150 Q600,130 600,100 L840,100 L840,240 L720,300 L840,340 L900,340 L990,340')"/>
+      <circle class="token-particle token-backward" r="6" fill="url(#tokenGrad)" filter="url(#glow)" style="offset-path:path('M990,340 L900,340 L840,340 L720,300 L840,240 L840,100 L600,100 Q600,130 550,150 L290,170 L250,70')"/>
+
+      <!-- User Terminal -->
+      <g class="arch-box" data-detail="terminal" tabindex="0" role="button" aria-label="User Terminal details">
+        <rect class="box-bg" x="30" y="20" width="220" height="110" filter="url(#shadow)"/>
+        <rect class="box-accent" x="30" y="20" width="4" height="110" fill="var(--cyan)" rx="2"/>
+        <text class="box-icon" x="50" y="52" font-size="22">⌘</text>
+        <text class="box-title" x="78" y="55">User Terminal</text>
+        <text class="box-sub" x="50" y="78">bash / zsh / tmux</text>
+        <text class="box-sub" x="50" y="95">via SSH or local</text>
+        <text class="box-badge" x="50" y="115">Entry Point</text>
+      </g>
+
+      <!-- Browser (Web Shell) -->
+      <g class="arch-box" data-detail="browser" tabindex="0" role="button" aria-label="Browser details">
+        <rect class="box-bg" x="30" y="140" width="220" height="100" filter="url(#shadow)"/>
+        <rect class="box-accent" x="30" y="140" width="4" height="100" fill="var(--cyan)" rx="2"/>
+        <text class="box-icon" x="50" y="172" font-size="22">🌐</text>
+        <text class="box-title" x="78" y="175">Browser</text>
+        <text class="box-sub" x="50" y="198">Web Shell → 127.0.0.1:4170</text>
+        <text class="box-sub" x="50" y="215">HTTP / WebSocket</text>
+        <text class="box-badge" x="50" y="235">Alternative Frontend</text>
+      </g>
+
+      <!-- ═══ ROW 2: ALIA LAYER ═══ -->
+      <!-- Alia Launcher -->
+      <g class="arch-box" data-detail="launcher" tabindex="0" role="button" aria-label="Alia Launcher details">
+        <rect class="box-bg" x="290" y="100" width="260" height="200" rx="12" ry="12" fill="url(#boxGrad1)" stroke="var(--cyan)" stroke-width="1.5" filter="url(#shadow)"/>
+        <rect class="box-accent" x="290" y="100" width="4" height="200" fill="var(--cyan)" rx="2"/>
+        <text class="box-icon" x="315" y="135" font-size="22">🔧</text>
+        <text class="box-title" x="343" y="138">Alia Launcher</text>
+        <text class="box-sub" x="315" y="162">• Hardware Detection (GPU / VRAM / RAM)</text>
+        <text class="box-sub" x="315" y="182">• Profile Selection (auto / pinned)</text>
+        <text class="box-sub" x="315" y="202">• Start Lock (flock / PID management)</text>
+        <text class="box-sub" x="315" y="222">• Server Lifecycle (start / stop / health)</text>
+        <text class="box-sub" x="315" y="242">• GPU Lock coordination</text>
+        <text class="box-sub" x="315" y="262">• Ollama unload (if running)</text>
+        <text class="box-badge" x="315" y="282">Orchestrator</text>
+      </g>
+
+      <!-- ═══ ROW 3: INFRA LAYER ═══ -->
+      <!-- Qwen Code -->
+      <g class="arch-box" data-detail="qwen" tabindex="0" role="button" aria-label="Qwen Code details">
+        <rect class="box-bg" x="600" y="20" width="240" height="190" rx="10" ry="10" fill="url(#boxGrad2)" stroke="var(--blue)" stroke-width="1.5" filter="url(#shadow)"/>
+        <rect class="box-accent" x="600" y="20" width="4" height="190" fill="var(--blue)" rx="2"/>
+        <text class="box-icon" x="625" y="55" font-size="22">💻</text>
+        <text class="box-title" x="653" y="58">Qwen Code</text>
+        <text class="box-sub" x="625" y="82">Terminal UI / Web Shell</text>
+        <text class="box-sub" x="625" y="102">v0.25.1 — @qwen-code/qwen-code</text>
+        <text class="box-sub" x="625" y="122">OpenAI API compatible</text>
+        <text class="box-sub" x="625" y="142">API Key: "local" (fixed)</text>
+        <text class="box-sub" x="625" y="162">QWEN_HOME isolated</text>
+        <text class="box-badge" x="625" y="192">Coding Agent</text>
+      </g>
+
+      <!-- llama-server -->
+      <g class="arch-box" data-detail="server" transform="translate(0,40)" tabindex="0" role="button" aria-label="llama-server details">
+        <rect class="box-bg" x="600" y="200" width="240" height="200" rx="10" ry="10" fill="url(#boxGrad3)" stroke="var(--purple)" stroke-width="1.5" filter="url(#shadow)"/>
+        <rect class="box-accent" x="600" y="200" width="4" height="200" fill="var(--purple)" rx="2"/>
+        <text class="box-icon" x="625" y="235" font-size="22">🦙</text>
+        <text class="box-title" x="653" y="238">llama-server</text>
+        <text class="box-sub" x="625" y="262">127.0.0.1:8090 (loopback only)</text>
+        <text class="box-sub" x="625" y="282">CUDA inference engine</text>
+        <text class="box-sub" x="625" y="302">llama.cpp a0e6dc7</text>
+        <text class="box-sub" x="625" y="322">MTP drafting (speculative decode)</text>
+        <text class="box-sub" x="625" y="342">--no-webui · --api-key local</text>
+        <text class="box-badge" x="625" y="362">Inference Server</text>
+      </g>
+
+      <!-- GPU / RAM -->
+      <g class="arch-box" data-detail="hardware" transform="translate(0,40)" tabindex="0" role="button" aria-label="GPU and RAM details">
+        <rect class="box-bg" x="900" y="200" width="180" height="200" rx="10" ry="10" fill="url(#boxGrad1)" stroke="var(--green)" stroke-width="1.5" filter="url(#shadow)"/>
+        <rect class="box-accent" x="900" y="200" width="4" height="200" fill="var(--green)" rx="2"/>
+        <text class="box-icon" x="925" y="235" font-size="22">🎮</text>
+        <text class="box-title" x="953" y="238">GPU / RAM</text>
+        <text class="box-sub" x="925" y="262">NVIDIA GPU (detected)</text>
+        <text class="box-sub" x="925" y="282">VRAM → model layers</text>
+        <text class="box-sub" x="925" y="302">RAM → expert offload</text>
+        <text class="box-sub" x="925" y="322">NVMe → page cache</text>
+        <text class="box-badge" x="925" y="342">Hardware</text>
+      </g>
+
+      <!-- ═══ ARROWS ═══ -->
+      <!-- Terminal → Launcher -->
+      <path class="flow-arrow" d="M250,70 L290,170" marker-end="url(#arrowHead)"/>
+      <!-- Browser → Launcher -->
+      <path class="flow-arrow" d="M250,190 L290,190" marker-end="url(#arrowHead)"/>
+      <!-- Launcher → llama-server -->
+      <path class="flow-arrow" d="M550,200 L600,320" marker-end="url(#arrowHead)"/>
+      <!-- Qwen Code → llama-server -->
+      <path class="flow-arrow" d="M840,100 L840,240" marker-end="url(#arrowHead)"/>
+      <!-- llama-server → GPU -->
+      <path class="flow-arrow" d="M840,340 L900,340" marker-end="url(#arrowHead)"/>
+      <!-- Launcher → Qwen Code (start) -->
+      <path class="flow-arrow" d="M550,150 Q600,130 600,100" marker-end="url(#arrowHead)"/>
+    </svg>
+
+    <!-- Detail Panel -->
+    <div class="detail-panel" id="detailPanel">
+      <button class="detail-close" id="detailClose" title="Close">✕</button>
+      <div id="detailContent"></div>
+    </div>
+  </div>
+  <p class="scroll-hint">Swipe sideways to see the whole diagram →</p>
+</section>
+
+<!-- ════════════ ANIMATED REQUEST FLOW ════════════ -->
+<section id="flow" class="reveal">
+  <h2>Request Flow</h2>
+  <p class="lead">Watch a request travel from your prompt through Qwen Code into llama-server, across GPU and RAM, and back as streamed tokens. Alia starts these pieces once; it is not in the token path.</p>
+
+  <div class="flow-wrap">
+    <svg class="flow-svg" viewBox="0 100 1100 190" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="flowGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#5EEAD4"/>
+          <stop offset="50%" stop-color="#5C9DFF"/>
+          <stop offset="100%" stop-color="#A78BFA"/>
+        </linearGradient>
+        <marker id="flowArrow" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
+          <path d="M0,0 L10,4 L0,8" fill="var(--fg3)" stroke="none"/>
+        </marker>
+      </defs>
+
+      <!-- Flow path -->
+      <path d="M80,150 L1005,150"
+            fill="none" stroke="rgba(92,157,255,.15)" stroke-width="2" stroke-dasharray="8 4"/>
+
+      <!-- Animated tokens -->
+      <circle r="5" fill="#5EEAD4" filter="url(#glow)">
+        <animateMotion dur="4s" repeatCount="indefinite" begin="0s">
+          <mpath href="#flowPath1"/>
+        </animateMotion>
+      </circle>
+      <path id="flowPath1" d="M80,150 L1005,150" fill="none"/>
+
+      <circle r="5" fill="#A78BFA" filter="url(#glow)">
+        <animateMotion dur="4s" repeatCount="indefinite" begin="2s">
+          <mpath href="#flowPath2"/>
+        </animateMotion>
+      </circle>
+      <path id="flowPath2" d="M1005,150 L80,150" fill="none"/>
+
+      <!-- Nodes -->
+      <g>
+        <rect x="40" y="120" width="80" height="60" rx="8" fill="var(--bg3)" stroke="var(--cyan)" stroke-width="1.5"/>
+        <text x="80" y="148" text-anchor="middle" fill="var(--fg)" font-size="11" font-family="inherit">Prompt</text>
+        <text x="80" y="165" text-anchor="middle" fill="var(--fg2)" font-size="9" font-family="inherit">your terminal</text>
+      </g>
+
+      <g>
+        <rect x="225" y="120" width="80" height="60" rx="8" fill="var(--bg3)" stroke="var(--cyan)" stroke-width="1.5"/>
+        <text x="265" y="148" text-anchor="middle" fill="var(--fg)" font-size="11" font-family="inherit">Qwen Code</text>
+        <text x="265" y="165" text-anchor="middle" fill="var(--fg2)" font-size="9" font-family="inherit">agent loop</text>
+      </g>
+
+      <g>
+        <rect x="410" y="120" width="80" height="60" rx="8" fill="var(--bg3)" stroke="var(--blue)" stroke-width="1.5"/>
+        <text x="450" y="148" text-anchor="middle" fill="var(--fg)" font-size="11" font-family="inherit">llama-server</text>
+        <text x="450" y="165" text-anchor="middle" fill="var(--fg2)" font-size="9" font-family="inherit">127.0.0.1:8090</text>
+      </g>
+
+      <g>
+        <rect x="595" y="120" width="80" height="60" rx="8" fill="var(--bg3)" stroke="var(--purple)" stroke-width="1.5"/>
+        <text x="635" y="148" text-anchor="middle" fill="var(--fg)" font-size="11" font-family="inherit">GPU</text>
+        <text x="635" y="165" text-anchor="middle" fill="var(--fg2)" font-size="9" font-family="inherit">attention + KV</text>
+      </g>
+
+      <g>
+        <rect x="780" y="120" width="80" height="60" rx="8" fill="var(--bg3)" stroke="var(--purple)" stroke-width="1.5"/>
+        <text x="820" y="148" text-anchor="middle" fill="var(--fg)" font-size="11" font-family="inherit">RAM</text>
+        <text x="820" y="165" text-anchor="middle" fill="var(--fg2)" font-size="9" font-family="inherit">MoE experts</text>
+      </g>
+
+      <g>
+        <rect x="965" y="120" width="80" height="60" rx="8" fill="var(--bg3)" stroke="var(--green)" stroke-width="1.5"/>
+        <text x="1005" y="148" text-anchor="middle" fill="var(--fg)" font-size="11" font-family="inherit">MTP</text>
+        <text x="1005" y="165" text-anchor="middle" fill="var(--fg2)" font-size="9" font-family="inherit">2-token draft</text>
+      </g>
+
+      <!-- Labels -->
+      <text x="172.5" y="140" text-anchor="middle" fill="var(--fg3)" font-size="9" font-family="inherit">stdin</text>
+      <text x="357.5" y="140" text-anchor="middle" fill="var(--fg3)" font-size="9" font-family="inherit">POST /v1/chat</text>
+      <text x="542.5" y="140" text-anchor="middle" fill="var(--fg3)" font-size="9" font-family="inherit">CUDA</text>
+      <text x="727.5" y="140" text-anchor="middle" fill="var(--fg3)" font-size="9" font-family="inherit">expert offload</text>
+      <text x="912.5" y="140" text-anchor="middle" fill="var(--fg3)" font-size="9" font-family="inherit">draft + verify</text>
+
+      <!-- Direction arrows -->
+      <text x="172.5" y="168" text-anchor="middle" fill="var(--cyan)" font-size="14">→</text>
+      <text x="357.5" y="168" text-anchor="middle" fill="var(--cyan)" font-size="14">→</text>
+      <text x="542.5" y="168" text-anchor="middle" fill="var(--blue)" font-size="14">→</text>
+      <text x="727.5" y="168" text-anchor="middle" fill="var(--purple)" font-size="14">→</text>
+      <text x="912.5" y="168" text-anchor="middle" fill="var(--green)" font-size="14">→</text>
+
+      <!-- Back arrows -->
+      <text x="172.5" y="186" text-anchor="middle" fill="var(--purple)" font-size="14">←</text>
+      <text x="357.5" y="186" text-anchor="middle" fill="var(--blue)" font-size="14">←</text>
+      <text x="542.5" y="186" text-anchor="middle" fill="var(--cyan)" font-size="14">←</text>
+      <text x="727.5" y="186" text-anchor="middle" fill="var(--cyan)" font-size="14">←</text>
+      <text x="912.5" y="186" text-anchor="middle" fill="var(--green)" font-size="14">←</text>
+
+      <!-- Token generation animation -->
+      <g transform="translate(550, 222)">
+        <text text-anchor="middle" fill="var(--fg2)" font-size="11" font-family="inherit" font-weight="600">Token Generation Cycle</text>
+        <text x="0" y="20" fill="var(--fg3)" font-size="10" font-family="inherit" text-anchor="middle">
+          <tspan x="0" dy="0">Once: Alia detects the GPU → picks a profile → starts llama-server → launches Qwen Code</tspan>
+          <tspan x="0" dy="16">Per token: Qwen Code → /v1/chat/completions → attention on GPU, experts from RAM → MTP drafts 2 tokens → streamed back</tspan>
+        </text>
+      </g>
+    </svg>
+  </div>
+  <p class="scroll-hint">Swipe sideways to see the whole diagram →</p>
+</section>
+
+<!-- ════════════ BENCHMARKS ════════════ -->
+<section id="benchmarks" class="reveal">
+  <h2>Measured Benchmarks</h2>
+  <p class="lead">Real numbers from <code style="background:var(--bg4);padding:.15rem .4rem;border-radius:4px">profiles.json</code> — speeds measured on RTX 3070 8 GB, Ryzen 7 5800X, 16 GB RAM with llama.cpp commit a0e6dc7 and each profile's launch flags. The 35B values at 60K come from an earlier run without --jinja; quality scores come from separate runs.</p>
+
+  <div class="metrics-grid">
+
+    <!-- Profile 1: 35B balanced -->
+    <div class="metric-card">
+      <h3>Qwen3.6 35B-A3B — Balanced</h3>
+      <div class="profile-id"><code>rtx8gb-16gb-qwen36-35b</code> · IQ3_XXS · 14.07 GB</div>
+      <div class="metric-grid">
+        <div class="metric-item">
+          <div class="label">TG @ 4K</div>
+          <div class="value">46.5<span class="unit">tok/s</span></div>
+        </div>
+        <div class="metric-item">
+          <div class="label">TG @ 32K</div>
+          <div class="value">35.2<span class="unit">tok/s</span></div>
+        </div>
+        <div class="metric-item">
+          <div class="label">TG @ 60K</div>
+          <div class="value">38.2<span class="unit">tok/s</span></div>
+        </div>
+        <div class="metric-item">
+          <div class="label">PP @ 4K</div>
+          <div class="value">1,008<span class="unit">tok/s</span></div>
+        </div>
+        <div class="metric-item">
+          <div class="label">PP @ 32K</div>
+          <div class="value">1,301<span class="unit">tok/s</span></div>
+        </div>
+        <div class="metric-item">
+          <div class="label">PP @ 60K</div>
+          <div class="value">1,041<span class="unit">tok/s</span></div>
+        </div>
+        <div class="metric-item full-width">
+          <div class="label">MTP Acceptance Rate</div>
+          <div class="value">62<span class="unit">%</span></div>
+          <div class="note">+14 % TG @4K, +10 % @32K vs. no MTP</div>
+        </div>
+        <div class="metric-item">
+          <div class="label">Code Quality</div>
+          <div class="value">9<span class="unit">/10</span></div>
+          <div class="note">Separate run, server args not recorded</div>
+        </div>
+        <div class="metric-item">
+          <div class="label">Tool Use</div>
+          <div class="value">7<span class="unit">/8</span></div>
+          <div class="note">Separate run, server args not recorded</div>
+        </div>
+        <div class="metric-item full-width">
+          <div class="label">RAM Pressure (low free RAM)</div>
+          <div class="value">24.6 <span class="unit">tok/s @32K, 9.7 @60K</span></div>
+          <div class="note">32 GB RAM recommended for long contexts — model drops from page cache, streams from SSD</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile 2: 9B fast -->
+    <div class="metric-card">
+      <h3>Qwen3.5 9B — Fast</h3>
+      <div class="profile-id"><code>rtx8gb-qwen35-9b-fast</code> · Q4_K_M · 5.7 GB</div>
+      <div class="metric-grid">
+        <div class="metric-item">
+          <div class="label">TG @ 4K</div>
+          <div class="value">66.1<span class="unit">tok/s</span></div>
+        </div>
+        <div class="metric-item">
+          <div class="label">TG @ 32K</div>
+          <div class="value">57.7<span class="unit">tok/s</span></div>
+        </div>
+        <div class="metric-item">
+          <div class="label">PP @ 4K</div>
+          <div class="value">2,980<span class="unit">tok/s</span></div>
+        </div>
+        <div class="metric-item">
+          <div class="label">PP @ 32K</div>
+          <div class="value">2,707<span class="unit">tok/s</span></div>
+        </div>
+        <div class="metric-item full-width">
+          <div class="label">Context Window</div>
+          <div class="value">33,408<span class="unit">tokens</span></div>
+        </div>
+        <div class="metric-item">
+          <div class="label">Code Quality</div>
+          <div class="value">8<span class="unit">/10</span></div>
+          <div class="note">Measured via Ollama (not launch config)</div>
+        </div>
+        <div class="metric-item">
+          <div class="label">Tool Use</div>
+          <div class="value">8<span class="unit">/8</span></div>
+          <div class="note">Measured via Ollama (not launch config)</div>
+        </div>
+        <div class="metric-item full-width">
+          <div class="label">Model Size</div>
+          <div class="value">5.7<span class="unit">GB</span></div>
+          <div class="note">Downloads in ~8 min @ 100 Mbit/s</div>
+        </div>
+        <div class="metric-item full-width">
+          <div class="label">Recommended RAM</div>
+          <div class="value">12<span class="unit">GB</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile 3: 35B Q4 unmeasured -->
+    <div class="metric-card">
+      <h3>Qwen3.6 35B-A3B — Q4_K_XL</h3>
+      <div class="profile-id"><code>rtx12-16gb-qwen36-35b-q4</code> · 20.8 GB · <span style="color:var(--yellow)">unmeasured</span></div>
+      <div class="metric-grid">
+        <div class="metric-item full-width">
+          <div class="label">Target Hardware</div>
+          <div class="value" style="font-size:1rem">12–16 GB VRAM · 32 GB RAM</div>
+        </div>
+        <div class="metric-item">
+          <div class="label">Context</div>
+          <div class="value">32,768<span class="unit">tokens</span></div>
+        </div>
+        <div class="metric-item">
+          <div class="label">Server Args</div>
+          <div class="value" style="font-size:.9rem;overflow-wrap:break-word">-fa on, --jinja, -b 2048, --cache-ram 4096</div>
+        </div>
+        <div class="metric-item full-width">
+          <div class="label">Note</div>
+          <div class="note">Never run on target hardware — unmeasured profile. Requires 35B Q4_K_XL GGUF (~20.8 GB).</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile 4: 35B Q4 24GB -->
+    <div class="metric-card">
+      <h3>Qwen3.6 35B-A3B — Q4_K_XL (24 GB)</h3>
+      <div class="profile-id"><code>rtx24gb-qwen36-35b-q4</code> · 20.8 GB · <span style="color:var(--yellow)">unmeasured</span></div>
+      <div class="metric-grid">
+        <div class="metric-item full-width">
+          <div class="label">Target Hardware</div>
+          <div class="value" style="font-size:1rem">20+ GB VRAM · 32 GB RAM</div>
+        </div>
+        <div class="metric-item">
+          <div class="label">Context</div>
+          <div class="value">32,768<span class="unit">tokens</span></div>
+        </div>
+        <div class="metric-item">
+          <div class="label">Server Args</div>
+          <div class="value" style="font-size:.9rem;overflow-wrap:break-word">-ngl 99, -fa on, --jinja, -b 2048</div>
+        </div>
+        <div class="metric-item full-width">
+          <div class="label">Note</div>
+          <div class="note">Full GPU offload (-ngl 99) with 20+ GB VRAM. Unmeasured — designed for RTX 4090-class GPUs.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ════════════ COMPONENTS ════════════ -->
+<section id="components" class="reveal">
+  <h2>Component Details</h2>
+  <p class="lead">Each component in the Alia ecosystem — from launcher to inference, from security to data paths.</p>
+
+  <div class="info-row">
+    <div class="info-card">
+      <h4>🔒 Security Model</h4>
+      <ul>
+        <li>llama-server bound to 127.0.0.1:8090 only</li>
+        <li>Fixed API key "local" — not exposed externally</li>
+        <li>State dir mode 0700, files mode 0600</li>
+        <li>--no-webui disables llama.cpp web UI</li>
+        <li>No pkill — targets only recorded PID by start time</li>
+        <li>Profile can't override host/port</li>
+      </ul>
+    </div>
+    <div class="info-card">
+      <h4>🔧 Launcher Features</h4>
+      <ul>
+        <li>Hardware detection via nvidia-smi + /proc/meminfo</li>
+        <li>Multi-GPU: picks largest VRAM GPU</li>
+        <li>CUDA_VISIBLE_DEVICES pinning</li>
+        <li>Start lock via flock</li>
+        <li>GPU lock coordination (shared lock files)</li>
+        <li>Ollama model unload before launch</li>
+        <li>Health check before reuse</li>
+      </ul>
+    </div>
+    <div class="info-card">
+      <h4>📊 Profile Selection</h4>
+      <ul>
+        <li>Automatic: matches VRAM/RAM, picks highest ranked measured</li>
+        <li>Pinned: explicit profile via <code style="background:var(--bg4);padding:.1rem .3rem;border-radius:3px">alia use</code></li>
+        <li>Warns on unmeasured or out-of-range</li>
+        <li>4 profiles: 2 measured, 2 unmeasured</li>
+        <li>Server args validated (no network override)</li>
+      </ul>
+    </div>
+    <div class="info-card">
+      <h4>📁 Data Paths</h4>
+      <ul>
+        <li><code style="background:var(--bg4);padding:.1rem .3rem;border-radius:3px">~/.local/state/alia</code> — PID, server state, logs</li>
+        <li><code style="background:var(--bg4);padding:.1rem .3rem;border-radius:3px">~/.local/share/alia/models</code> — downloaded GGUF</li>
+        <li><code style="background:var(--bg4);padding:.1rem .3rem;border-radius:3px">~/.config/alia/config.json</code> — profile, language</li>
+        <li><code style="background:var(--bg4);padding:.1rem .3rem;border-radius:3px">~/.local/state/alia/qwen-home</code> — isolated Qwen home</li>
+      </ul>
+    </div>
+    <div class="info-card">
+      <h4>🦙 llama-server Configuration</h4>
+      <ul>
+        <li>llama.cpp commit a0e6dc7 (2026-10-14)</li>
+        <li>CUDA enabled (built from source)</li>
+        <li>MTP drafting: --spec-type draft-mtp</li>
+        <li>Flash attention: -fa on</li>
+        <li>Jinja chat template: --jinja</li>
+        <li>Build path: ~/src/llama.cpp/build/bin/llama-server</li>
+      </ul>
+    </div>
+    <div class="info-card">
+      <h4>💻 Qwen Code Integration</h4>
+      <ul>
+        <li>Version: @qwen-code/qwen-code@0.25.1</li>
+        <li>OpenAI API compatible endpoint</li>
+        <li>Terminal UI + Web Shell (port 4170)</li>
+        <li>Isolated QWEN_HOME per Alia session</li>
+        <li>Approval modes: ask / auto-edit / yolo</li>
+        <li>Thinking toggle: --fast disables</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p>Alia v0.1.0 · Your hardware. Your AI. No cloud. · <a href="https://github.com/BEKO2210/alia">Source on GitHub</a></p>
+  <p>This page was written by Alia itself (Qwen3.6-35B-A3B on an RTX 3070): one build session plus several correction rounds. <a href="https://github.com/BEKO2210/alia/blob/main/site/showcase/architecture/PROMPTS.md">All prompts are published alongside.</a></p>
+  <p style="margin-top:.5rem">Architecture visualization — all numbers from <code style="background:var(--bg4);padding:.1rem .3rem;border-radius:3px">profiles.json</code></p>
+</footer>
+
+<script>
+// ── Detail panel data ──
+const details = {
+  terminal: {
+    title: 'User Terminal',
+    icon: '⌘',
+    content: `
+      <p>The user's shell environment — bash, zsh, or tmux. Alia is invoked directly from the terminal or over SSH.</p>
+      <ul>
+        <li>Run <code>alia</code> for full interactive mode</li>
+        <li>Flags: --fast, --yolo, --auto-edit, --wait-gpu, --lang</li>
+        <li>Subcommands: web, doctor, profiles, use, lang, logs, stop</li>
+        <li>Pass-through: alia -- -p "Explain main.py"</li>
+      </ul>
+    `
+  },
+  browser: {
+    title: 'Browser (Web Shell)',
+    icon: '🌐',
+    content: `
+      <p>Alia's built-in Web Shell provides a browser-based terminal interface.</p>
+      <ul>
+        <li>Default port: 127.0.0.1:4170</li>
+        <li>Customizable: <code>alia web --port 4317 --no-open</code></li>
+        <li>HTTP + WebSocket for real-time interaction</li>
+        <li>Alternative to terminal-based invocation</li>
+      </ul>
+    `
+  },
+  launcher: {
+    title: 'Alia Launcher',
+    icon: '🔧',
+    content: `
+      <p>The orchestrator — detects hardware, selects a profile, manages server lifecycle.</p>
+      <ul>
+        <li><strong>Hardware Detection:</strong> nvidia-smi for GPU/VRAM, /proc/meminfo for RAM, lscpu for CPU</li>
+        <li><strong>Profile Selection:</strong> Matches VRAM/RAM ranges, picks highest-ranked measured profile</li>
+        <li><strong>Start Lock:</strong> flock-based serialization; only one managed instance</li>
+        <li><strong>Server Lifecycle:</strong> Health checks, PID tracking, graceful stop (SIGTERM → SIGKILL)</li>
+        <li><strong>GPU Lock:</strong> Optional shared lock file via ALIA_GPU_LOCK or config</li>
+        <li><strong>Ollama Unload:</strong> Clears competing models from GPU before launch</li>
+        <li><strong>Security:</strong> Forces 127.0.0.1:8090, rejects profile network overrides</li>
+      </ul>
+    `
+  },
+  qwen: {
+    title: 'Qwen Code',
+    icon: '💻',
+    content: `
+      <p>The coding agent — runs on top of llama-server, provides terminal UI and Web Shell.</p>
+      <ul>
+        <li>Package: <code>@qwen-code/qwen-code@0.25.1</code></li>
+        <li>Connects to llama-server via OpenAI-compatible API at 127.0.0.1:8090</li>
+        <li>API key: "local" (fixed, set by Alia)</li>
+        <li>Approval modes: ask-before-edit, auto-edit, yolo (all tools)</li>
+        <li>Thinking: enabled by default, disabled with --fast</li>
+        <li>Isolated QWEN_HOME under ~/.local/state/alia/qwen-home</li>
+        <li>Language: follows system locale, overridable with --lang</li>
+      </ul>
+    `
+  },
+  server: {
+    title: 'llama-server',
+    icon: '🦙',
+    content: `
+      <p>The inference engine — llama.cpp compiled with CUDA support.</p>
+      <ul>
+        <li>Source: <code>~/src/llama.cpp</code> commit a0e6dc7 (2026-10-14)</li>
+        <li>Build: CMake + GGML_CUDA=ON + CUDA 12.8</li>
+        <li>Bound to 127.0.0.1:8090 (loopback only)</li>
+        <li>--no-webui: disables built-in web UI</li>
+        <li>MTP drafting: --spec-type draft-mtp --spec-draft-n-max 2</li>
+        <li>Flash attention: -fa on</li>
+        <li>Jinja chat template: --jinja</li>
+        <li>State dir: mode 0700, files mode 0600</li>
+        <li>Server args validated — no host/port override allowed</li>
+      </ul>
+    `
+  },
+  hardware: {
+    title: 'GPU / RAM',
+    icon: '🎮',
+    content: `
+      <p>The physical hardware — NVIDIA GPU with CUDA, system RAM, and storage.</p>
+      <ul>
+        <li><strong>VRAM:</strong> Model weights and KV cache reside here</li>
+        <li><strong>RAM:</strong> Expert layer offload (35B model), page cache</li>
+        <li><strong>NVMe:</strong> Fallback when model drops from page cache (~626 MB/s read)</li>
+        <li>CUDA_VISIBLE_DEVICES: pinned to detected GPU index</li>
+        <li>8 GB VRAM profile: 35B IQ3_XXS (14 GB model) with MTP</li>
+        <li>12–16 GB VRAM: 35B Q4_K_XL with cache-ram offload</li>
+        <li>20+ GB VRAM: Full GPU offload (-ngl 99)</li>
+      </ul>
+    `
+  }
+};
+
+// ── Detail panel interaction ──
+const panel = document.getElementById('detailPanel');
+const content = document.getElementById('detailContent');
+const closeBtn = document.getElementById('detailClose');
+
+document.querySelectorAll('.arch-box').forEach(box => {
+  box.addEventListener('click', () => {
+    const key = box.getAttribute('data-detail');
+    const d = details[key];
+    if (!d) return;
+    content.innerHTML = `<h3>${d.icon} ${d.title}</h3>${d.content}`;
+    panel.classList.add('open');
+  });
+  box.addEventListener('mouseenter', () => {
+    const key = box.getAttribute('data-detail');
+    const d = details[key];
+    if (!d) return;
+    content.innerHTML = `<h3>${d.icon} ${d.title}</h3>${d.content}`;
+    panel.classList.add('open');
+  });
+  box.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      box.dispatchEvent(new Event('click'));
+    }
+  });
+});
+
+closeBtn.addEventListener('click', () => {
+  panel.classList.remove('open');
+});
+
+// Close on outside click
+document.addEventListener('click', (e) => {
+  if (!panel.contains(e.target) && !e.target.closest('.arch-box')) {
+    panel.classList.remove('open');
+  }
+});
+
+// ── Scroll reveal ──
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// ── Smooth scroll for nav links ──
+document.querySelectorAll('.header-nav a').forEach(link => {
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    const target = document.querySelector(link.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+</script>
+
+</body>
+</html>
