@@ -16,3 +16,8 @@ and repository licenses. Qwen3.6 is licensed under Apache-2.0.
 The Alia logo mark and wordmark (brand/logo-mark.svg, brand/logo-wordmark.svg) are
 outlined glyphs from the Outfit typeface, Copyright 2021 The Outfit Project Authors,
 licensed under the SIL Open Font License 1.1 (https://openfontlicense.org).
+
+The website (site/fonts, site/showcase/architecture/fonts) ships
+Outfit (Copyright 2021 The Outfit Project Authors), Inter (Copyright 2020 The
+Inter Project Authors) and JetBrains Mono (Copyright 2020 The JetBrains Mono
+Project Authors), all licensed under the SIL Open Font License 1.1.

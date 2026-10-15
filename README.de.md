@@ -143,6 +143,10 @@ Alia erzwingt für `llama-server` `127.0.0.1:8090`, lehnt Host-/Port-Overrides a
 
 Loopback trennt keine gegenseitig unvertrauenswürdigen lokalen Benutzer. Der feste lokale API-Schlüssel ist für ausreichend privilegierte lokale Prozesse sichtbar; die Qwen Web Shell hat keine zusätzliche Bearer-Token-Sperre. Keinen Port über SSH-Forwarding, Reverse Proxy, Container oder Firewalländerungen freigeben. Keine parallelen Alia-Sitzungen mit verschiedenen Freigabemodi starten, da sie eine Settings-Datei teilen. `--yolo` erlaubt beliebige Tools ohne Rückfrage. Ollama-Unload spricht nur Ollamas Loopback-API an: ein nicht laufendes Ollama wird ignoriert, aber Alia bricht ab, wenn erkannte Modelle nicht binnen 10 Sekunden entladen sind.
 
+## Showcase
+
+[Alia, von Alia erklärt](https://beko2210.github.io/alia/showcase/architecture/) ist eine Seite, die Alia lokal auf der RTX 3070 über die eigene Architektur geschrieben hat: Es hat den eigenen Quellcode gelesen und das interaktive Diagramm, den animierten Request-Flow und den Benchmark-Teil gebaut. [Alle Prompts](site/showcase/architecture/PROMPTS.md) sind veröffentlicht, auch das, was schiefging.
+
 ## Entwicklung und Screenshots
 
 Die Unit-Tests brauchen keine GPU, starten keinen Server und laden keine Modelle:

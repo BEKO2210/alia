@@ -178,6 +178,11 @@ h2 { font-size: clamp(30px, 4.4vw, 50px); line-height: 1.08; font-weight: 600; l
 .shot { margin-top: 20px; }
 #shot-web img { border-radius: var(--r); border: 1px solid var(--line2); box-shadow: 0 30px 90px -30px rgba(0, 0, 0, .9); }
 .shot img { width: 100%; }
+.showcase-shot { display: block; margin-top: 32px; }
+.showcase-shot img { border-radius: var(--r); border: 1px solid var(--line2); box-shadow: 0 30px 90px -30px rgba(0, 0, 0, .9); transition: transform .3s ease, border-color .3s ease; }
+.showcase-shot:hover img { transform: translateY(-4px); border-color: rgba(92, 157, 255, .45); }
+.cta-left { justify-content: flex-start; margin-top: 24px; }
+@media (prefers-reduced-motion: reduce) { .showcase-shot img { transition: none; } .showcase-shot:hover img { transform: none; } }
 
 /* stack */
 .stack-in { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
