@@ -198,21 +198,22 @@ def _run_text(args: list[str]) -> str:
 
 def detect_hardware() -> dict[str, Any]:
     gpu_name: str | None = None
+    gpu_index: int | None = None
     vram_gb = 0.0
     raw_gpu = _run_text([
-        "nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"
+        "nvidia-smi", "--query-gpu=index,name,memory.total", "--format=csv,noheader,nounits"
     ])
     if raw_gpu:
         # Select the NVIDIA GPU with the most VRAM when several are present.
-        parsed: list[tuple[float, str]] = []
+        parsed: list[tuple[float, int, str]] = []
         for line in raw_gpu.splitlines():
             try:
-                name, mib = line.rsplit(",", 1)
-                parsed.append((float(mib.strip()) / 1024, name.strip()))
+                index, name, mib = line.split(",", 2)
+                parsed.append((float(mib.strip()) / 1024, int(index.strip()), name.strip()))
             except ValueError:
                 continue
         if parsed:
-            vram_gb, gpu_name = max(parsed)
+            vram_gb, gpu_index, gpu_name = max(parsed, key=lambda item: item[0])
 
     ram_gb = 0.0
     try:
@@ -231,6 +232,7 @@ def detect_hardware() -> dict[str, Any]:
             break
     return {
         "gpu_name": gpu_name,
+        "gpu_index": gpu_index,
         "vram_gb": round(vram_gb, 1),
         "ram_gb": round(ram_gb, 1),
         "cpu_name": cpu_name,
@@ -252,11 +254,14 @@ def profile_fits(profile: dict[str, Any], hw: dict[str, Any]) -> bool:
 
 def read_config(path: Path) -> dict[str, Any]:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        value = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return {}
     except (OSError, json.JSONDecodeError) as exc:
         raise RuntimeError(tr("config.unreadable", path=path, error=exc)) from exc
+    if not isinstance(value, dict):
+        raise RuntimeError(tr("config.not_object", path=path))
+    return value
 
 
 def write_config(path: Path, profile_id: str | None) -> None:
@@ -354,14 +359,19 @@ def ensure_model(profile: dict[str, Any], paths: dict[str, Path]) -> Path | None
 
 
 def find_llama_server() -> tuple[Path | None, dict[str, str]]:
+    def library_env(binary: Path) -> dict[str, str]:
+        existing = os.environ.get("LD_LIBRARY_PATH")
+        value = str(binary.parent) + (os.pathsep + existing if existing else "")
+        return {"LD_LIBRARY_PATH": value}
+
     configured = os.environ.get("ALIA_LLAMA_SERVER")
     if configured:
         binary = Path(configured).expanduser()
         if binary.is_file() and os.access(binary, os.X_OK):
-            return binary, {"LD_LIBRARY_PATH": str(binary.parent)}
+            return binary, library_env(binary)
     preferred = Path.home() / "src/llama.cpp/build/bin/llama-server"
     if preferred.is_file() and os.access(preferred, os.X_OK):
-        return preferred, {"LD_LIBRARY_PATH": str(preferred.parent)}
+        return preferred, library_env(preferred)
     return None, {}
 
 
@@ -401,6 +411,24 @@ def process_start_ticks(pid: int) -> str | None:
         return fields[19]
     except (OSError, IndexError):
         return None
+
+
+def terminate_process(process: subprocess.Popen[bytes], timeout: float = 2) -> None:
+    """Terminate and reap a child we own, escalating after a bounded wait."""
+    if process.poll() is not None:
+        process.wait()
+        return
+    try:
+        process.terminate()
+        process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            pass
+    except OSError:
+        pass
 
 
 def read_pid(path: Path) -> int | None:
@@ -575,7 +603,7 @@ def process_owns_listen_port(pid: int, port: int) -> bool:
 
 def server_state_matches_profile(
     state: dict[str, Any], profile: dict[str, Any], model_path: Path | None = None,
-    binary: Path | None = None,
+    binary: Path | None = None, gpu_index: int | None = None,
 ) -> bool:
     if state.get("profile") != profile["id"] or state.get("ctx") != profile["ctx"]:
         return False
@@ -587,11 +615,12 @@ def server_state_matches_profile(
         and state.get("binary") == str(binary)
         and state.get("argv") == expected_argv
         and state.get("port") == PORT
+        and state.get("gpu_index") == gpu_index
     )
 
 
 def start_server(
-    profile: dict[str, Any], model_path: Path, paths: dict[str, Path]
+    profile: dict[str, Any], model_path: Path, paths: dict[str, Path], gpu_index: int | None = None,
 ) -> tuple[int, bool, subprocess.Popen[bytes] | None]:
     binary, env_extra = find_llama_server()
     if binary is None:
@@ -600,7 +629,7 @@ def start_server(
     pid = managed_pid(paths)
     state = read_server_state(paths)
     if (
-        pid and server_state_matches_profile(state, profile, model_path, binary)
+        pid and server_state_matches_profile(state, profile, model_path, binary, gpu_index)
         and process_owns_listen_port(pid, PORT) and health_ok()
     ):
         return pid, True, None
@@ -616,50 +645,45 @@ def start_server(
     ensure_private_dir(paths["state"])
     env = os.environ.copy()
     env.update(env_extra)
-    descriptor = os.open(paths["log"], os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-    with os.fdopen(descriptor, "ab", buffering=0) as log:
-        process = subprocess.Popen(
-            args, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
-            env=env, start_new_session=True,
-        )
-    start_ticks = process_start_ticks(process.pid)
-    if start_ticks is None:
-        return_code = process.poll()
-        if return_code is None:
-            process.terminate()
-            try:
-                process.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
-            raise RuntimeError(tr("server.start_time_failed"))
-        process.wait()
-        raise RuntimeError(tr("server.exited", log=paths["log"]))
-    state = {
-        "pid": process.pid,
-        "start_ticks": start_ticks,
-        "profile": profile["id"],
-        "ctx": profile["ctx"],
-        "model": profile["model"]["file"],
-        "model_path": str(model_path),
-        "port": PORT,
-        "binary": str(binary),
-        "argv": args,
-        "started_at": int(time.time()),
-    }
+    if gpu_index is not None:
+        env["CUDA_VISIBLE_DEVICES"] = str(gpu_index)
+    process: subprocess.Popen[bytes] | None = None
     try:
+        descriptor = os.open(paths["log"], os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(descriptor, "ab", buffering=0) as log:
+            process = subprocess.Popen(
+                args, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                env=env, start_new_session=True,
+            )
+        start_ticks = process_start_ticks(process.pid)
+        if start_ticks is None:
+            if process.poll() is None:
+                raise RuntimeError(tr("server.start_time_failed"))
+            process.wait()
+            raise RuntimeError(tr("server.exited", log=paths["log"]))
+        state = {
+            "pid": process.pid,
+            "start_ticks": start_ticks,
+            "profile": profile["id"],
+            "ctx": profile["ctx"],
+            "gpu_index": gpu_index,
+            "model": profile["model"]["file"],
+            "model_path": str(model_path),
+            "port": PORT,
+            "binary": str(binary),
+            "argv": args,
+            "started_at": int(time.time()),
+        }
         write_private_text(paths["server_state"], json.dumps(state, indent=2) + "\n")
         pid_descriptor = os.open(paths["pid"], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(pid_descriptor, "w", encoding="ascii") as handle:
             handle.write(f"{process.pid}\n")
     except BaseException:
-        try:
-            process.kill()
-            process.wait(timeout=2)
-        except (OSError, subprocess.TimeoutExpired):
-            pass
-        clear_server_files(paths, expected_pid=process.pid)
+        if process is not None:
+            terminate_process(process)
+            clear_server_files(paths, expected_pid=process.pid)
         raise
+    assert process is not None
     return process.pid, False, process
 
 
@@ -760,11 +784,19 @@ def wait_for_health(
                 last_plain_second = elapsed
             time.sleep(0.5)
     except KeyboardInterrupt:
-        stop_server(paths, quiet=True)
+        if process is not None and process.poll() is None:
+            terminate_process(process)
+            clear_server_files(paths, expected_pid=pid)
+        else:
+            stop_server(paths, quiet=True)
         raise
     if interactive:
         print()
-    stop_server(paths, quiet=True)
+    if process is not None and process.poll() is None:
+        terminate_process(process)
+        clear_server_files(paths, expected_pid=pid)
+    else:
+        stop_server(paths, quiet=True)
     raise RuntimeError(tr("server.timeout", seconds=int(timeout), log=paths["log"]))
 
 
@@ -1038,6 +1070,13 @@ def _version(command: list[str]) -> str:
         return tr("version.not_found")
 
 
+def qwen_version_supported(output: str) -> bool:
+    return any(
+        match.group(1) == "0.25.1"
+        for match in re.finditer(r"(?<![\d.])v?(\d+\.\d+\.\d+)(?![\w.-])", output)
+    )
+
+
 def port_open(host: str = HOST, port: int = PORT) -> bool:
     try:
         with socket.create_connection((host, port), timeout=0.3):
@@ -1058,15 +1097,19 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
     hf = shutil.which("hf")
     foreign_port = port_open() and not (pid and process_owns_listen_port(pid, PORT))
     disk_free = shutil.disk_usage(Path.home()).free / 1_000_000_000
+    gpu_index = hw.get("gpu_index")
+    gpu_text = f"{hw['gpu_name']} · {hw['vram_gb']:.1f} GB"
+    if gpu_index is not None:
+        gpu_text += f" · index {gpu_index}"
     rows = [
-        [tr("doctor.label.gpu"), f"{hw['gpu_name']} · {hw['vram_gb']:.1f} GB" if hw["gpu_name"] else tr("doctor.no_gpu")],
+        [tr("doctor.label.gpu"), gpu_text if hw["gpu_name"] else tr("doctor.no_gpu")],
         [tr("doctor.label.ram"), f"{hw['ram_gb']:.1f} GB"],
         [tr("doctor.label.cpu"), f"{hw['cpu_name']} · {hw['cpu_count']} {tr('doctor.threads')}"],
         [tr("doctor.label.profile"), profile["id"] if profile else tr("doctor.none")],
         [tr("doctor.label.selection"), reason + (" ⚠" if warning else "")],
         [tr("doctor.label.server"), f"PID {pid} · {tr('doctor.healthy') if health_ok() else tr('doctor.not_ready')} · Port {state.get('port', PORT)}" if pid else tr("doctor.stopped")],
         [tr("doctor.label.model"), str(model) if model else tr("doctor.model_missing")],
-        ["Qwen", f"{qwen_version} · {qwen}"],
+        ["Qwen", f"{qwen_version} · {qwen}" + (f" · {tr('doctor.qwen_version_warning', expected='0.25.1')}" if qwen_version != tr("version.not_found") and not qwen_version_supported(qwen_version) else "")],
         ["llama-server", str(llama) if llama else tr("version.not_found")],
         ["hf", hf or tr("version.not_found")],
         [tr("doctor.label.port"), tr("doctor.port_foreign") if foreign_port else tr("doctor.port_available")],
@@ -1122,7 +1165,7 @@ def prepare_runtime(
     # readiness. The optional external lock coordinates unrelated GPU jobs.
     with GpuStartLock(paths["start_lock"], max(300.0, wait_gpu)):
         with GpuStartLock(lock_path, wait_gpu):
-            pid, reused, process = start_server(profile, model_path, paths)
+            pid, reused, process = start_server(profile, model_path, paths, hw.get("gpu_index"))
             if reused:
                 print(f"{color('32', '✓')} {tr('startup.server_reused', pid=pid)}")
             else:

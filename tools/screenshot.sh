@@ -25,11 +25,21 @@ tmux capture-pane -e -p -t "$target" \
   | python3 "$root_dir/tools/ansi2html.py" "${TITLE:-$target}" \
   >"$temporary_html"
 
-google-chrome \
+chrome_bin=${CHROME:-$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)}
+if [[ -z $chrome_bin ]]; then
+  echo "Error: no Chrome/Chromium executable found. Set CHROME." >&2
+  exit 1
+fi
+"$chrome_bin" \
   --headless=new \
   --hide-scrollbars \
   --screenshot="$output" \
   --window-size="$window_size" \
-  "file://$temporary_html" >/dev/null 2>&1
+  "file://$temporary_html" >/dev/null
+
+if [[ ! -s $output ]]; then
+  echo "Error: browser did not create screenshot: $output" >&2
+  exit 1
+fi
 
 printf '%s\n' "$output"

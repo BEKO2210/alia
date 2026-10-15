@@ -62,6 +62,8 @@ def apply_sgr(state: dict, params: list[int]) -> None:
             state["fg"] = BASE[p - 82]
         elif 40 <= p <= 47:
             state["bg"] = BASE[p - 40]
+        elif 100 <= p <= 107:
+            state["bg"] = BASE[p - 92]
         elif p == 39:
             state.pop("fg", None)
         elif p == 49:

@@ -27,6 +27,8 @@ hier nicht verwendet. σ der dichten Modelle < 1 %; bei MoE mit Experten im RAM 
 
 Qualität: 10 Code-Aufgaben (8 Python, 2 C++) mit ausgeführten Unit-Tests, 8 Tool-Call-Fälle (DE/EN, inkl. „kein
 Tool nötig“), 3 ERP-Extraktionen als JSON mit und ohne Schema. Temperatur 0, Thinking aus.
+Die Qualitäts-JSONL enthalten weder Serverkontext noch Serverargumente; daher wird kein Qualitätsergebnis einem
+32K-Kontext oder der Startkonfiguration zugeschrieben.
 
 | Modell | Code | Tools | JSON Schema / nur Prompt | Ausgabe t/s @4K / @32K | Bemerkung |
 |---|---:|---:|---:|---:|---|
@@ -72,7 +74,10 @@ Empfehlungen pro Zweck:
 Speicher-Telemetrie bei Qwen3.6 (final): Runner 670–830 Major Faults/s, bis 106 MB/s NVMe-Reads, RSS 10,5–11,5 GB.
 **Die Experten werden aus dem Page-Cache verdrängt** — der eigentliche Engpass ist der RAM (16 GB), nicht die GPU.
 
-Thermik/Takt: max. 75 °C, 240 W (Power-Limit), SM-Takt unter Last ≥ 1830 MHz — keine Drosselung beobachtet.
+Thermik/Takt über alle veröffentlichten JSONL: maximal 76 °C. Der kleinste abgetastete beschäftigte SM-Takt beträgt
+1710 MHz in den Ollama-Perf-Daten und 1725 MHz in den llama-server-Daten; der ausgewählte 60K-Profillauf zeichnet
+1815 MHz auf. Da Gründe für eine Drosselung nicht erfasst wurden, belegen diese Stichproben weder thermische noch
+leistungsbedingte Drosselung oder deren Ausbleiben.
 
 ## Phase 4 — Benchmark-Suite
 
@@ -85,9 +90,10 @@ Thermik/Takt: max. 75 °C, 240 W (Power-Limit), SM-Takt unter Last ≥ 1830 MHz 
 | `serve_quality.sh` | GGUF über llama-server starten und Qualität messen |
 | `summarize.py` | Tabellen aus den Rohdaten |
 
-Bekannte Grenzen (Grok-Review): p95 bei kleinem n = Maximum; Fehlläufe fehlen in `summarize.py`; erster Lauf nach
-Serverstart ist Aufwärmen; VRAM-Spalte bei llama-server gilt pro Server, nicht pro Tiefe; JSON-ohne-Schema wertet
-Markdown-Fences als Fehler. Fixes sind in Arbeit.
+Historische JSONL speichern p95 bei kleinem n als Maximum. Der aktuelle Harness speichert Minimum/Maximum, gibt p95
+erst ab n ≥ 20 aus und behält fehlgeschlagene llama-server-Konfigurationen in Zusammenfassungen. Verbleibende Grenzen:
+Der erste Lauf nach Serverstart ist Aufwärmen; die VRAM-Spalte bei llama-server gilt pro Server, nicht pro Tiefe;
+JSON ohne Schema wertet Markdown-Fences als Fehler.
 
 ## Phase 5 — Produktions-Setup
 
@@ -116,13 +122,39 @@ Bereits geändert (mit Backup `*.bak-20261015-013834`): OpenCode und Hermes nutz
 ## Phase 6 — Urteil
 
 1. **Bestes Gesamtmodell:** Qwen3.6-35B-A3B UD-IQ3_XXS (MTP-GGUF) mit Experten im RAM.
-2. **Bestes Coding-Modell:** dasselbe (9/10 Code, 7/8 Tools, 6/6 JSON).
+2. **Bestes Coding-Modell:** dasselbe (9/10 Code, 7/8 Tools, JSON 3/3 mit Schema plus 3/3 nur per Prompt; Qualitäts-Serverkontext nicht aufgezeichnet).
 3. **Schnellstes brauchbares:** gemma4:e4b-it-qat (91 t/s @4K, Code 8/10).
 4. **Größter praktischer Kontext:** 64K mit Qwen3.6 (38 t/s); ganz im VRAM: gemma4:e4b bis 128K.
 5. **Quantisierung:** dichte Modelle Q4_K_M (ohne Projektor); 35B-MoE auf 16 GB RAM UD-IQ3_XXS.
-6. **Erwartung (gemessen, Median):** 53,6 t/s @4K · 48,5 @32K · 38,2 @60K; Prompt 1,0–1,5k t/s; Schwankung ±3–6 %.
+6. **Gemessener Median, exakte Startkonfiguration (ctx 65536):** 46,5 t/s @4K,
+   35,2 @32K, 38,2 @60K; Prompt 1,0–1,3k t/s. 4K ist stabil (46,5–49,7 über drei
+   Läufe); 32K/60K hängen am freien RAM (siehe Abschnitt Nachmessung). Die Läufe
+   mit ctx 33792 erreichten 53,6 / 48,5, weil ein kleinerer KV-Cache mehr VRAM
+   für Experten lässt.
 7. **Produktions-Konfiguration:** siehe Phase 5 / Alia-Profil `rtx8gb-16gb-qwen36-35b`.
 8. **Drei Optimierungen mit dem größten Effekt:** (1) Projektor weg / text-only (×2,8), (2) MoE-Experten im RAM statt
    kleinerem dichtem Modell (35B bei ~50 t/s), (3) neuer llama.cpp + `-ub 2048` (Prompt ×2,2), dazu MTP (+10–14 %).
 
 **Größter Hardware-Hebel:** 64 GB RAM (Q4-Quant, keine Page-Faults), danach eine 24-GB-GPU (Schätzung, nicht gemessen).
+
+## Nachmessung mit exakter Startkonfiguration (2026-10-15, 10:06–10:55)
+
+Die Reviews merkten an, dass die Schlagzeilen-Werte mit Serverkontext 33.792
+gemessen wurden, das Standardprofil aber mit 65.536 startet, und dass die 9B-Werte
+von Ollamas gebündeltem Binary stammen. Beide Profile wurden daher mit exakt ihren
+Startflags, Alias llama.cpp-Build (a0e6dc7) und der GGUF, die Alia lädt, neu gemessen.
+
+| Lauf | Profil | ctx | 4K TG / PP | 32K TG / PP | 60K TG / PP | Hinweis |
+|---|---|---:|---:|---:|---:|---|
+| `llamacpp-20261015-100648` | 35B IQ3_XXS + MTP | 65536 | 46,5 / 1008 | 35,2 / 1301 | — | 3 Wdh., Runner-RSS 11,1 GB |
+| `llamacpp-20261015-101143` | 35B IQ3_XXS + MTP | 65536 | 48,1 / 1216 | 24,6 / 305 | 9,7 / 161 | 5 Wdh., RAM-Druck |
+| `llamacpp-20261015-024711` | 35B IQ3_XXS + MTP | 65536 | 49,7 / 665 | — | 38,2 / 1041 | früherer Lauf, gleiche Flags ohne `--jinja` |
+| `llamacpp-20261015-101002` | 9B Q4_K_M (unsloth) | 33408 | 66,1 / 2980 | 57,7 / 2707 | — | 5 Wdh. |
+
+**Warum Lauf 101143 einbrach:** Der residente Speicher des Runners fiel von 11,1 auf
+7,4 GB, die NVMe las bis zu 626 MB/s. Mit Browser (1,4 GB in zRAM ausgelagert) und
+anderen Desktop-Programmen passt das 13-GB-Modell nicht mehr in den Page-Cache, und
+die Experten werden von der SSD gestreamt. GPU-Takt (1830 MHz) und Temperatur
+(≤ 64 °C) blieben gleich, der stündliche GAP-Job war um 10:03 vor dem Lauf beendet.
+Auf einem 16-GB-Rechner ist das Tempo des 35B-Profils bei langem Kontext daher nicht
+garantiert; für lange Kontexte sind 32 GB RAM empfohlen.

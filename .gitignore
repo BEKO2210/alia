@@ -5,3 +5,4 @@ _internal/
 .coverage
 coverage.xml
 .ruff_cache/
+bench/results/*.log

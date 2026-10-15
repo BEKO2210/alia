@@ -40,6 +40,13 @@ measurement values are unchanged.
 - `llamacpp-20261015-023913.jsonl` — selected MTP/no-MoE-cache configuration.
 - `llamacpp-20261015-024711.jsonl` — selected configuration at 4K and 60K.
 - `llamacpp-20261015-025021.jsonl` — selected configuration at 120K (one run).
+- `llamacpp-20261015-100648.jsonl` — 35B default profile, exact launch
+  configuration (ctx 65536), 4K and 32K, 3 reps. Source of the published 4K/32K values.
+- `llamacpp-20261015-101002.jsonl` — 9B fast profile, exact launch configuration
+  (Alia's llama.cpp build, unsloth GGUF, ctx 33408), 4K and 32K, 5 reps.
+- `llamacpp-20261015-101143.jsonl` — 35B default profile, exact launch
+  configuration, 4K/32K/60K, 5 reps, under RAM pressure (model partly streamed
+  from SSD). Published as the RAM-pressure case.
 
 For measurement caveats and an independent recount, see
 `../reviews/grok-bench-review.md`.

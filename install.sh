@@ -57,14 +57,18 @@ qwen_version=""
 if [[ -n "$qwen_bin" ]]; then
   qwen_version="$("$qwen_bin" --version 2>/dev/null || true)"
 fi
-if [[ "$qwen_version" == *"0.25.1"* ]]; then
+if [[ "$qwen_version" =~ (^|[^0-9.])0\.25\.1($|[^0-9A-Za-z.-]) ]]; then
   printf '%s\n' "$(message install.ok_qwen)"
 else
   printf '%s\n' "$(message install.missing_qwen)"
   missing=1
 fi
 
-if [[ -x "${ALIA_LLAMA_SERVER:-${HOME}/src/llama.cpp/build/bin/llama-server}" ]]; then
+llama_bin="${ALIA_LLAMA_SERVER:-}"
+llama_bin="${llama_bin/#\~/$HOME}"
+default_llama="${HOME}/src/llama.cpp/build/bin/llama-server"
+if [[ ( -n "$llama_bin" && -f "$llama_bin" && -x "$llama_bin" ) || \
+      ( -f "$default_llama" && -x "$default_llama" ) ]]; then
   printf '%s\n' "$(message install.ok_llama)"
 else
   printf '%s\n' "$(message install.missing_llama)"

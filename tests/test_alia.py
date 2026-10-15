@@ -4,7 +4,7 @@ import io
 import json
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -92,6 +92,19 @@ class ConfigTests(unittest.TestCase):
             alia.write_config(path, None)
             self.assertEqual(alia.read_config(path), {"lang": "de"})
 
+    def test_valid_json_that_is_not_an_object_is_a_localized_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = alia.user_paths(Path(directory))
+            paths["config"].parent.mkdir(parents=True)
+            paths["config"].write_text("[1, 2, 3]\n", encoding="utf-8")
+            with mock.patch.object(alia, "user_paths", return_value=paths), mock.patch.dict(
+                alia.os.environ, {"ALIA_LANG": "de"}, clear=True
+            ), io.StringIO() as error, redirect_stderr(error):
+                self.assertEqual(alia.main(["--version"]), 1)
+                self.assertIn("Konfiguration muss ein JSON-Objekt sein", error.getvalue())
+                self.assertNotIn("Traceback", error.getvalue())
+        alia.set_language("en")
+
 
 class LanguageTests(unittest.TestCase):
     def test_resolution_precedence(self):
@@ -164,6 +177,64 @@ class LanguageTests(unittest.TestCase):
 
 
 class ArgumentTests(unittest.TestCase):
+    def test_two_gpu_detection_constrains_server_to_largest_gpu(self):
+        def command_output(args):
+            if args[0] == "nvidia-smi":
+                return "0, Small GPU, 8192\n1, Large GPU, 24576"
+            return ""
+
+        with mock.patch.object(alia, "_run_text", side_effect=command_output):
+            hw = alia.detect_hardware()
+        self.assertEqual((hw["gpu_index"], hw["gpu_name"], hw["vram_gb"]), (1, "Large GPU", 24.0))
+
+        profile = alia.load_profiles(ROOT / "profiles.json")[0]
+        process = mock.Mock(pid=4242)
+        process.poll.return_value = None
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = {
+                "state": root, "pid": root / "server.pid", "server_state": root / "server.json",
+                "log": root / "server.log",
+            }
+            with mock.patch.object(
+                alia, "find_llama_server", return_value=(Path("/bin/llama-server"), {})
+            ), mock.patch.object(alia, "managed_pid", return_value=None), mock.patch.object(
+                alia, "health_ok", return_value=False
+            ), mock.patch.object(alia, "unload_ollama"), mock.patch.object(
+                alia, "process_start_ticks", return_value="123"
+            ), mock.patch.object(alia.subprocess, "Popen", return_value=process) as popen:
+                alia.start_server(profile, Path("/model.gguf"), paths, hw["gpu_index"])
+            self.assertEqual(popen.call_args.kwargs["env"]["CUDA_VISIBLE_DEVICES"], "1")
+            self.assertEqual(json.loads(paths["server_state"].read_text())["gpu_index"], 1)
+
+    def test_llama_library_path_is_prepended_for_configured_and_default_binary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            configured = root / "custom" / "llama-server"
+            preferred = root / "src/llama.cpp/build/bin/llama-server"
+            for binary in (configured, preferred):
+                binary.parent.mkdir(parents=True, exist_ok=True)
+                binary.touch(mode=0o700)
+            with mock.patch.dict(
+                alia.os.environ,
+                {"ALIA_LLAMA_SERVER": str(configured), "LD_LIBRARY_PATH": "/existing/lib"},
+                clear=True,
+            ):
+                binary, env = alia.find_llama_server()
+            self.assertEqual(binary, configured)
+            self.assertEqual(env["LD_LIBRARY_PATH"], f"{configured.parent}:/existing/lib")
+            with mock.patch.dict(alia.os.environ, {"LD_LIBRARY_PATH": "/existing/lib"}, clear=True), \
+                    mock.patch.object(alia.Path, "home", return_value=root):
+                binary, env = alia.find_llama_server()
+            self.assertEqual(binary, preferred)
+            self.assertEqual(env["LD_LIBRARY_PATH"], f"{preferred.parent}:/existing/lib")
+
+    def test_qwen_version_match_is_exact(self):
+        self.assertTrue(alia.qwen_version_supported("Qwen Code v0.25.1"))
+        for output in ("0.25.10", "10.25.1", "0.25.1-beta"):
+            with self.subTest(output=output):
+                self.assertFalse(alia.qwen_version_supported(output))
+
     def test_server_arguments(self):
         profile = alia.load_profiles(ROOT / "profiles.json")[0]
         args = alia.build_server_args(Path("/bin/llama-server"), profile, Path("/m.gguf"))
@@ -489,6 +560,26 @@ class PidTests(unittest.TestCase):
                     alia.wait_for_health(4242, paths, timeout=30, process=process)
             process.wait.assert_called_once()
 
+    def test_interrupt_before_state_files_stops_new_child(self):
+        profile = alia.load_profiles(ROOT / "profiles.json")[0]
+        process = mock.Mock(pid=4242)
+        process.poll.return_value = None
+        with tempfile.TemporaryDirectory() as directory:
+            paths = self._paths(directory)
+            with mock.patch.object(
+                alia, "find_llama_server", return_value=(Path("/bin/llama-server"), {})
+            ), mock.patch.object(alia, "managed_pid", return_value=None), mock.patch.object(
+                alia, "health_ok", return_value=False
+            ), mock.patch.object(alia, "unload_ollama"), mock.patch.object(
+                alia, "process_start_ticks", side_effect=KeyboardInterrupt
+            ), mock.patch.object(alia.subprocess, "Popen", return_value=process):
+                with self.assertRaises(KeyboardInterrupt):
+                    alia.start_server(profile, Path("/model.gguf"), paths, 1)
+            process.terminate.assert_called_once()
+            process.wait.assert_called_once_with(timeout=2)
+            self.assertFalse(paths["pid"].exists())
+            self.assertFalse(paths["server_state"].exists())
+
     def test_keyboard_interrupt_during_startup_stops_child(self):
         with tempfile.TemporaryDirectory() as directory:
             paths = self._paths(directory)
@@ -496,12 +587,11 @@ class PidTests(unittest.TestCase):
             process.poll.return_value = None
             with mock.patch.object(alia, "health_ok", return_value=False), mock.patch.object(
                 alia, "process_start_ticks", return_value="same"
-            ), mock.patch.object(alia.time, "sleep", side_effect=KeyboardInterrupt), mock.patch.object(
-                alia, "stop_server", return_value=True
-            ) as stop:
+            ), mock.patch.object(alia.time, "sleep", side_effect=KeyboardInterrupt):
                 with self.assertRaises(KeyboardInterrupt):
                     alia.wait_for_health(4242, paths, timeout=30, process=process)
-            stop.assert_called_once_with(paths, quiet=True)
+            process.terminate.assert_called_once()
+            process.wait.assert_called_once_with(timeout=2)
 
 
 class FirstRunTests(unittest.TestCase):

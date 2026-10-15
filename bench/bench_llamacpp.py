@@ -27,12 +27,16 @@ from pathlib import Path
 from bench import Sampler, filler, stats, unload_all, vram_now
 
 BIN = os.environ.get("LLAMA_SERVER", "/usr/local/lib/ollama/llama-server")
+existing_library_path = os.environ.get("LD_LIBRARY_PATH")
 if BIN.startswith("/usr/local/lib/ollama/"):  # Ollama's bundled build loads its CUDA backend from cuda_v12/
+    library_path = "/usr/local/lib/ollama/cuda_v12:/usr/local/lib/ollama"
     ENV = {**os.environ,
-           "LD_LIBRARY_PATH": "/usr/local/lib/ollama/cuda_v12:/usr/local/lib/ollama",
+           "LD_LIBRARY_PATH": library_path + (os.pathsep + existing_library_path if existing_library_path else ""),
            "GGML_BACKEND_PATH": "/usr/local/lib/ollama/cuda_v12/libggml-cuda.so"}
 else:  # own build, e.g. LLAMA_SERVER=~/src/llama.cpp/build/bin/llama-server
-    ENV = {**os.environ, "LD_LIBRARY_PATH": os.path.dirname(BIN)}
+    library_path = os.path.dirname(BIN)
+    ENV = {**os.environ,
+           "LD_LIBRARY_PATH": library_path + (os.pathsep + existing_library_path if existing_library_path else "")}
     ENV.pop("GGML_BACKEND_PATH", None)
 PORT = 8099
 OUT = Path(__file__).resolve().parent / "results"
@@ -150,11 +154,14 @@ def main():
                             t = r["timings"]
                             runs.append({"pp": t["prompt_per_second"], "tg": t["predicted_per_second"],
                                          "pn": t["prompt_n"], "gn": t["predicted_n"],
+                                         "cache_n": t.get("cache_n"),
                                          "draft_n": t.get("draft_n"), "draft_acc": t.get("draft_n_accepted")})
+                    cache_tokens = [r["cache_n"] for r in runs if r["cache_n"] is not None]
                     rec = {"engine": "llama-server", "bin": BIN, "model": name, "config": cfg, "cache_test": a.cache_test,
                            "prompt_ms": [round(r["pn"] / r["pp"] * 1000) if r["pp"] else None for r in runs], "args": args[1:], "ctx": ctx,
                            "load_s": load_s, "vram_base_mib": base, "depth": d,
                            "prompt_tokens": statistics.median(r["pn"] for r in runs),
+                           "cache_tokens": statistics.median(cache_tokens) if cache_tokens else None,
                            "pp_tps": stats([r["pp"] for r in runs]), "tg_tps": stats([r["tg"] for r in runs]),
                            "draft": [(r["draft_n"], r["draft_acc"]) for r in runs], **s.summary()}
                     f.write(json.dumps(rec) + "\n")
@@ -162,7 +169,8 @@ def main():
                     print(f"  {name:20s} {cfg:9s} depth {d:>6} pp {rec['pp_tps']['median']:8.0f}  "
                           f"tg {rec['tg_tps']['median']:6.1f}  vram {rec['vram_peak_mib']:.0f} MiB", flush=True)
             except Exception as e:
-                f.write(json.dumps({"model": name, "config": cfg, "error": str(e)}) + "\n")
+                f.write(json.dumps({"engine": "llama-server", "model": name, "config": cfg,
+                                    "args": args[1:], "ctx": ctx, "error": str(e)}) + "\n")
                 print(f"  {name} {cfg}: ERROR {e}", flush=True)
             finally:
                 proc.terminate()
@@ -170,6 +178,7 @@ def main():
                     proc.wait(timeout=30)
                 except subprocess.TimeoutExpired:
                     proc.kill()
+                    proc.wait(timeout=5)
                 log.close()
                 time.sleep(2)
     print(f"raw results: {path}")

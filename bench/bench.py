@@ -234,11 +234,12 @@ def one_run(model, prompt, num_ctx, n_predict, think_ok, opts_extra=None):
             ttft = t - t0
         last = ch
     wall = time.perf_counter() - t0
-    pe_n, pe_d = last.get("prompt_eval_count", 0), last.get("prompt_eval_duration", 1)
-    ev_n, ev_d = last.get("eval_count", 0), last.get("eval_duration", 1)
+    pe_n, pe_d = last.get("prompt_eval_count", 0), last.get("prompt_eval_duration")
+    ev_n, ev_d = last.get("eval_count", 0), last.get("eval_duration")
     return {
         "ttft_s": ttft, "wall_s": wall, "load_s": last.get("load_duration", 0) / 1e9,
-        "prompt_tokens": pe_n, "pp_tps": pe_n / (pe_d / 1e9), "gen_tokens": ev_n, "tg_tps": ev_n / (ev_d / 1e9),
+        "prompt_tokens": pe_n, "pp_tps": pe_n / (pe_d / 1e9) if pe_d else None,
+        "gen_tokens": ev_n, "tg_tps": ev_n / (ev_d / 1e9) if ev_d else None,
     }
 
 
@@ -246,9 +247,11 @@ def stats(xs):
     xs = sorted(x for x in xs if x is not None)
     if not xs:
         return {}
-    p95 = xs[min(len(xs) - 1, int(round(0.95 * (len(xs) - 1))))]  # nearest-rank on n samples
-    return {"median": statistics.median(xs), "p95": p95, "stdev": statistics.stdev(xs) if len(xs) > 1 else 0.0,
-            "n": len(xs)}
+    result = {"median": statistics.median(xs), "min": xs[0], "max": xs[-1],
+              "stdev": statistics.stdev(xs) if len(xs) > 1 else 0.0, "n": len(xs)}
+    if len(xs) >= 20:
+        result["p95"] = xs[int(0.95 * len(xs)) - 1]
+    return result
 
 
 def perf(models, depths, reps, n_predict, log, opts_extra):

@@ -1,4 +1,4 @@
-<p align="center"><img src="brand/logo-terminal.svg" width="360" alt="ALIA"></p>
+<p align="center"><img src="site/logo-terminal.svg" width="360" alt="ALIA"></p>
 
 <p align="center"><b>Deine Hardware. Deine KI. Keine Cloud.</b><br><a href="README.md">English</a> | Deutsch</p>
 <p align="center">
@@ -18,13 +18,14 @@ Alia ist ein vollständig lokaler Coding-Agent-Starter ausschließlich für Linu
 
 ![Alia Web Shell](docs/screenshots/web-shell.png)
 
-> **Auf einer RTX 3070 gemessen**
+> **Gemessen auf RTX 3070 8 GB, Ryzen 7 5800X, 16 GB RAM — exakte Startkonfiguration**
 >
-> Qwen3.6 35B-A3B IQ3_XXS: 53,6 / 48,5 Tok/s TG bei 4K / 32K und 1.093 / 1.452 Tok/s PP. Diese Punkte nutzten Serverkontext 33.792; das gestartete Profil nutzt Kontext 65.536. Bei 60K mit Kontext 65.536: 38,2 Tok/s TG und 1.041 Tok/s PP. Alle Werte wurden ohne `--cache-ram` gemessen.
+> Qwen3.6 35B-A3B IQ3_XXS (Standard, Kontext 65.536): **46,5 / 35,2 / 38,2 Tok/s** Ausgabe und 1.008 / 1.301 / 1.041 Tok/s Prompt-Verarbeitung bei 4K / 32K / 60K. Das 4K-Tempo ist stabil (46,5–49,7 Tok/s über drei Läufe). Das Tempo bei langem Kontext hängt am freien RAM: Verdrängen andere Programme das 13-GB-Modell aus dem Page-Cache, wird es von der SSD gestreamt und fällt auf 24,6 Tok/s bei 32K und 9,7 bei 60K (Lauf `llamacpp-20261015-101143`). **Für lange Kontexte 32 GB RAM nutzen** oder den Browser schließen.
 >
-> Qwen3.5 9B Q4_K_M: 66,7 / 58,1 Tok/s TG und 2.562 / 2.373 Tok/s PP bei 4K / 32K, aus einer einzigen `ub1024`-Konfiguration mit Kontext 33.408.
+> Qwen3.5 9B Q4_K_M (schnell, Kontext 33.408): **66,1 / 57,7 Tok/s** Ausgabe und 2.980 / 2.707 Tok/s Prompt-Verarbeitung bei 4K / 32K.
 
 TG ist die Token-Generierungsrate, PP die Prompt-Verarbeitungsrate. MTP bedeutet Multi-Token Prediction, also spekulative Decodierung über die MTP-Köpfe des Modells. Exakter Lauf und Kontext stehen für jede numerische Metrik direkt in `profiles.json`.
+Die Qualitätswerte (35B: Code 9/10, Tools 7/8, JSON 3/3 mit Schema und 3/3 nur per Prompt; 9B: Code 8/10, Tools 8/8) stammen aus separaten Qualitätsläufen ohne aufgezeichneten Serverkontext und ohne Serverargumente; der 9B-Qualitätslauf lief über Ollama.
 
 ## Unterstützte Plattform und Voraussetzungen
 
@@ -119,8 +120,8 @@ Laufzeitdaten liegen unter `~/.local/state/alia`, Modelle unter `~/.local/share/
 
 | Profil | Ziel | Modell/Download | TG 4K / 32K | PP 4K / 32K | Status |
 |---|---|---|---:|---:|---|
-| `rtx8gb-16gb-qwen36-35b` | 8 GB VRAM, 16 GB RAM | 35B IQ3_XXS, 14,07 GB | 53,6 / 48,5 | 1.093 / 1.452 | bei ctx 33.792 gemessen; Start-ctx 65.536 |
-| `rtx8gb-qwen35-9b-fast` | 8 GB VRAM, 12 GB RAM | 9B Q4_K_M, 5,7 GB | 66,7 / 58,1 | 2.562 / 2.373 | vermessen, eine Config, ctx 33.408 |
+| `rtx8gb-16gb-qwen36-35b` | 8 GB VRAM, 16 GB RAM | 35B IQ3_XXS, 14,07 GB | 46,5 / 35,2 | 1.008 / 1.301 | gemessen, Startkonfiguration; 32K braucht freien RAM |
+| `rtx8gb-qwen35-9b-fast` | 8 GB VRAM, 12 GB RAM | 9B Q4_K_M, 5,7 GB | 66,1 / 57,7 | 2.980 / 2.707 | gemessen, Startkonfiguration |
 | `rtx12-16gb-qwen36-35b-q4` | 12–16 GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20,8 GB | — | — | unvermessen; nie auf Zielhardware gelaufen |
 | `rtx24gb-qwen36-35b-q4` | ab 20 GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20,8 GB | — | — | unvermessen; nie auf Zielhardware gelaufen |
 
