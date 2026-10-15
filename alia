@@ -212,6 +212,13 @@ def detect_hardware() -> dict[str, Any]:
                 parsed.append((float(mib.strip()) / 1024, int(index.strip()), name.strip()))
             except ValueError:
                 continue
+        # Honor an inherited CUDA_VISIBLE_DEVICES allocation (e.g. from a scheduler):
+        # nvidia-smi ignores it, so only consider the GPUs it lists by index.
+        mask = os.environ.get("CUDA_VISIBLE_DEVICES")
+        if mask is not None:
+            allowed = [item.strip() for item in mask.split(",") if item.strip()]
+            if all(item.isdigit() for item in allowed):
+                parsed = [item for item in parsed if str(item[1]) in allowed]
         if parsed:
             vram_gb, gpu_index, gpu_name = max(parsed, key=lambda item: item[0])
 
@@ -645,7 +652,9 @@ def start_server(
     ensure_private_dir(paths["state"])
     env = os.environ.copy()
     env.update(env_extra)
-    if gpu_index is not None:
+    # Pin the server to the detected GPU unless the caller already restricted the
+    # visible devices; an inherited allocation is never widened or replaced.
+    if gpu_index is not None and "CUDA_VISIBLE_DEVICES" not in os.environ:
         env["CUDA_VISIBLE_DEVICES"] = str(gpu_index)
     process: subprocess.Popen[bytes] | None = None
     try:
@@ -1275,6 +1284,8 @@ def parse_web_args(args: list[str]) -> tuple[int, bool, Path | None, str, bool, 
                 raise RuntimeError(tr("args.port_integer")) from exc
             if not 1 <= port <= 65535:
                 raise RuntimeError(tr("args.port_range"))
+            if port == PORT:
+                raise RuntimeError(tr("args.port_reserved", port=PORT))
         elif option == "--workspace":
             workspace = Path(value).expanduser().resolve()
             if not workspace.is_dir():

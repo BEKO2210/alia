@@ -2,6 +2,7 @@ import importlib.machinery
 import importlib.util
 import io
 import json
+import os
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -183,7 +184,9 @@ class ArgumentTests(unittest.TestCase):
                 return "0, Small GPU, 8192\n1, Large GPU, 24576"
             return ""
 
-        with mock.patch.object(alia, "_run_text", side_effect=command_output):
+        environment = {k: v for k, v in os.environ.items() if k != "CUDA_VISIBLE_DEVICES"}
+        with mock.patch.object(alia, "_run_text", side_effect=command_output), \
+                mock.patch.dict(os.environ, environment, clear=True):
             hw = alia.detect_hardware()
         self.assertEqual((hw["gpu_index"], hw["gpu_name"], hw["vram_gb"]), (1, "Large GPU", 24.0))
 
@@ -202,10 +205,42 @@ class ArgumentTests(unittest.TestCase):
                 alia, "health_ok", return_value=False
             ), mock.patch.object(alia, "unload_ollama"), mock.patch.object(
                 alia, "process_start_ticks", return_value="123"
-            ), mock.patch.object(alia.subprocess, "Popen", return_value=process) as popen:
+            ), mock.patch.object(alia.subprocess, "Popen", return_value=process) as popen, \
+                    mock.patch.dict(os.environ, environment, clear=True):
                 alia.start_server(profile, Path("/model.gguf"), paths, hw["gpu_index"])
             self.assertEqual(popen.call_args.kwargs["env"]["CUDA_VISIBLE_DEVICES"], "1")
             self.assertEqual(json.loads(paths["server_state"].read_text())["gpu_index"], 1)
+
+    def test_inherited_cuda_mask_limits_detection_and_is_kept(self):
+        def command_output(args):
+            if args[0] == "nvidia-smi":
+                return "0, Small GPU, 8192\n1, Large GPU, 24576"
+            return ""
+
+        with mock.patch.object(alia, "_run_text", side_effect=command_output), \
+                mock.patch.dict(os.environ, {"CUDA_VISIBLE_DEVICES": "0"}):
+            hw = alia.detect_hardware()
+        self.assertEqual((hw["gpu_index"], hw["gpu_name"]), (0, "Small GPU"))
+
+        profile = alia.load_profiles(ROOT / "profiles.json")[0]
+        process = mock.Mock(pid=4242)
+        process.poll.return_value = None
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = {
+                "state": root, "pid": root / "server.pid", "server_state": root / "server.json",
+                "log": root / "server.log",
+            }
+            with mock.patch.object(
+                alia, "find_llama_server", return_value=(Path("/bin/llama-server"), {})
+            ), mock.patch.object(alia, "managed_pid", return_value=None), mock.patch.object(
+                alia, "health_ok", return_value=False
+            ), mock.patch.object(alia, "unload_ollama"), mock.patch.object(
+                alia, "process_start_ticks", return_value="123"
+            ), mock.patch.object(alia.subprocess, "Popen", return_value=process) as popen, \
+                    mock.patch.dict(os.environ, {"CUDA_VISIBLE_DEVICES": "GPU-uuid-a"}):
+                alia.start_server(profile, Path("/model.gguf"), paths, 1)
+            self.assertEqual(popen.call_args.kwargs["env"]["CUDA_VISIBLE_DEVICES"], "GPU-uuid-a")
 
     def test_llama_library_path_is_prepended_for_configured_and_default_binary(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -312,6 +347,10 @@ class ArgumentTests(unittest.TestCase):
             alia.build_qwen_command(["-p", "hello world"], qwen="/bin/qwen"),
             ["/bin/qwen", "-p", "hello world"],
         )
+
+    def test_web_port_cannot_reuse_model_server_port(self):
+        with self.assertRaises(RuntimeError):
+            alia.parse_web_args(["--port", str(alia.PORT)])
 
     def test_web_arguments_default_to_loopback_and_open(self):
         self.assertEqual(

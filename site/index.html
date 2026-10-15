@@ -194,12 +194,13 @@
           <div class="q">
             <h3>Qwen3.5 9B</h3>
             <dl>
-              <div><dt data-i18n="q.code">Code tasks</dt><dd>8/10</dd></div>
-              <div><dt data-i18n="q.tools">Tool calls</dt><dd>8/8</dd></div>
+              <div><dt data-i18n="q.code">Code tasks</dt><dd>8/10*</dd></div>
+              <div><dt data-i18n="q.tools">Tool calls</dt><dd>8/8*</dd></div>
               <div><dt data-i18n="q.json">JSON schema</dt><dd>—</dd></div>
               <div><dt data-i18n="q.pp">Prompt speed 4K / 32K</dt><dd>2,980 / 2,707 tok/s</dd></div>
               <div><dt data-i18n="q.dl">Download</dt><dd>5.7 GB</dd></div>
             </dl>
+            <p class="fine" data-i18n="q.note9b">* Measured via Ollama with Qwen's own GGUF, not the unsloth GGUF and llama-server configuration this profile launches.</p>
           </div>
         </div>
         <p class="fine" data-i18n="bench.fine">All speeds use the flags and context size each profile launches with (35B: 65,536, 9B: 33,408); the 35B 60K value comes from an earlier run with the same flags except <code>--jinja</code>, which only selects the chat template. Long-context speed needs free RAM: with a browser and other apps open, the 35B model streamed from the SSD and fell to 24.6 tok/s at 32K and 9.7 at 60K. 32 GB RAM is recommended for long contexts. Quality scores come from separate runs. <a href="https://github.com/BEKO2210/alia/tree/main/bench/results">Raw results and methodology →</a></p>
