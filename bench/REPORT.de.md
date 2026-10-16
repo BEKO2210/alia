@@ -137,7 +137,7 @@ Bereits geändert (mit Backup `*.bak-20261015-013834`): OpenCode und Hermes nutz
 
 **Größter Hardware-Hebel:** 64 GB RAM (Q4-Quant, keine Page-Faults), danach eine 24-GB-GPU (Schätzung, nicht gemessen).
 
-## Nachmessung mit exakter Startkonfiguration (2026-10-15, 10:06–10:55)
+## Nachmessung mit exakter Startkonfiguration (2026-10-15, 10:06–10:55; 9B mit 64K am 2026-10-16, 21:17)
 
 Die Reviews merkten an, dass die Schlagzeilen-Werte mit Serverkontext 33.792
 gemessen wurden, das Standardprofil aber mit 65.536 startet, und dass die 9B-Werte

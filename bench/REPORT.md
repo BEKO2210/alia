@@ -148,7 +148,7 @@ local configuration changes are not part of this repository.
 **Largest hardware lever:** 64 GB RAM (Q4 quantization, no page faults), followed
 by a 24 GB GPU. This final sentence is an estimate, not a measurement.
 
-## Re-measurement with the exact launch configuration (2026-10-15, 10:06–10:55)
+## Re-measurement with the exact launch configuration (2026-10-15, 10:06–10:55; 9B at 64K on 2026-10-16, 21:17)
 
 Reviewers pointed out that the headline numbers came from server context 33,792
 while the default profile launches with 65,536, and that the 9B numbers came from
