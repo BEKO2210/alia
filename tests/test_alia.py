@@ -203,11 +203,12 @@ class ArgumentTests(unittest.TestCase):
                 alia, "find_llama_server", return_value=(Path("/bin/llama-server"), {})
             ), mock.patch.object(alia, "managed_pid", return_value=None), mock.patch.object(
                 alia, "health_ok", return_value=False
-            ), mock.patch.object(alia, "unload_ollama"), mock.patch.object(
+            ), mock.patch.object(alia, "unload_ollama"), mock.patch.object(alia, "mem_available_gb", return_value=None), mock.patch.object(alia, "mem_available_gb", return_value=5.0), mock.patch.object(
                 alia, "process_start_ticks", return_value="123"
             ), mock.patch.object(alia.subprocess, "Popen", return_value=process) as popen, \
-                    mock.patch.dict(os.environ, environment, clear=True):
+                    mock.patch.dict(os.environ, environment, clear=True), redirect_stdout(io.StringIO()) as out:
                 alia.start_server(profile, Path("/model.gguf"), paths, hw["gpu_index"])
+            self.assertIn("5.0", out.getvalue())
             self.assertEqual(popen.call_args.kwargs["env"]["CUDA_VISIBLE_DEVICES"], "1")
             self.assertEqual(json.loads(paths["server_state"].read_text())["gpu_index"], 1)
 
@@ -235,7 +236,7 @@ class ArgumentTests(unittest.TestCase):
                 alia, "find_llama_server", return_value=(Path("/bin/llama-server"), {})
             ), mock.patch.object(alia, "managed_pid", return_value=None), mock.patch.object(
                 alia, "health_ok", return_value=False
-            ), mock.patch.object(alia, "unload_ollama"), mock.patch.object(
+            ), mock.patch.object(alia, "unload_ollama"), mock.patch.object(alia, "mem_available_gb", return_value=None), mock.patch.object(
                 alia, "process_start_ticks", return_value="123"
             ), mock.patch.object(alia.subprocess, "Popen", return_value=process) as popen, \
                     mock.patch.dict(os.environ, {"CUDA_VISIBLE_DEVICES": "GPU-uuid-a"}):
@@ -284,6 +285,27 @@ class ArgumentTests(unittest.TestCase):
         self.assertTrue(alia.compaction_summary(33408).endswith("⚠"))
         self.assertIn("42536", alia.compaction_summary(65536))
         self.assertFalse(alia.compaction_summary(65536).endswith("⚠"))
+
+    def test_ram_warning(self):
+        profile = {"ram_free_gb": 11}
+        self.assertIsNone(alia.ram_warning(profile, 12.0))
+        self.assertIsNone(alia.ram_warning(profile, None))
+        self.assertIsNone(alia.ram_warning({}, 2.0))
+        warning = alia.ram_warning(profile, 9.4)
+        self.assertIn("9.4", warning)
+        self.assertIn("11", warning)
+
+    def test_mem_available_reads_meminfo(self):
+        meminfo = "MemTotal:       16000000 kB\nMemAvailable:    9961472 kB\n"
+        with mock.patch.object(alia.Path, "read_text", return_value=meminfo):
+            self.assertAlmostEqual(alia.mem_available_gb(), 9.5, places=2)
+        with mock.patch.object(alia.Path, "read_text", side_effect=OSError):
+            self.assertIsNone(alia.mem_available_gb())
+
+    def test_offloading_default_profile_states_its_ram_need(self):
+        profile = next(p for p in alia.load_profiles(ROOT / "profiles.json") if p["id"] == "rtx8gb-16gb-qwen36-35b")
+        self.assertGreater(profile["ram_free_gb"], 0)
+        self.assertIn("bench/results/", profile["ram_free_source"])
 
     def test_bundled_profiles_leave_room_before_compaction(self):
         for profile in alia.load_profiles(ROOT / "profiles.json"):
@@ -629,7 +651,7 @@ class PidTests(unittest.TestCase):
                 alia, "find_llama_server", return_value=(Path("/bin/llama-server"), {})
             ), mock.patch.object(alia, "managed_pid", return_value=None), mock.patch.object(
                 alia, "health_ok", return_value=False
-            ), mock.patch.object(alia, "unload_ollama"), mock.patch.object(
+            ), mock.patch.object(alia, "unload_ollama"), mock.patch.object(alia, "mem_available_gb", return_value=None), mock.patch.object(
                 alia, "process_start_ticks", side_effect=KeyboardInterrupt
             ), mock.patch.object(alia.subprocess, "Popen", return_value=process):
                 with self.assertRaises(KeyboardInterrupt):
