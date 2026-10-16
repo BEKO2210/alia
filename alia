@@ -196,6 +196,28 @@ def _run_text(args: list[str]) -> str:
         return ""
 
 
+def mem_available_gb() -> float | None:
+    try:
+        for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1]) / 1024 / 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
+def ram_warning(profile: dict[str, Any], available_gb: float | None) -> str | None:
+    """Warn when an offloading profile would not keep its experts in RAM.
+
+    Checked right before a new server starts: Ollama is unloaded and the model's own
+    page-cache pages still count as available, so this is the RAM the server can keep.
+    """
+    needed = profile.get("ram_free_gb")
+    if needed is None or available_gb is None or available_gb >= needed:
+        return None
+    return tr("startup.ram_warning", available=f"{available_gb:.1f}", needed=f"{needed:g}")
+
+
 def detect_hardware() -> dict[str, Any]:
     gpu_name: str | None = None
     gpu_index: int | None = None
@@ -649,6 +671,9 @@ def start_server(
         raise RuntimeError(tr("server.port_foreign", port=PORT))
 
     unload_ollama()
+    ram_note = ram_warning(profile, mem_available_gb())
+    if ram_note:
+        print(color("33", ram_note))
     ensure_private_dir(paths["state"])
     env = os.environ.copy()
     env.update(env_extra)
@@ -1141,9 +1166,13 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
     gpu_text = f"{hw['gpu_name']} · {hw['vram_gb']:.1f} GB"
     if gpu_index is not None:
         gpu_text += f" · index {gpu_index}"
+    ram_text = f"{hw['ram_gb']:.1f} GB"
+    available = mem_available_gb()
+    if available is not None:
+        ram_text += f" · {tr('doctor.ram_available', available=f'{available:.1f}')}"
     rows = [
         [tr("doctor.label.gpu"), gpu_text if hw["gpu_name"] else tr("doctor.no_gpu")],
-        [tr("doctor.label.ram"), f"{hw['ram_gb']:.1f} GB"],
+        [tr("doctor.label.ram"), ram_text],
         [tr("doctor.label.cpu"), f"{hw['cpu_name']} · {hw['cpu_count']} {tr('doctor.threads')}"],
         [tr("doctor.label.profile"), profile["id"] if profile else tr("doctor.none")],
         [tr("doctor.label.selection"), reason + (" ⚠" if warning else "")],

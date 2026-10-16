@@ -20,7 +20,7 @@ Alia ist ein vollständig lokaler Coding-Agent-Starter ausschließlich für Linu
 
 > **Gemessen auf RTX 3070 8 GB, Ryzen 7 5800X, 16 GB RAM — Startkonfiguration**
 >
-> Qwen3.6 35B-A3B IQ3_XXS (Standard, Kontext 65.536): **46,5 / 35,2 / 38,2 Tok/s** Ausgabe und 1.008 / 1.301 / 1.041 Tok/s Prompt-Verarbeitung bei 4K / 32K / 60K (der 60K-Wert stammt aus einem früheren Lauf mit denselben Flags ohne `--jinja`, das nur die Chat-Vorlage wählt). Das 4K-Tempo ist stabil (46,5–49,7 Tok/s über drei Läufe). Das Tempo bei langem Kontext hängt am freien RAM: Verdrängen andere Programme das 13-GB-Modell aus dem Page-Cache, wird es von der SSD gestreamt und fällt auf 24,6 Tok/s bei 32K und 9,7 bei 60K (Lauf `llamacpp-20261015-101143`). **Für lange Kontexte 32 GB RAM nutzen** oder den Browser schließen.
+> Qwen3.6 35B-A3B IQ3_XXS (Standard, Kontext 65.536): **46,5 / 35,2 / 38,2 Tok/s** Ausgabe und 1.008 / 1.301 / 1.041 Tok/s Prompt-Verarbeitung bei 4K / 32K / 60K (der 60K-Wert stammt aus einem früheren Lauf mit denselben Flags ohne `--jinja`, das nur die Chat-Vorlage wählt). Das 4K-Tempo ist stabil (46,5–49,7 Tok/s über drei Läufe). Das Tempo bei langem Kontext hängt am freien RAM: Verdrängen andere Programme das 13-GB-Modell aus dem Page-Cache, wird es von der SSD gestreamt und fällt auf 24,6 Tok/s bei 32K und 9,7 bei 60K (Lauf `llamacpp-20261015-101143`). **Für lange Kontexte 32 GB RAM nutzen** oder den Browser schließen. Alia warnt beim Start, wenn weniger als 11 GB RAM verfügbar sind, und `alia doctor` zeigt den freien RAM.
 >
 > Qwen3.5 9B Q4_K_M (schnell, Kontext 65.536): **65,7 / 57,5 / 50,2 Tok/s** Ausgabe und 2.978 / 2.708 / 2.423 Tok/s Prompt-Verarbeitung bei 4K / 32K / 60K.
 

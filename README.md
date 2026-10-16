@@ -20,7 +20,7 @@ Alia is a Linux-only, fully local coding-agent launcher. It detects NVIDIA GPU, 
 
 > **Measured on an RTX 3070 8 GB, Ryzen 7 5800X, 16 GB RAM — launch configuration**
 >
-> Qwen3.6 35B-A3B IQ3_XXS (default, context 65,536): **46.5 / 35.2 / 38.2 tok/s** generation and 1,008 / 1,301 / 1,041 tok/s prompt processing at 4K / 32K / 60K (the 60K value is from an earlier run with the same flags except `--jinja`, which only selects the chat template). The 4K speed is stable (46.5–49.7 tok/s over three runs). Deep-context speed depends on free RAM: when other apps push the 13 GB model out of the page cache, it streams from the SSD and drops to 24.6 tok/s at 32K and 9.7 at 60K (run `llamacpp-20261015-101143`). **Use 32 GB RAM for long contexts**, or close the browser.
+> Qwen3.6 35B-A3B IQ3_XXS (default, context 65,536): **46.5 / 35.2 / 38.2 tok/s** generation and 1,008 / 1,301 / 1,041 tok/s prompt processing at 4K / 32K / 60K (the 60K value is from an earlier run with the same flags except `--jinja`, which only selects the chat template). The 4K speed is stable (46.5–49.7 tok/s over three runs). Deep-context speed depends on free RAM: when other apps push the 13 GB model out of the page cache, it streams from the SSD and drops to 24.6 tok/s at 32K and 9.7 at 60K (run `llamacpp-20261015-101143`). **Use 32 GB RAM for long contexts**, or close the browser. Alia warns at startup when less than 11 GB RAM is available, and `alia doctor` shows the free RAM.
 >
 > Qwen3.5 9B Q4_K_M (fast, context 65,536): **65.7 / 57.5 / 50.2 tok/s** generation and 2,978 / 2,708 / 2,423 tok/s prompt processing at 4K / 32K / 60K.
 

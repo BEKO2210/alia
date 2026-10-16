@@ -40,6 +40,8 @@
       "q8_0"
     ],
     "ctx": 65536,
+    "ram_free_gb": 11,
+    "ram_free_source": "Runner RSS 11.1 GB in the full-speed runs bench/results/llamacpp-20261015-100648.jsonl and -101143.jsonl (4K); at 7.4 GB RSS the 60K speed fell from 38.2 to 9.7 tok/s.",
     "sampling": {
       "temperature": 0.6,
       "top_p": 0.95,

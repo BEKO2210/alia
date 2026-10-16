@@ -19,6 +19,9 @@ All notable changes to this project are documented here. The format follows
 - `alia doctor` shows Qwen Code's auto-compaction and hard limit for the
   selected profile, and startup warns when a profile's context is too small
   for Qwen Code.
+- Startup warns when less RAM is available than the 35B default profile needs
+  to keep its experts in memory (11 GB, from the runner's resident set in the
+  full-speed runs); `alia doctor` shows the available RAM.
 
 ## [0.1.0] - 2026-10-15
 
