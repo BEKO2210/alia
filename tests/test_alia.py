@@ -277,6 +277,14 @@ class ArgumentTests(unittest.TestCase):
         self.assertEqual(alia.qwen_compaction_thresholds(32768), (27852, 30852))
         self.assertTrue(alia.compaction_too_early(33408))
 
+    def test_compaction_texts(self):
+        self.assertIn("408", alia.compaction_warning(33408))
+        self.assertIn("10408", alia.compaction_warning(33408))
+        self.assertIsNone(alia.compaction_warning(65536))
+        self.assertTrue(alia.compaction_summary(33408).endswith("⚠"))
+        self.assertIn("42536", alia.compaction_summary(65536))
+        self.assertFalse(alia.compaction_summary(65536).endswith("⚠"))
+
     def test_bundled_profiles_leave_room_before_compaction(self):
         for profile in alia.load_profiles(ROOT / "profiles.json"):
             with self.subTest(profile=profile["id"]):

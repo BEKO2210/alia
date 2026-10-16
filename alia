@@ -1105,6 +1105,18 @@ def compaction_too_early(window: int) -> bool:
     return qwen_compaction_thresholds(window)[0] < window * 0.4
 
 
+def compaction_summary(window: int) -> str:
+    auto, hard = qwen_compaction_thresholds(window)
+    return tr("doctor.compaction", auto=auto, hard=hard) + (" ⚠" if compaction_too_early(window) else "")
+
+
+def compaction_warning(window: int) -> str | None:
+    if not compaction_too_early(window):
+        return None
+    auto, hard = qwen_compaction_thresholds(window)
+    return tr("startup.compaction_warning", ctx=window, auto=auto, hard=hard)
+
+
 def port_open(host: str = HOST, port: int = PORT) -> bool:
     try:
         with socket.create_connection((host, port), timeout=0.3):
@@ -1129,10 +1141,6 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
     gpu_text = f"{hw['gpu_name']} · {hw['vram_gb']:.1f} GB"
     if gpu_index is not None:
         gpu_text += f" · index {gpu_index}"
-    compaction = tr("doctor.none")
-    if profile:
-        auto, hard = qwen_compaction_thresholds(profile["ctx"])
-        compaction = tr("doctor.compaction", auto=auto, hard=hard) + (" ⚠" if compaction_too_early(profile["ctx"]) else "")
     rows = [
         [tr("doctor.label.gpu"), gpu_text if hw["gpu_name"] else tr("doctor.no_gpu")],
         [tr("doctor.label.ram"), f"{hw['ram_gb']:.1f} GB"],
@@ -1141,7 +1149,7 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
         [tr("doctor.label.selection"), reason + (" ⚠" if warning else "")],
         [tr("doctor.label.server"), f"PID {pid} · {tr('doctor.healthy') if health_ok() else tr('doctor.not_ready')} · Port {state.get('port', PORT)}" if pid else tr("doctor.stopped")],
         [tr("doctor.label.model"), str(model) if model else tr("doctor.model_missing")],
-        [tr("doctor.label.compaction"), compaction],
+        [tr("doctor.label.compaction"), compaction_summary(profile["ctx"]) if profile else tr("doctor.none")],
         ["Qwen", f"{qwen_version} · {qwen}" + (f" · {tr('doctor.qwen_version_warning', expected='0.25.1')}" if qwen_version != tr("version.not_found") and not qwen_version_supported(qwen_version) else "")],
         ["llama-server", str(llama) if llama else tr("version.not_found")],
         ["hf", hf or tr("version.not_found")],
@@ -1187,9 +1195,9 @@ def prepare_runtime(
         print(color("33", tr("startup.profile_warning")))
     if profile.get("flags_pending_final"):
         print(color("33", tr("startup.flags_warning")))
-    if compaction_too_early(profile["ctx"]):
-        auto, hard = qwen_compaction_thresholds(profile["ctx"])
-        print(color("33", tr("startup.compaction_warning", ctx=profile["ctx"], auto=auto, hard=hard)))
+    compaction_note = compaction_warning(profile["ctx"])
+    if compaction_note:
+        print(color("33", compaction_note))
     model_path = ensure_model(profile, paths)
     if model_path is None:
         print(tr("startup.cancelled"))
