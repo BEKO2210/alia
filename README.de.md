@@ -22,7 +22,7 @@ Alia ist ein vollständig lokaler Coding-Agent-Starter ausschließlich für Linu
 >
 > Qwen3.6 35B-A3B IQ3_XXS (Standard, Kontext 65.536): **46,5 / 35,2 / 38,2 Tok/s** Ausgabe und 1.008 / 1.301 / 1.041 Tok/s Prompt-Verarbeitung bei 4K / 32K / 60K (der 60K-Wert stammt aus einem früheren Lauf mit denselben Flags ohne `--jinja`, das nur die Chat-Vorlage wählt). Das 4K-Tempo ist stabil (46,5–49,7 Tok/s über drei Läufe). Das Tempo bei langem Kontext hängt am freien RAM: Verdrängen andere Programme das 13-GB-Modell aus dem Page-Cache, wird es von der SSD gestreamt und fällt auf 24,6 Tok/s bei 32K und 9,7 bei 60K (Lauf `llamacpp-20261015-101143`). **Für lange Kontexte 32 GB RAM nutzen** oder den Browser schließen.
 >
-> Qwen3.5 9B Q4_K_M (schnell, Kontext 33.408): **66,1 / 57,7 Tok/s** Ausgabe und 2.980 / 2.707 Tok/s Prompt-Verarbeitung bei 4K / 32K.
+> Qwen3.5 9B Q4_K_M (schnell, Kontext 65.536): **65,7 / 57,5 / 50,2 Tok/s** Ausgabe und 2.978 / 2.708 / 2.423 Tok/s Prompt-Verarbeitung bei 4K / 32K / 60K.
 
 TG ist die Token-Generierungsrate, PP die Prompt-Verarbeitungsrate. MTP bedeutet Multi-Token Prediction, also spekulative Decodierung über die MTP-Köpfe des Modells. Exakter Lauf und Kontext stehen für jede numerische Metrik direkt in `profiles.json`.
 Die Qualitätswerte (35B: Code 9/10, Tools 7/8, JSON 3/3 mit Schema und 3/3 nur per Prompt; 9B: Code 8/10, Tools 8/8) stammen aus separaten Qualitätsläufen ohne aufgezeichneten Serverkontext und ohne Serverargumente; der 9B-Qualitätslauf lief über Ollama.
@@ -121,7 +121,7 @@ Laufzeitdaten liegen unter `~/.local/state/alia`, Modelle unter `~/.local/share/
 | Profil | Ziel | Modell/Download | TG 4K / 32K | PP 4K / 32K | Status |
 |---|---|---|---:|---:|---|
 | `rtx8gb-16gb-qwen36-35b` | 8 GB VRAM, 16 GB RAM | 35B IQ3_XXS, 14,07 GB | 46,5 / 35,2 | 1.008 / 1.301 | gemessen, Startkonfiguration; 32K braucht freien RAM |
-| `rtx8gb-qwen35-9b-fast` | 8 GB VRAM, 12 GB RAM | 9B Q4_K_M, 5,7 GB | 66,1 / 57,7 | 2.980 / 2.707 | gemessen, Startkonfiguration |
+| `rtx8gb-qwen35-9b-fast` | 8 GB VRAM, 12 GB RAM | 9B Q4_K_M, 5,7 GB | 65,7 / 57,5 | 2.978 / 2.708 | gemessen, Startkonfiguration |
 | `rtx12-16gb-qwen36-35b-q4` | 12–16 GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20,8 GB | — | — | unvermessen; nie auf Zielhardware gelaufen |
 | `rtx24gb-qwen36-35b-q4` | ab 20 GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20,8 GB | — | — | unvermessen; nie auf Zielhardware gelaufen |
 

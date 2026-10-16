@@ -23,7 +23,7 @@ n ≤ 11 (Grok finding #1), so this report does not use it. Dense-model σ is be
 | Does it fit in 8 GB? | Yes, **only without the projector**. With the projector, Ollama already puts 13% of the layers on CPU at 4K | measured, `ollama ps` |
 | KV cache | Only 8 layers: f16 32 KiB/token, q8_0 17 KiB/token (32K = 0.53 GiB), plus about 50 MiB fixed state | calculated + Ollama log “checkpoint 50.251 MiB” |
 | Is 54–58 t/s realistic? | No primary source was found for the estimate sites. **Measured: 64.5 t/s @4K, 56.1 @32K text-only; 53.0 @4K, 20.1 @32K with projector** | `perf-20261015-001001.jsonl` |
-| Context fully in VRAM | 9B text-only: 32K yes; 64K/128K **no** (128K KV 2.18 GB → OOM) | context probe, llama-server log |
+| Context fully in VRAM | 9B text-only: 32K yes; 128K **no** (128K KV 2.18 GB → OOM). The early probe also failed at 64K; with Alia's launch flags (q8_0 KV, `-ub 1024`, no projector) 64K fits: peak 7706 MiB incl. desktop | context probe, llama-server log, `llamacpp-20261016-211736` |
 | Is Q4_K_M the best compromise? | Yes for 9B because it fits completely. For 35B MoE on 16 GB RAM, **IQ3_XXS** is the maximum | Phase 3 |
 
 ## Phase 2 — Model comparison under the same conditions
@@ -148,7 +148,7 @@ local configuration changes are not part of this repository.
 **Largest hardware lever:** 64 GB RAM (Q4 quantization, no page faults), followed
 by a 24 GB GPU. This final sentence is an estimate, not a measurement.
 
-## Re-measurement with the exact launch configuration (2026-10-15, 10:06–10:55)
+## Re-measurement with the exact launch configuration (2026-10-15, 10:06–10:55; 9B at 64K on 2026-10-16, 21:17)
 
 Reviewers pointed out that the headline numbers came from server context 33,792
 while the default profile launches with 65,536, and that the 9B numbers came from
@@ -160,7 +160,8 @@ their launch flags, Alia's llama.cpp build (a0e6dc7) and the GGUF Alia downloads
 | `llamacpp-20261015-100648` | 35B IQ3_XXS + MTP | 65536 | 46.5 / 1008 | 35.2 / 1301 | — | 3 reps, runner RSS 11.1 GB |
 | `llamacpp-20261015-101143` | 35B IQ3_XXS + MTP | 65536 | 48.1 / 1216 | 24.6 / 305 | 9.7 / 161 | 5 reps, RAM pressure |
 | `llamacpp-20261015-024711` | 35B IQ3_XXS + MTP | 65536 | 49.7 / 665 | — | 38.2 / 1041 | earlier run, same flags without `--jinja` |
-| `llamacpp-20261015-101002` | 9B Q4_K_M (unsloth) | 33408 | 66.1 / 2980 | 57.7 / 2707 | — | 5 reps |
+| `llamacpp-20261015-101002` | 9B Q4_K_M (unsloth) | 33408 | 66.1 / 2980 | 57.7 / 2707 | — | 5 reps, superseded by 211736 |
+| `llamacpp-20261016-211736` | 9B Q4_K_M (unsloth) | 65536 | 65.7 / 2978 | 57.5 / 2708 | 50.2 / 2423 | 5 reps, peak VRAM 7706 MiB incl. 777 MiB desktop |
 
 **Why run 101143 collapsed:** the runner's resident set fell from 11.1 to 7.4 GB and
 NVMe reads rose to 626 MB/s. With a browser (1.4 GB swapped to zRAM) and other

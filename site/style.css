@@ -159,7 +159,6 @@ h2 { font-size: clamp(30px, 4.4vw, 50px); line-height: 1.08; font-weight: 600; l
 .b span { transition: opacity .4s .8s; }
 .b.a { background: var(--grad); color: #07080c; box-shadow: 0 0 24px -6px rgba(92, 157, 255, .55); }
 .b.b2 { background: #2b3140; color: var(--fg); }
-.b.na { width: auto; height: 30px; justify-content: flex-start; padding: 0; color: var(--mut2); font: 400 13px var(--body); transform: none; }
 .chart.pre .b { --s: 0; } .chart.pre .b span { opacity: 0; }
 .qgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
 .q { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 24px 28px; }

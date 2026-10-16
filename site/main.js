@@ -41,7 +41,6 @@ const DE = {
   "bench.d4": "4K Kontext",
   "bench.d32": "32K Kontext",
   "bench.d60": "60K Kontext",
-  "bench.na": "9B-Profil endet bei 32K",
   "q.code": "Code-Aufgaben",
   "q.tools": "Tool-Aufrufe",
   "q.json": "JSON mit / ohne Schema",

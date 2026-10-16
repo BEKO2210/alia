@@ -121,7 +121,7 @@
       "-ub",
       "1024"
     ],
-    "ctx": 33408,
+    "ctx": 65536,
     "sampling": {
       "temperature": 0.6,
       "top_p": 0.95,
@@ -136,18 +136,23 @@
       "source": "bench/results/quality-20261015-005015.jsonl via Ollama; server context and arguments were not recorded."
     },
     "measured": {
-      "tg_tps_4k": 66.1,
-      "tg_tps_32k": 57.7,
-      "pp_tps_4k": 2980,
-      "pp_tps_32k": 2707,
+      "tg_tps_4k": 65.7,
+      "tg_tps_32k": 57.5,
+      "tg_tps_60k": 50.2,
+      "pp_tps_4k": 2978,
+      "pp_tps_32k": 2708,
+      "pp_tps_60k": 2423,
       "llama_cpp": "a0e6dc7 (2026-10-14)",
-      "source": "Performance with the exact launch configuration: bench/results/llamacpp-20261015-101002.jsonl, ctx 33408, exact launch args, Alia's llama.cpp build and the unsloth GGUF.",
+      "source": "Performance with the exact launch configuration: bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, exact launch args, Alia's llama.cpp build and the unsloth GGUF. Peak VRAM 7706 MiB including 777 MiB used by the desktop.",
       "metric_sources": {
-        "tg_tps_4k": "bench/results/llamacpp-20261015-101002.jsonl, ctx 33408, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
-        "tg_tps_32k": "bench/results/llamacpp-20261015-101002.jsonl, ctx 33408, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
-        "pp_tps_4k": "bench/results/llamacpp-20261015-101002.jsonl, ctx 33408, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
-        "pp_tps_32k": "bench/results/llamacpp-20261015-101002.jsonl, ctx 33408, exact launch args, Alia's llama.cpp build and the unsloth GGUF"
-      }
+        "tg_tps_4k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
+        "tg_tps_32k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
+        "pp_tps_4k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
+        "pp_tps_32k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
+        "tg_tps_60k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
+        "pp_tps_60k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, exact launch args, Alia's llama.cpp build and the unsloth GGUF"
+      },
+      "notes": "The context was 33408 until 0.1.0. Qwen Code reserves 20,000 tokens for compaction summaries, so that window gave an auto-compact threshold of 408 tokens and a hard limit of 10,408. At 65536 the thresholds are 32,536 and 42,536; 4K/32K speed is unchanged (66.1 / 57.7 tok/s at ctx 33408, bench/results/llamacpp-20261015-101002.jsonl)."
     }
   },
   {

@@ -20,7 +20,7 @@ hier nicht verwendet. σ der dichten Modelle < 1 %; bei MoE mit Experten im RAM 
 | Passt in 8 GB? | Ja, **aber nur ohne Projektor**. Mit Projektor legt Ollama schon bei 4K 13 % der Schichten auf die CPU | gemessen, `ollama ps` |
 | KV-Cache | nur 8 Schichten: f16 32 KiB/Token, q8_0 17 KiB/Token (32K = 0,53 GiB) + ~50 MiB fester Zustand | berechnet + Ollama-Log „checkpoint 50.251 MiB“ |
 | 54–58 t/s realistisch? | Keine Primärquelle gefunden (Schätzseiten). **Gemessen: 64,5 t/s @4K, 56,1 @32K (text-only); mit Projektor 53,0 @4K, 20,1 @32K** | perf-20261015-001001 |
-| Kontext ganz im VRAM | 9B text-only: 32K ja (6,57 GB), 64K/128K **nein** (128K: KV 2,18 GB → OOM) | ctx-Probe, llama-server-Log |
+| Kontext ganz im VRAM | 9B text-only: 32K ja (6,57 GB), 128K **nein** (128K: KV 2,18 GB → OOM). Die frühe Probe scheiterte auch an 64K; mit Alias Startflags (KV q8_0, `-ub 1024`, ohne Projektor) passt 64K: Spitze 7706 MiB inkl. Desktop | ctx-Probe, llama-server-Log, `llamacpp-20261016-211736` |
 | Q4_K_M bester Kompromiss? | Für 9B ja (passt komplett). Für 35B-MoE ist auf 16 GB RAM **IQ3_XXS** das Maximum | siehe Phase 3 |
 
 ## Phase 2 — Modellvergleich (alle gemessen, gleiche Bedingungen)
@@ -137,7 +137,7 @@ Bereits geändert (mit Backup `*.bak-20261015-013834`): OpenCode und Hermes nutz
 
 **Größter Hardware-Hebel:** 64 GB RAM (Q4-Quant, keine Page-Faults), danach eine 24-GB-GPU (Schätzung, nicht gemessen).
 
-## Nachmessung mit exakter Startkonfiguration (2026-10-15, 10:06–10:55)
+## Nachmessung mit exakter Startkonfiguration (2026-10-15, 10:06–10:55; 9B mit 64K am 2026-10-16, 21:17)
 
 Die Reviews merkten an, dass die Schlagzeilen-Werte mit Serverkontext 33.792
 gemessen wurden, das Standardprofil aber mit 65.536 startet, und dass die 9B-Werte
@@ -149,7 +149,8 @@ Startflags, Alias llama.cpp-Build (a0e6dc7) und der GGUF, die Alia lädt, neu ge
 | `llamacpp-20261015-100648` | 35B IQ3_XXS + MTP | 65536 | 46,5 / 1008 | 35,2 / 1301 | — | 3 Wdh., Runner-RSS 11,1 GB |
 | `llamacpp-20261015-101143` | 35B IQ3_XXS + MTP | 65536 | 48,1 / 1216 | 24,6 / 305 | 9,7 / 161 | 5 Wdh., RAM-Druck |
 | `llamacpp-20261015-024711` | 35B IQ3_XXS + MTP | 65536 | 49,7 / 665 | — | 38,2 / 1041 | früherer Lauf, gleiche Flags ohne `--jinja` |
-| `llamacpp-20261015-101002` | 9B Q4_K_M (unsloth) | 33408 | 66,1 / 2980 | 57,7 / 2707 | — | 5 Wdh. |
+| `llamacpp-20261015-101002` | 9B Q4_K_M (unsloth) | 33408 | 66,1 / 2980 | 57,7 / 2707 | — | 5 Wdh., ersetzt durch 211736 |
+| `llamacpp-20261016-211736` | 9B Q4_K_M (unsloth) | 65536 | 65,7 / 2978 | 57,5 / 2708 | 50,2 / 2423 | 5 Wdh., VRAM-Spitze 7706 MiB inkl. 777 MiB Desktop |
 
 **Warum Lauf 101143 einbrach:** Der residente Speicher des Runners fiel von 11,1 auf
 7,4 GB, die NVMe las bis zu 626 MB/s. Mit Browser (1,4 GB in zRAM ausgelagert) und

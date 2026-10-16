@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- The 9B fast profile now launches with a 65,536-token context instead of
+  33,408. Qwen Code 0.25.1 keeps 20,000 tokens for compaction summaries, so the
+  old window compacted after 408 tokens and stopped requests at 10,408
+  ("Context is too large to send safely"). Measured at the new size: 65.7 /
+  57.5 / 50.2 tok/s at 4K / 32K / 60K, peak VRAM 7.7 GB including the desktop.
+
+### Added
+
+- `alia doctor` shows Qwen Code's auto-compaction and hard limit for the
+  selected profile, and startup warns when a profile's context is too small
+  for Qwen Code.
+
 ## [0.1.0] - 2026-10-15
 
 First public release.
