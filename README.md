@@ -22,7 +22,7 @@ Alia is a Linux-only, fully local coding-agent launcher. It detects NVIDIA GPU, 
 >
 > Qwen3.6 35B-A3B IQ3_XXS (default, context 65,536): **46.5 / 35.2 / 38.2 tok/s** generation and 1,008 / 1,301 / 1,041 tok/s prompt processing at 4K / 32K / 60K (the 60K value is from an earlier run with the same flags except `--jinja`, which only selects the chat template). The 4K speed is stable (46.5–49.7 tok/s over three runs). Deep-context speed depends on free RAM: when other apps push the 13 GB model out of the page cache, it streams from the SSD and drops to 24.6 tok/s at 32K and 9.7 at 60K (run `llamacpp-20261015-101143`). **Use 32 GB RAM for long contexts**, or close the browser.
 >
-> Qwen3.5 9B Q4_K_M (fast, context 33,408): **66.1 / 57.7 tok/s** generation and 2,980 / 2,707 tok/s prompt processing at 4K / 32K.
+> Qwen3.5 9B Q4_K_M (fast, context 65,536): **65.7 / 57.5 / 50.2 tok/s** generation and 2,978 / 2,708 / 2,423 tok/s prompt processing at 4K / 32K / 60K.
 
 TG means token generation rate; PP means prompt-processing rate. MTP is multi-token prediction (speculative decoding using the model's MTP heads). Exact run and context provenance lives beside every numeric metric in `profiles.json`.
 Quality scores (35B: code 9/10, tools 7/8, JSON 3/3 with schema and 3/3 prompt-only; 9B: code 8/10, tools 8/8) come from separate quality runs whose server context and arguments were not recorded; the 9B quality run used Ollama.
@@ -121,7 +121,7 @@ Runtime data is under `~/.local/state/alia`, models under `~/.local/share/alia/m
 | Profile | Target | Model/download | TG 4K / 32K | PP 4K / 32K | Status |
 |---|---|---|---:|---:|---|
 | `rtx8gb-16gb-qwen36-35b` | 8 GB VRAM, 16 GB RAM | 35B IQ3_XXS, 14.07 GB | 46.5 / 35.2 | 1,008 / 1,301 | measured, launch config; 32K speed needs free RAM |
-| `rtx8gb-qwen35-9b-fast` | 8 GB VRAM, 12 GB RAM | 9B Q4_K_M, 5.7 GB | 66.1 / 57.7 | 2,980 / 2,707 | measured, launch config |
+| `rtx8gb-qwen35-9b-fast` | 8 GB VRAM, 12 GB RAM | 9B Q4_K_M, 5.7 GB | 65.7 / 57.5 | 2,978 / 2,708 | measured, launch config |
 | `rtx12-16gb-qwen36-35b-q4` | 12–16 GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20.8 GB | — | — | unmeasured; never run on target hardware |
 | `rtx24gb-qwen36-35b-q4` | 20+ GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20.8 GB | — | — | unmeasured; never run on target hardware |
 

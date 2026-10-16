@@ -1,6 +1,6 @@
 # How Alia built its own architecture page
 
-`index.html` in this folder was written entirely by Alia: the `alia` CLI running Qwen3.6-35B-A3B (IQ3_XXS, profile `rtx8gb-16gb-qwen36-35b`) through llama.cpp on one RTX 3070 with 8 GB VRAM, Ryzen 7 5800X, 16 GB RAM, on 2026-10-15.
+`index.html` in this folder was written entirely by Alia: the `alia` CLI running Qwen3.6-35B-A3B (IQ3_XXS, profile `rtx8gb-16gb-qwen36-35b`) through llama.cpp on one RTX 3070 with 8 GB VRAM, Ryzen 7 5800X, 16 GB RAM, on 2026-10-15. Round r5 (2026-10-16) ran on the 9B profile `rtx8gb-qwen35-9b-fast`.
 
 Alia made every change to the page. The operator did what you do with any coding agent: looked at screenshots, tested the page in a headless browser (layout at 1440 px and 390 px, animation frames, the detail panels, console errors, `prefers-reduced-motion`), checked the facts against the Alia source, and wrote the next prompt. Every round was a fresh session started with `alia --yolo`, and every round is a commit.
 
@@ -9,7 +9,7 @@ Below are all prompts in order, verbatim.
 ## What did not work
 
 - **Round 1 (long session):** Alia invented its own hero text, reported layout fixes it had not made and started an unrequested web server. Exact, short prompts in fresh sessions fixed this from round 2 on.
-- **Two discarded attempts:** one round on the 35B profile slowed to almost an hour while free RAM was low (the model streamed from the SSD). A retry on the 9B profile wrote broken `sed` commands, reported success and hit the context limit. Both diffs were thrown away; the same work was then split into the small rounds r4b1–r4f, which took two to eight minutes each.
+- **Two discarded attempts:** one round on the 35B profile slowed to almost an hour while free RAM was low (the model streamed from the SSD). A retry on the 9B profile wrote broken `sed` commands, reported success and hit the context limit (hard limit 10,408 tokens: with a 33,408-token window, Qwen Code compacted after 408 tokens; the profile now uses 65,536). Both diffs were thrown away; the same work was then split into the small rounds r4b1–r4f, which took two to eight minutes each.
 - **r4d** dropped one edge label while moving a block; r4e put it back.
 - **r4h and r4i** address findings from the automated pull-request review (CodeRabbit).
 
@@ -109,4 +109,10 @@ In index.html make exactly these edits and nothing else, do not start any server
 
 ```text
 In index.html make exactly these edits and nothing else, do not start any server. Work efficiently: locate each spot with grep -n and edit only those lines, do not read the whole file. When done, show the changed lines with git diff. (K1) The diagram boxes cannot be used with a keyboard. In the svg with class "arch-svg", give each of the six <g class="arch-box" ...> elements the attributes tabindex="0" and role="button" and an aria-label: "User Terminal details", "Browser details", "Alia Launcher details", "Qwen Code details", "llama-server details", "GPU and RAM details" (match by data-detail: terminal, browser, launcher, qwen, server, hardware). (K2) In the <script>, inside the loop that adds the 'click' and 'mouseenter' listeners to each box, add a 'keydown' listener: if event.key is 'Enter' or ' ', call event.preventDefault() and box.dispatchEvent(new Event('click')). (K3) In the <style> block add .arch-box:focus{outline:none}.arch-box:focus-visible .box-bg{stroke:var(--cyan);stroke-width:2.5}
+```
+
+### r5: Re-measured 9B profile, on the 9B profile itself (2026-10-16, 21:24)
+
+```text
+In index.html make exactly these edits and nothing else, do not start any server. Work efficiently: locate each spot with grep -n and edit only those lines, do not read the whole file. When done, show the changed lines with git diff. The 9B profile was re-measured with a larger context, so update only the card that follows the comment <!-- Profile 2: 9B fast -->. (N1) Change the TG @ 4K value 66.1 to 65.7. (N2) Change the TG @ 32K value 57.7 to 57.5. (N3) Change the PP @ 4K value 2,980 to 2,978. (N4) Change the PP @ 32K value 2,707 to 2,708. (N5) Change the Context Window value 33,408 to 65,536.
 ```

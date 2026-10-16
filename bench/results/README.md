@@ -47,6 +47,9 @@ measurement values are unchanged.
 - `llamacpp-20261015-101143.jsonl` — 35B default profile, exact launch
   configuration, 4K/32K/60K, 5 reps, under RAM pressure (model partly streamed
   from SSD). Published as the RAM-pressure case.
+- `llamacpp-20261016-211736.jsonl` — 9B fast profile, exact launch configuration
+  at the new ctx 65536, 4K/32K/60K, 5 reps. Source of the published 9B values;
+  replaces `llamacpp-20261015-101002.jsonl`.
 
 For measurement caveats and an independent recount, see
 `../reviews/grok-bench-review.md`.
