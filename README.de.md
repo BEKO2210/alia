@@ -29,7 +29,7 @@ Die Qualitätswerte (35B: Code 9/10, Tools 7/8, JSON 3/3 mit Schema und 3/3 nur 
 
 ## Unterstützte Plattform und Voraussetzungen
 
-Alia v0.1.0 unterstützt natives Linux mit NVIDIA-GPU. Es verwendet `/proc`, `flock` und den Linux-Prozessstartzeitpunkt; Windows, macOS, AMD-GPUs, reiner CPU-Betrieb und WSL2 werden nicht unterstützt. Python 3.12+ ist die unterstützte Laufzeit für das in diesem Release getestete Prozessmanagement.
+Alia v0.2.0 unterstützt natives Linux mit NVIDIA-GPU. Es verwendet `/proc`, `flock` und den Linux-Prozessstartzeitpunkt; Windows, macOS, AMD-GPUs, reiner CPU-Betrieb und WSL2 werden nicht unterstützt. Python 3.12+ ist die unterstützte Laufzeit für das in diesem Release getestete Prozessmanagement.
 
 Die exakte Qwen-Code-Version und das Hugging-Face-CLI installieren:
 
@@ -160,6 +160,10 @@ Das standardmäßige Qwen3.6-Profil ist die schnelle Wahl: Es löste 13/16 einge
 Für große Aufgaben verdoppelt `alia use rtx8gb-16gb-qwen36-35b-128k` das Fenster: Qwen Code komprimiert dann erst bei etwa 98K statt 32,5K Tokens, bei rund 20 % weniger Tempo (llama.cpp lagert mehr Experten auf die CPU aus, damit der größere KV-Cache passt).
 
 Jedes mitgelieferte Profil begrenzt llama-servers Prompt-Cache im Host-RAM auf 2.048 MiB; das verhindert das Swap-Wachstum, das mit dem Standardwert von 8.192 MiB auf einem 16-GB-Rechner beobachtet wurde.
+
+### Mehr Kontext mit Subagenten
+
+Ein Subagent bekommt ein eigenes volles Fenster; eine große Aufgabe aufzuteilen ist darum oft besser als ein größerer Kontext. Einfach in Worten darum bitten, etwa „nutze einen Subagenten, der jeden Aufrufer von `parse_config` findet und Datei:Zeile meldet". Während der Subagent läuft, hält llama-server den Zustand des Hauptagenten im Prompt-Cache im Arbeitsspeicher statt auf der GPU. In einem gemessenen Lauf machte der Hauptagent nach einem Subagenten mit 10,8K Tokens mit 21 neu ausgewerteten Tokens (0,4 s) weiter, statt seinen 15K-Token-Verlauf neu zu lesen (Lauf `agent-20261017-211634`). Ein `fork`-Subagent (`subagent_type "fork"`) erbt den Verlauf des Hauptagenten und startet fast ohne Kosten; er passt, wenn der Subagent das bisherige Gespräch braucht.
 
 ## Profil hinzufügen
 

@@ -162,11 +162,12 @@ h2 { font-size: clamp(30px, 4.4vw, 50px); line-height: 1.08; font-weight: 600; l
 .b.b2 { background: #2b3140; color: var(--fg); }
 .chart.pre .b { --s: 0; } .chart.pre .b span { opacity: 0; }
 .qgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+.q-wide { grid-column: 1 / -1; }
 .q { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 24px 28px; }
 .q h3 { font-size: 18px; font-weight: 600; margin-bottom: 12px; }
 .q dl { margin: 0; display: grid; }
 .q dl div { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14.5px; }
-.q dt { color: var(--mut); } .q dd { margin: 0; font: 500 14px var(--mono); }
+.q dt { color: var(--mut); } .q dd { margin: 0; font: 500 14px var(--mono); white-space: nowrap; }
 .fine { color: var(--mut2); font-size: 13.5px; margin: 18px 0 0; max-width: 820px; }
 .fine a { color: var(--blue); text-decoration: none; }
 .fine a:hover { text-decoration: underline; }
@@ -233,6 +234,7 @@ h2 { font-size: clamp(30px, 4.4vw, 50px); line-height: 1.08; font-weight: 600; l
   .term-title { margin-right: 0; }
   .replay { display: none; }
   .bento, .qgrid { grid-template-columns: 1fr; }
+  .q-wide { grid-column: auto; }
   .c-wide, .c-wide-row { grid-column: auto; }
   .grp { grid-template-columns: 1fr; gap: 8px; }
 

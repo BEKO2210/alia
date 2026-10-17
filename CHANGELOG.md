@@ -6,8 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-18
+
 ### Added
 
+- Gate tasks `bench/live_tasks/subagent` and `fork_agent`; in the measured run the main agent resumed after a sub-agent with 21 evaluated tokens because llama-server kept its state in the host-RAM prompt cache. The README explains how to use sub-agents for more context.
+- The site shows agent-task results per profile (default, quality, 128K).
 - `alia --sandbox` runs tool commands in Qwen Code's bubblewrap sandbox (project writes only, no tool network), checks for `bwrap` and conflicting MCP servers before startup, stores uncommitted tracked changes in `refs/alia/pre-session`, and `alia doctor` shows a `Sandbox` row; `alia web --sandbox` is rejected.
 - Prompt-injection gate tasks `bench/live_tasks/inject_readme`, `inject_tool_output`, and `inject_comment`.
 - `SECURITY.md` documents what the sandbox protects and what it does not.
@@ -19,10 +23,21 @@ All notable changes to this project are documented here. The format follows
 - Opt-in MCP servers for a headless browser (`@playwright/mcp` 0.0.83) and key-less DuckDuckGo web search (`duckduckgo-mcp-server` 0.7.0), managed with `alia mcp [list]`, `alia mcp enable NAME`, and `alia mcp disable NAME`.
 - `alia doctor` shows the enabled MCP servers and marks a missing `npx` or `uvx`.
 - `alia mcp test [NAME]` starts the enabled MCP servers like a session does, runs `initialize` and `tools/list`, and reports the allowed tools or the error; `alia doctor` points to it when MCP servers are enabled.
+- `alia status` reports managed-server health, PID, profile, port, uptime, and model.
+- `alia doctor` reports whether Ollama is unavailable, idle, or has loaded models.
+- `alia doctor` shows Qwen Code's auto-compaction and hard limit for the
+  selected profile, and startup warns when a profile's context is too small
+  for Qwen Code.
+- Startup warns when less RAM is available than the 35B default profile needs
+  to keep its experts in memory (11 GB, from the runner's resident set in the
+  full-speed runs); `alia doctor` shows the available RAM.
+- `bench/agent_bench.py`: eight repository tasks solved headless by Qwen Code
+  with Alia's settings and scored by hidden tests.
 
 ### Changed
 
 - Every bundled profile caps llama-server's host-RAM prompt cache at 2,048 MiB to avoid swap growth on 16 GB systems.
+- Published speeds are re-measured with exactly each profile's launch flags (`--jinja`, `--cache-ram 2048`): 35B 47.0 / 36.4 / 31.7 tok/s and 9B 66.5 / 57.9 / 51.5 tok/s at 4K / 32K / 60K. The former 35B 60K value (38.2) had been measured without `--jinja`.
 - Every agent-task figure in `profiles.json` names its `bench/results/agent-*.jsonl` runs and context; speed sources measured before the cache cap say so. The test for unsourced metrics covers `agent_*` and all `*_tps` keys again.
 - `bench/agent_bench.py --server-args` rejects input that is not a JSON list of strings.
 - Generated Qwen Code settings load `CLAUDE.md` alongside `QWEN.md` and `AGENTS.md` for project instructions.
@@ -54,22 +69,9 @@ All notable changes to this project are documented here. The format follows
 - The 9B fast profile now launches with a 65,536-token context instead of
   33,408. Qwen Code 0.25.1 keeps 20,000 tokens for compaction summaries, so the
   old window compacted after 408 tokens and stopped requests at 10,408
-  ("Context is too large to send safely"). Measured at the new size: 65.7 /
-  57.5 / 50.2 tok/s at 4K / 32K / 60K, peak VRAM 7.7 GB including the desktop.
-
-### Added
-
-- `alia status` reports managed-server health, PID, profile, port, uptime, and model.
-- `alia doctor` reports whether Ollama is unavailable, idle, or has loaded models.
-- `alia doctor` shows Qwen Code's auto-compaction and hard limit for the
-  selected profile, and startup warns when a profile's context is too small
-  for Qwen Code.
-- Startup warns when less RAM is available than the 35B default profile needs
-  to keep its experts in memory (11 GB, from the runner's resident set in the
-  full-speed runs); `alia doctor` shows the available RAM.
-- `bench/agent_bench.py`: eight repository tasks solved headless by Qwen Code
-  with Alia's settings and scored by hidden tests.
-
+  ("Context is too large to send safely"). Measured at the new size with the
+  launch flags: 66.5 / 57.9 / 51.5 tok/s at 4K / 32K / 60K, peak VRAM 7.2 GB
+  including the desktop.
 
 ## [0.1.0] - 2026-10-15
 
@@ -87,4 +89,6 @@ First public release.
 - English and German UI, following the system language.
 - Benchmark harness and raw results in `bench/`.
 
+[Unreleased]: https://github.com/BEKO2210/alia/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/BEKO2210/alia/releases/tag/v0.2.0
 [0.1.0]: https://github.com/BEKO2210/alia/releases/tag/v0.1.0

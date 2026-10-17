@@ -29,7 +29,7 @@ Quality scores (35B: code 9/10, tools 7/8, JSON 3/3 with schema and 3/3 prompt-o
 
 ## Supported platform and prerequisites
 
-Alia v0.1.0 supports native Linux with an NVIDIA GPU. It relies on `/proc`, `flock`, and the Linux process-start timestamp; Windows, macOS, AMD GPUs, CPU-only use, and WSL2 are not supported. Python 3.12+ is the supported runtime for the process-management behavior tested by this release.
+Alia v0.2.0 supports native Linux with an NVIDIA GPU. It relies on `/proc`, `flock`, and the Linux process-start timestamp; Windows, macOS, AMD GPUs, CPU-only use, and WSL2 are not supported. Python 3.12+ is the supported runtime for the process-management behavior tested by this release.
 
 Install the exact Qwen Code version and Hugging Face CLI:
 
@@ -160,6 +160,10 @@ The default Qwen3.6 profile is the fast choice: it solved 13/16 frozen agent tas
 For large tasks, `alia use rtx8gb-16gb-qwen36-35b-128k` doubles the window: Qwen Code then compacts at about 98K tokens instead of 32.5K, at roughly 20 % lower speed (llama.cpp moves more experts to the CPU to fit the larger KV cache).
 
 Every bundled profile caps llama-server's host-RAM prompt cache at 2,048 MiB, avoiding the swap growth observed with its 8,192 MiB default on a 16 GB machine.
+
+### More context with sub-agents
+
+A sub-agent gets its own full window, so splitting a large job is often better than a bigger context. Ask for it in plain words, for example "use a sub-agent to find every caller of `parse_config` and report file:line". While the sub-agent runs, llama-server keeps the main agent's state in the host-RAM prompt cache instead of the GPU. In a measured run, the main agent resumed after a 10.8K-token sub-agent with 21 newly evaluated tokens (0.4 s) instead of re-reading its 15K-token history (run `agent-20261017-211634`). A `fork` sub-agent (`subagent_type "fork"`) inherits the main agent's history and starts almost free; use it when the sub-agent needs the conversation so far.
 
 ## Adding a profile
 

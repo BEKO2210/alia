@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preload" href="fonts/Outfit.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/Inter.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <a class="skip" href="#main" data-i18n="skip">Skip to content</a>
@@ -47,7 +47,7 @@
       <div class="hero-bg" aria-hidden="true"></div>
       <div class="wrap hero-in">
         <a class="pill" href="https://github.com/BEKO2210/alia/releases">
-          <span class="pill-dot"></span><span data-i18n="hero.pill">v0.1.0 · open source · Apache-2.0</span>
+          <span class="pill-dot"></span><span data-i18n="hero.pill">v0.2.0 · open source · Apache-2.0</span>
         </a>
         <h1 data-i18n="hero.title">A local coding agent<br><span class="grad">for the GPU you already own.</span></h1>
         <p class="lead" data-i18n="hero.lead">Alia detects your GPU, picks a benchmarked model profile, starts llama.cpp and opens a full coding agent in your terminal. No API key. No cloud. Nothing leaves your machine.</p>
@@ -189,8 +189,17 @@
             </dl>
             <p class="fine" data-i18n="q.note9b">* Measured via Ollama with Qwen's own GGUF, not the unsloth GGUF and llama-server configuration this profile launches.</p>
           </div>
+          <div class="q q-wide">
+            <h3 data-i18n="q.agent.title">Agent tasks by profile</h3>
+            <dl>
+              <div><dt data-i18n="q.agent.def">Qwen3.6 35B · default</dt><dd>13/16 · 104 s</dd></div>
+              <div><dt data-i18n="q.agent.qual">Ornith-1.5 35B · quality, opt-in</dt><dd>16/16 · 248 s</dd></div>
+              <div><dt data-i18n="q.agent.long">Qwen3.6 35B · 128K context, opt-in</dt><dd>3/3 · 44.1 tok/s</dd></div>
+            </dl>
+            <p class="fine" data-i18n="q.agent.note">Eight frozen repository tasks, two runs each, solved headless by Qwen Code and scored by hidden tests; time is the mean per run. Switch with <code>alia use &lt;profile&gt;</code>, back with <code>alia use auto</code>.</p>
+          </div>
         </div>
-        <p class="fine" data-i18n="bench.fine">All speeds use the flags and context size each profile launches with (35B: 65,536, 9B: 33,408); the 35B 60K value comes from an earlier run with the same flags except <code>--jinja</code>, which only selects the chat template. Long-context speed needs free RAM: with a browser and other apps open, the 35B model streamed from the SSD and fell to 24.6 tok/s at 32K and 9.7 at 60K. 32 GB RAM is recommended for long contexts. Quality scores come from separate runs. <a href="https://github.com/BEKO2210/alia/tree/main/bench/results">Raw results and methodology →</a></p>
+        <p class="fine" data-i18n="bench.fine">All speeds use exactly the flags and context size each profile launches with (65,536 tokens for both). Long-context speed needs free RAM: with a browser and other apps open, the 35B model streamed from the SSD and fell to 24.6 tok/s at 32K and 9.7 at 60K. 32 GB RAM is recommended for long contexts. Quality scores come from separate runs. <a href="https://github.com/BEKO2210/alia/tree/main/bench/results">Raw results and methodology →</a></p>
       </div>
     </section>
 
@@ -296,6 +305,6 @@ alia mcp    # browser &amp; web search</code></pre><button type="button" class="
     </div>
   </footer>
 
-  <script src="main.js?v=2" defer></script>
+  <script src="main.js?v=3" defer></script>
 </body>
 </html>

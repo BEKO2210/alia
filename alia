@@ -27,7 +27,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 HOST = "127.0.0.1"
 PORT = 8090
 ROOT = Path(__file__).resolve().parent
