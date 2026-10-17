@@ -143,8 +143,11 @@ if (chart && !reduce && "IntersectionObserver" in window) {
 
 /* hero demo video: plays only while visible, never for reduced motion */
 const demo = document.getElementById("demo");
+// The portrait cut has its own last frame; the poster attribute cannot follow <source media>.
+if (matchMedia("(max-width: 600px)").matches) demo.poster = "alia-demo-mobile-poster.webp";
 document.getElementById("replay").addEventListener("click", () => { demo.currentTime = 0; demo.play(); });
 if (reduce) {
+  demo.pause();
   demo.controls = true;
 } else if ("IntersectionObserver" in window) {
   new IntersectionObserver((entries) => {
