@@ -136,6 +136,8 @@ def main() -> None:
     ap.add_argument("--wall", type=int, default=600, help="Qwen Code --max-wall-time per task, seconds")
     ap.add_argument("--server-arg", action="append", default=[],
                     help="extra llama-server argument for A/B runs, e.g. --server-arg=--no-reasoning-preserve")
+    ap.add_argument("--server-args", default=None,
+                    help="JSON list replacing the profile's server_args (other models, e.g. without MTP flags)")
     ap.add_argument("--mcp", default="", help="comma list of Alia MCP servers to enable, e.g. browser,search")
     ap.add_argument("--probe", action="store_true", help="time a cold and a warm one-word reply first")
     ap.add_argument("--repeat", type=int, default=1, metavar="N", help="run each task N times (noise check)")
@@ -144,9 +146,10 @@ def main() -> None:
         ap.error("--repeat must be at least 1")
 
     profile = next(p for p in alia.load_profiles() if p["id"] == a.profile)
+    server_args = json.loads(a.server_args) if a.server_args else profile["server_args"]
     binary, env_extra = alia.find_llama_server()
     args = [str(binary), "-m", str(Path(a.gguf).expanduser()), "-c", str(profile["ctx"]),
-            *map(str, profile["server_args"]), "--no-webui", "--api-key", alia.API_KEY,
+            *map(str, server_args), "--no-webui", "--api-key", alia.API_KEY,
             "--host", "127.0.0.1", "--port", str(PORT), "--alias", profile["id"], "--metrics"]
     args += a.server_arg
     if a.template:
@@ -179,7 +182,7 @@ def main() -> None:
                 f.write(json.dumps({"mode": "env", "name": a.name, "gguf": Path(a.gguf).name,
                                     "template": Path(a.template).name if a.template else None,
                                     "profile": profile["id"], "ctx": profile["ctx"], "mcp": a.mcp or None,
-                                    "server_args": profile["server_args"] + a.server_arg, "load_s": round(load_s, 1),
+                                    "server_args": server_args + a.server_arg, "load_s": round(load_s, 1),
                                     "mem_available_gb": round(free, 1) if free else None,
                                     "wall_limit_s": a.wall, "ts": time.time()}) + "\n")
                 for label in ("cold", "warm") if a.probe else ():

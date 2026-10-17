@@ -126,3 +126,21 @@ For measurement caveats and an independent recount, see
     mode) than headless mode, so the two share no reusable prefix.
   - `-133101`: harness check of `--mcp browser,search` with the three live tasks (main
     before round 7, so MCP schemas still deferred): all passed, 55 / 36 / 15 s.
+  - **Model comparison, 2026-10-17** (`-143436` … `-193334`, one file per model and task, 2
+    runs each, `--cache-ram 2048`, 10-minute wall per run). All candidates are MoE models with
+    ~3–4B active parameters; dense 24B+ models are too slow on 8 GB VRAM (Qwen3.8-27B: 4.8
+    tok/s). Pass = all hidden tests green; time = mean seconds per run; rates from the server
+    metrics over all runs.
+
+    | model | passed | mean time | gen tok/s | generated tokens | missed |
+    |---|---|---|---|---|---|
+    | Ornith-1.5-35B-A3B APEX-MTP I-Mini (own chat template) | **16/16** | 248 s | 41.8 | 141K | – |
+    | Gemma-4-26B-A4B UD-IQ3_XXS (no MTP) | 15/16 | 245 s | 38.3 | 139K | rename 1× |
+    | Qwen3.6-35B-A3B UD-IQ3_XXS (default profile) | 13/16 | 104 s | 54.6 | 69K | config 1×, duration 2× |
+    | KAT-Coder-V2.5 APEX-MTP I-Mini | 10/16 | 106 s | 46.6 | 56K | cli, config 2×, duration, rename 2× |
+    | gpt-oss-20b MXFP4 (no MTP) | 8/16 | 170 s | 33.2 | 82K | config, csvimport, duration, rename 2×, ttlcache 2×, vat |
+    | Qwen3.5-9B Q4_K_M (9B profile) | 6/16 | ~150 s | 60.7 | 129K | most; one ttlcache run thought for 24K tokens without a tool call |
+
+    Ornith and Gemma solve the hard `duration` task that the default never solved, at about
+    2.4× the time, mostly from twice the generated (thinking) tokens. Decision: the default
+    stays Qwen3.6-35B; Ornith-1.5 becomes the opt-in quality profile.
