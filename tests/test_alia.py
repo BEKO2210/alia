@@ -1038,6 +1038,18 @@ class McpTests(unittest.TestCase):
             self.assertEqual(self._main(directory, ["mcp", "disable", "browser"])[0], 0)
             self.assertEqual(alia.read_config(path), original)
 
+    def test_disable_inactive_server_writes_nothing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = alia.user_paths(Path(directory))["config"]
+            code, output, _ = self._main(directory, ["mcp", "disable", "browser"])
+            self.assertEqual(code, 0)
+            self.assertIn("MCP server disabled: browser", output)
+            self.assertFalse(path.exists())
+            alia.write_mcp_config(path, ["search"])
+            before = path.read_text(encoding="utf-8")
+            self.assertEqual(self._main(directory, ["mcp", "disable", "browser"])[0], 0)
+            self.assertEqual(path.read_text(encoding="utf-8"), before)
+
     def test_unknown_name_exits_1(self):
         with tempfile.TemporaryDirectory() as directory:
             for action in ("enable", "disable"):

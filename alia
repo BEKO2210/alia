@@ -1477,7 +1477,8 @@ def cmd_mcp(args: list[str], paths: dict[str, Path]) -> int:
     if name not in MCP_CATALOG:
         raise RuntimeError(tr("mcp.unknown", name=name, names=", ".join(MCP_CATALOG)))
     if args[0] == "disable":
-        write_mcp_config(paths["config"], [item for item in enabled if item != name])
+        if name in enabled:
+            write_mcp_config(paths["config"], [item for item in enabled if item != name])
         print(tr("mcp.disabled", name=name))
         return 0
     write_mcp_config(paths["config"], enabled_mcp([*enabled, name]))
