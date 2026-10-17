@@ -74,6 +74,7 @@ The first start prints the exact `hf download` command and asks `Download now? [
 | Profile/model | Download | Recommended free space | Approx. at 100 Mbit/s |
 |---|---:|---:|---:|
 | 35B IQ3_XXS default | 14.07 GB | 16 GB | 19 minutes |
+| Ornith-1.5 35B-A3B quality | 14.37 GB + template | 16 GB | 20 minutes |
 | 9B Q4_K_M fast | 5.7 GB | 7 GB | 8 minutes |
 | 35B Q4_K_XL, unmeasured | 20.8 GB | 23 GB | 28 minutes |
 
@@ -144,11 +145,21 @@ Every MCP tool call goes through the normal approval prompt; `--yolo` approves t
 | Profile | Target | Model/download | TG 4K / 32K | PP 4K / 32K | Status |
 |---|---|---|---:|---:|---|
 | `rtx8gb-16gb-qwen36-35b` | 8 GB VRAM, 16 GB RAM | 35B IQ3_XXS, 14.07 GB | 46.5 / 35.2 | 1,008 / 1,301 | measured, launch config; 32K speed needs free RAM |
+| `rtx8gb-16gb-ornith15-35b-quality` | 8 GB VRAM, 16 GB RAM | Ornith-1.5 35B-A3B I-Mini, 14.37 GB + template | — | — | agent tasks 16/16, 248 s mean, 41.8 gen tok/s |
+| `rtx8gb-16gb-qwen36-35b-128k` | 8 GB VRAM, 16 GB RAM | same GGUF as the default, ctx 131,072 | — | — | agent tasks 3/3, 44.0 gen tok/s (≈20 % below 64K); 120K prompt: 25 tok/s |
 | `rtx8gb-qwen35-9b-fast` | 8 GB VRAM, 12 GB RAM | 9B Q4_K_M, 5.7 GB | 65.7 / 57.5 | 2,978 / 2,708 | measured, launch config |
 | `rtx12-16gb-qwen36-35b-q4` | 12–16 GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20.8 GB | — | — | unmeasured; never run on target hardware |
 | `rtx24gb-qwen36-35b-q4` | 20+ GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20.8 GB | — | — | unmeasured; never run on target hardware |
 
 Automatic selection prefers the highest-ranked matching measured profile and warns before using an unmeasured or manually pinned mismatch. Benchmark methodology and limitations are in [`bench/REPORT.md`](bench/REPORT.md), raw-data inventory in [`bench/results/README.md`](bench/results/README.md), and independent review in [`bench/reviews/grok-bench-review.md`](bench/reviews/grok-bench-review.md).
+
+### Choosing a profile
+
+The default Qwen3.6 profile is the fast choice: it solved 13/16 frozen agent tasks in about 104 seconds per task. For higher quality, run `alia use rtx8gb-16gb-ornith15-35b-quality`; Ornith solved 16/16 in about 248 seconds per task, roughly 2.4× slower, and downloads a 14.37 GB GGUF plus its chat template. Run `alia use auto` to return to automatic selection.
+
+For large tasks, `alia use rtx8gb-16gb-qwen36-35b-128k` doubles the window: Qwen Code then compacts at about 98K tokens instead of 32.5K, at roughly 20 % lower speed (llama.cpp moves more experts to the CPU to fit the larger KV cache).
+
+Every bundled profile caps llama-server's host-RAM prompt cache at 2,048 MiB, avoiding the swap growth observed with its 8,192 MiB default on a 16 GB machine.
 
 ## Adding a profile
 

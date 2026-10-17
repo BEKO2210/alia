@@ -144,3 +144,7 @@ For measurement caveats and an independent recount, see
     Ornith and Gemma solve the hard `duration` task that the default never solved, at about
     2.4× the time, mostly from twice the generated (thinking) tokens. Decision: the default
     stays Qwen3.6-35B; Ornith-1.5 becomes the opt-in quality profile.
+  - `-193850`: 35B default profile at ctx 131072 (`-c 131072`, `--cache-ram 2048`): perf, rename,
+    vat passed (55 / 63 / 87 s); peak VRAM unchanged at 6.7 GB because llama.cpp's fit moves more
+    experts to the CPU, so generation fell to 44.0 tok/s (64K: ~55) and prompt to 560 tok/s.
+    Basis of the opt-in `rtx8gb-16gb-qwen36-35b-128k` profile.

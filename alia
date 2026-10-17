@@ -374,20 +374,50 @@ def find_model(profile: dict[str, Any], paths: dict[str, Path]) -> Path | None:
     )
 
 
+def find_template(profile: dict[str, Any], paths: dict[str, Path]) -> Path | None:
+    template = profile.get("template")
+    if not template:
+        return None
+    candidates = [Path(os.path.expanduser(item)) for item in template["local_candidates"]]
+    candidates.append(
+        paths["models"] / template["hf_repo"].replace("/", "--") / template["file"]
+    )
+    for path in candidates:
+        try:
+            if path.is_file() and path.stat().st_size > 0:
+                return path
+        except OSError:
+            continue
+    return None
+
+
 def download_command(profile: dict[str, Any], paths: dict[str, Path]) -> list[str]:
     model = profile["model"]
     target = paths["models"] / model["hf_repo"].replace("/", "--")
     return ["hf", "download", model["hf_repo"], model["file"], "--local-dir", str(target)]
 
 
+def template_download_command(profile: dict[str, Any], paths: dict[str, Path]) -> list[str] | None:
+    template = profile.get("template")
+    if not template:
+        return None
+    target = paths["models"] / template["hf_repo"].replace("/", "--")
+    return ["hf", "download", template["hf_repo"], template["file"], "--local-dir", str(target)]
+
+
 def ensure_model(profile: dict[str, Any], paths: dict[str, Path]) -> Path | None:
-    existing = find_model(profile, paths)
-    if existing:
-        return existing
-    command = download_command(profile, paths)
-    print(color("33", tr("model.missing")))
+    model_path = find_model(profile, paths)
+    template_path = find_template(profile, paths)
+    template_required = bool(profile.get("template"))
+    if model_path and (template_path or not template_required):
+        return model_path
+    model_command = download_command(profile, paths)
+    template_command = template_download_command(profile, paths)
+    print(color("33", tr("model.files_missing")))
     print(tr("model.download_command"))
-    print("  " + shlex.join(command))
+    print("  " + shlex.join(model_command))
+    if template_command:
+        print("  " + shlex.join(template_command))
     try:
         answer = input(tr("model.download_prompt")).strip().lower()
     except EOFError:
@@ -396,11 +426,19 @@ def ensure_model(profile: dict[str, Any], paths: dict[str, Path]) -> Path | None
         return None
     if shutil.which("hf") is None:
         raise RuntimeError(tr("model.hf_missing"))
-    command[-1] = str(Path(command[-1]).expanduser())
-    Path(command[-1]).mkdir(parents=True, exist_ok=True)
-    result = subprocess.run(command, check=False)
-    if result.returncode != 0:
-        raise RuntimeError(tr("model.download_failed", code=result.returncode))
+    commands = []
+    if model_path is None:
+        commands.append(model_command)
+    if template_required and template_path is None and template_command:
+        commands.append(template_command)
+    for command in commands:
+        command[-1] = str(Path(command[-1]).expanduser())
+        Path(command[-1]).mkdir(parents=True, exist_ok=True)
+        result = subprocess.run(command, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(tr("model.download_failed", code=result.returncode))
+    if template_required and find_template(profile, paths) is None:
+        return None
     return find_model(profile, paths)
 
 
@@ -421,7 +459,10 @@ def find_llama_server() -> tuple[Path | None, dict[str, str]]:
     return None, {}
 
 
-def build_server_args(binary: Path, profile: dict[str, Any], model_path: Path) -> list[str]:
+def build_server_args(
+    binary: Path, profile: dict[str, Any], model_path: Path,
+    template_path: Path | None = None,
+) -> list[str]:
     profile_args = [str(value) for value in profile["server_args"]]
     forbidden = {"--host", "--port", "-a"}
     if any(
@@ -433,6 +474,7 @@ def build_server_args(binary: Path, profile: dict[str, Any], model_path: Path) -
         str(binary), "-m", str(model_path), "-c", str(profile["ctx"]),
         *profile_args, "--no-webui", "--api-key", API_KEY,
         "--host", HOST, "--port", str(PORT), "--alias", profile["id"],
+        *(["--chat-template-file", str(template_path)] if template_path else []),
     ]
 
 
@@ -661,12 +703,13 @@ def process_owns_listen_port(pid: int, port: int) -> bool:
 def server_state_matches_profile(
     state: dict[str, Any], profile: dict[str, Any], model_path: Path | None = None,
     binary: Path | None = None, gpu_index: int | None = None,
+    template_path: Path | None = None,
 ) -> bool:
     if state.get("profile") != profile["id"] or state.get("ctx") != profile["ctx"]:
         return False
     if model_path is None or binary is None:
         return True
-    expected_argv = build_server_args(binary, profile, model_path)
+    expected_argv = build_server_args(binary, profile, model_path, template_path)
     return (
         state.get("model_path") == str(model_path)
         and state.get("binary") == str(binary)
@@ -678,15 +721,18 @@ def server_state_matches_profile(
 
 def start_server(
     profile: dict[str, Any], model_path: Path, paths: dict[str, Path], gpu_index: int | None = None,
+    template_path: Path | None = None,
 ) -> tuple[int, bool, subprocess.Popen[bytes] | None]:
     binary, env_extra = find_llama_server()
     if binary is None:
         raise RuntimeError(tr("server.binary_missing"))
-    args = build_server_args(binary, profile, model_path)
+    args = build_server_args(binary, profile, model_path, template_path)
     pid = managed_pid(paths)
     state = read_server_state(paths)
     if (
-        pid and server_state_matches_profile(state, profile, model_path, binary, gpu_index)
+        pid and server_state_matches_profile(
+            state, profile, model_path, binary, gpu_index, template_path
+        )
         and process_owns_listen_port(pid, PORT) and health_ok()
     ):
         return pid, True, None
@@ -1487,7 +1533,12 @@ def cmd_profiles(profiles: list[dict[str, Any]], hw: dict[str, Any], selected: s
             speed = metrics("tg")
             pp = metrics("pp")
             quality_parts = []
-            for key, label in (("code_pass", "profiles.quality.code"), ("tool_pass", "profiles.quality.tools"), ("json_pass", "profiles.quality.json")):
+            for key, label in (
+                ("code_pass", "profiles.quality.code"),
+                ("tool_pass", "profiles.quality.tools"),
+                ("json_pass", "profiles.quality.json"),
+                ("agent_pass", "profiles.quality.agent"),
+            ):
                 if key in measured:
                     quality_parts.append(f"{tr(label)} {measured[key]}")
             quality = " · ".join(quality_parts) or "—"
@@ -1795,13 +1846,16 @@ def prepare_runtime(
         print(tr("startup.cancelled"))
         return None
     print(f"{color('32', '✓')} {tr('startup.model', path=model_path)}")
+    template_path = find_template(profile, paths)
     lock_path = resolve_gpu_lock(config)
     ensure_private_dir(paths["state"])
     # The state lock is mandatory and spans reuse checks, state writes, and
     # readiness. The optional external lock coordinates unrelated GPU jobs.
     with GpuStartLock(paths["start_lock"], max(300.0, wait_gpu)):
         with GpuStartLock(lock_path, wait_gpu):
-            pid, reused, process = start_server(profile, model_path, paths, hw.get("gpu_index"))
+            pid, reused, process = start_server(
+                profile, model_path, paths, hw.get("gpu_index"), template_path
+            )
             if reused:
                 print(f"{color('32', '✓')} {tr('startup.server_reused', pid=pid)}")
             else:
