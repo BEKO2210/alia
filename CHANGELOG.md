@@ -8,11 +8,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Project context discovery reports `QWEN.md`, `AGENTS.md`, and `CLAUDE.md` with estimated token sizes in `alia doctor`, and warns at startup when they consume more than 25% of the profile's auto-compaction budget.
 - Opt-in MCP servers for a headless browser (`@playwright/mcp` 0.0.83) and key-less DuckDuckGo web search (`duckduckgo-mcp-server` 0.7.0), managed with `alia mcp [list]`, `alia mcp enable NAME`, and `alia mcp disable NAME`.
 - `alia doctor` shows the enabled MCP servers and marks a missing `npx` or `uvx`.
 
 ### Changed
 
+- Generated Qwen Code settings load `CLAUDE.md` alongside `QWEN.md` and `AGENTS.md` for project instructions.
 - Alia writes detected shell constraints into a managed block in the isolated global `QWEN.md`.
 - `alia doctor` reports the `python3` path and whether a `python` command exists.
 - Host-wide user skills are disabled in Alia sessions; repository project skills remain available.

@@ -1059,6 +1059,8 @@ def generate_settings(
         "agents": {"maxParallelAgents": 1},
         # Ignore host-wide agent skills while keeping project skills available.
         "skills": {"disabledLevels": ["user"]},
+        # Repositories often keep their only agent instructions in CLAUDE.md.
+        "context": {"fileName": ["QWEN.md", "AGENTS.md", "CLAUDE.md"]},
         # Bound context use; Qwen saves complete tool output for later reads.
         "tools": {
             "approvalMode": approval_mode,
@@ -1332,6 +1334,39 @@ def qwen_compaction_thresholds(window: int) -> tuple[int, int]:
     return int(auto), int(hard)
 
 
+def project_context_files(cwd: Path) -> list[tuple[Path, int]]:
+    """Find project instructions from cwd through the repository root."""
+    found = []
+    directory = cwd.resolve()
+    while True:
+        for name in ("QWEN.md", "AGENTS.md", "CLAUDE.md"):
+            path = directory / name
+            if path.is_file():
+                found.append((path, math.ceil(path.stat().st_size / 4)))
+        if (directory / ".git").exists() or directory.parent == directory:
+            return found
+        directory = directory.parent
+
+
+def project_context_summary(files: list[tuple[Path, int]]) -> str:
+    if not files:
+        return tr("doctor.none")
+    return ", ".join(
+        tr("context.file", path=path, tokens=tokens) for path, tokens in files
+    )
+
+
+def context_budget_warning(profile: dict[str, Any], cwd: Path) -> str | None:
+    files = project_context_files(cwd)
+    tokens = sum(count for _, count in files)
+    auto = qwen_compaction_thresholds(profile["ctx"])[0]
+    if tokens <= auto * 0.25:
+        return None
+    return tr(
+        "startup.context_warning", files=project_context_summary(files), tokens=tokens,
+    )
+
+
 def compaction_too_early(window: int) -> bool:
     return qwen_compaction_thresholds(window)[0] < window * 0.4
 
@@ -1408,6 +1443,7 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
         [tr("doctor.label.server"), f"PID {pid} · {tr('doctor.healthy') if health_ok() else tr('doctor.not_ready')} · Port {state.get('port', PORT)}" if pid else tr("doctor.stopped")],
         [tr("doctor.label.model"), str(model) if model else tr("doctor.model_missing")],
         [tr("doctor.label.compaction"), compaction_summary(profile["ctx"]) if profile else tr("doctor.none")],
+        [tr("doctor.label.context"), project_context_summary(project_context_files(Path.cwd()))],
         ["Qwen", f"{qwen_version} · {qwen}" + (f" · {tr('doctor.qwen_version_warning', expected='0.25.1')}" if qwen_version != tr("version.not_found") and not qwen_version_supported(qwen_version) else "")],
         ["llama-server", f"{llama} · {llama_version}" if llama else tr("version.not_found")],
         ["hf", hf or tr("version.not_found")],
@@ -1508,6 +1544,9 @@ def prepare_runtime(
     compaction_note = compaction_warning(profile["ctx"])
     if compaction_note:
         print(color("33", compaction_note))
+    context_note = context_budget_warning(profile, Path.cwd())
+    if context_note:
+        print(color("33", context_note))
     model_path = ensure_model(profile, paths)
     if model_path is None:
         print(tr("startup.cancelled"))
