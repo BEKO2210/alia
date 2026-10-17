@@ -146,7 +146,12 @@ def main() -> None:
         ap.error("--repeat must be at least 1")
 
     profile = next(p for p in alia.load_profiles() if p["id"] == a.profile)
-    server_args = json.loads(a.server_args) if a.server_args else profile["server_args"]
+    try:
+        server_args = json.loads(a.server_args) if a.server_args is not None else profile["server_args"]
+    except json.JSONDecodeError as exc:
+        ap.error(f"--server-args must be a JSON list of strings: {exc}")
+    if not isinstance(server_args, list) or not all(isinstance(arg, str) for arg in server_args):
+        ap.error("--server-args must be a JSON list of strings")
     binary, env_extra = alia.find_llama_server()
     args = [str(binary), "-m", str(Path(a.gguf).expanduser()), "-c", str(profile["ctx"]),
             *map(str, server_args), "--no-webui", "--api-key", alia.API_KEY,

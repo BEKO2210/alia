@@ -50,6 +50,15 @@ measurement values are unchanged.
 - `llamacpp-20261016-211736.jsonl` — 9B fast profile, exact launch configuration
   at the new ctx 65536, 4K/32K/60K, 5 reps. Source of the published 9B values;
   replaces `llamacpp-20261015-101002.jsonl`.
+- `llamacpp-20261017-212042.jsonl` — 35B default profile with exactly its `server_args`
+  (incl. `--jinja`, `--cache-ram 2048`), ctx 65536, 4K/32K/60K, 5 reps: 47.0 / 36.4 / 31.7
+  tok/s generation, 1,331 / 1,315 / 1,257 tok/s prompt, MTP acceptance 0.62, runner RSS
+  11.7–12.4 GB. Source of the published 35B speed values; replaces `-100648` and `-024711`
+  (the 60K value there, 38.2, was measured without `--jinja`).
+- `llamacpp-20261017-212832.jsonl` — 9B fast profile with exactly its `server_args`
+  (incl. `--cache-ram 2048`), ctx 65536, 4K/32K/60K, 5 reps: 66.5 / 57.9 / 51.5 tok/s
+  generation, 2,582 / 2,384 / 2,172 tok/s prompt. Source of the published 9B values;
+  replaces `-211736`.
 
 For measurement caveats and an independent recount, see
 `../reviews/grok-bench-review.md`.
@@ -65,7 +74,8 @@ For measurement caveats and an independent recount, see
   passed there cannot use `--flag=value`.
   `--mcp browser,search` enables Alia's MCP servers; tasks not found in `agent_tasks/` are
   taken from `../live_tasks/` (gate tasks: `browser` serves `web/` on 127.0.0.1:8766,
-  `search` needs internet, `ctxfile` checks that `CLAUDE.md` is in the context).
+  `search` needs internet, `ctxfile` checks that `CLAUDE.md` is in the context, `subagent`
+  and `fork_agent` make the main agent delegate one question to a sub-agent).
   Task rows include `evaluated_prompt_tokens`, `prompt_eval_s`, `generated_tokens`, and
   `generation_s` server metrics; the final summary row totals passes, time, and tokens.
   - `agent-20261017-011504` (smoke), `-011929`, `-020336` … `-021111`: Qwen3.6-35B
@@ -146,5 +156,20 @@ For measurement caveats and an independent recount, see
     stays Qwen3.6-35B; Ornith-1.5 becomes the opt-in quality profile.
   - `-193850`: 35B default profile at ctx 131072 (`-c 131072`, `--cache-ram 2048`): perf, rename,
     vat passed (55 / 63 / 87 s); peak VRAM unchanged at 6.7 GB because llama.cpp's fit moves more
-    experts to the CPU, so generation fell to 44.0 tok/s (64K: ~55) and prompt to 560 tok/s.
+    experts to the CPU, so generation fell to 44.1 tok/s (64K: 54.6) and prompt to 590 tok/s (agent records only;
+    the earlier 44.0 / 560 also counted the warm-up probe).
     Basis of the opt-in `rtx8gb-16gb-qwen36-35b-128k` profile.
+  - `-211634`: does the main agent stay frozen while a sub-agent runs? Default profile
+    (`-np 1`, `--cache-ram 2048`), gate tasks `subagent` (`general-purpose` sub-agent, own
+    context) and `fork_agent` (`fork`, inherits the parent history); both passed (56 / 45 s).
+    Per-request prompt evaluation from the server log:
+    - `general-purpose`: parent at 14,991 tokens hands off; the sub-agent's first request
+      evaluates its own 10,826-token prompt (8.3 s) in the same slot; the parent then resumes
+      with **21 evaluated tokens (0.4 s)**, at 15,103 tokens. The parent state was saved to the
+      host-RAM prompt cache and restored instead of re-prefilled.
+    - `fork`: the fork reuses the parent prefix (first request 329 tokens, 0.8 s); the parent
+      resumes from a context checkpoint with 1,046 tokens (2.0 s).
+
+    So a sub-agent gets the full 64K window while the parent waits in host RAM: at q8_0, a
+    60K-token parent is about 0.6 GiB of attention KV plus ~63 MiB of recurrent state, well
+    inside the 2,048 MiB cap. A cold re-prefill of 15K tokens would have taken ~11 s.

@@ -1,0 +1,1 @@
+First read README.md and src/orders.py yourself and summarize them in two sentences. Then delegate one question to a subagent: call the agent tool with subagent_type "general-purpose" and ask it which function in src/ raises ValueError, and in which file. Do not search for it yourself. When the subagent answers, write "<file>:<function>" (for example "x.py:f") into answer.txt.
