@@ -101,6 +101,9 @@ alia use auto
 alia lang de_DE.UTF-8             # Deutsch dauerhaft; Locale-Formen gehen
 alia lang en
 alia lang auto
+alia mcp                          # optionale MCP-Server anzeigen (Browser, Suche)
+alia mcp enable browser           # aktivieren; gilt ab der nächsten Sitzung
+alia mcp disable search
 alia logs
 alia stop
 alia --help
@@ -118,6 +121,15 @@ Zur Koordination mit anderen GPU-Jobs kann `gpu_lock` in `~/.config/alia/config.
 ```
 
 Laufzeitdaten liegen unter `~/.local/state/alia`, Modelle unter `~/.local/share/alia/models`, Einstellungen unter `~/.config/alia/config.json`. Qwen nutzt ein isoliertes Alia-`QWEN_HOME`; systemweite Benutzer-Skills sind deaktiviert, Projekt-Skills bleiben verfügbar.
+
+### Browser und Websuche (opt-in)
+
+Qwen Code hat keinen eigenen Browser, und die eingebaute Websuche braucht einen Cloud-Schlüssel. Alia kann deshalb zwei optionale MCP-Server einbinden. Beide sind standardmäßig aus; `alia mcp enable browser|search` schaltet einen ein, `alia mcp disable NAME` wieder aus, `alia mcp` listet sie. Änderungen gelten ab der nächsten Sitzung von `alia` oder `alia web`.
+
+- `browser` — Headless-Browser mit Playwright ([@playwright/mcp](https://github.com/microsoft/playwright-mcp) 0.0.83): Seiten öffnen, Text-Snapshots lesen, klicken, tippen und Formulare ausfüllen. Screenshots und JavaScript-Ausführung sind nicht freigegeben. Benötigt `npx` (Node.js) und Google Chrome; ohne Chrome einmal `npx playwright install chromium` ausführen. Ausgaben landen unter `~/.cache/alia/playwright`.
+- `search` — Websuche und Seitenabruf über DuckDuckGo ([duckduckgo-mcp-server](https://pypi.org/project/duckduckgo-mcp-server/) 0.7.0), ohne API-Schlüssel. Benötigt `uvx` (uv). Die Suche liest html.duckduckgo.com aus und kann daher brechen oder blockiert werden; Alia begrenzt sie auf 10 Suchen und 10 Seitenabrufe pro Minute.
+
+Jeder MCP-Tool-Aufruf läuft durch die normale Bestätigung; `--yolo` genehmigt sie ohne Nachfrage. Die erste Sitzung lädt die fest versionierten Pakete herunter.
 
 ## Mitgelieferte Profile
 

@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in MCP servers for a headless browser (`@playwright/mcp` 0.0.83) and key-less DuckDuckGo web search (`duckduckgo-mcp-server` 0.7.0), managed with `alia mcp [list]`, `alia mcp enable NAME`, and `alia mcp disable NAME`.
+- `alia doctor` shows the enabled MCP servers and marks a missing `npx` or `uvx`.
+
 ### Changed
 
 - Alia writes detected shell constraints into a managed block in the isolated global `QWEN.md`.

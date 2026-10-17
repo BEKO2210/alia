@@ -313,6 +313,16 @@ def write_language_config(path: Path, language: str) -> None:
     write_private_text(path, json.dumps(data, indent=2) + "\n")
 
 
+def write_mcp_config(path: Path, names: list[str]) -> None:
+    ensure_private_dir(path.parent)
+    data = read_config(path)
+    if names:
+        data["mcp"] = list(names)
+    else:
+        data.pop("mcp", None)
+    write_private_text(path, json.dumps(data, indent=2) + "\n")
+
+
 def choose_profile(
     profiles: list[dict[str, Any]], hw: dict[str, Any], pinned: str | None = None
 ) -> tuple[dict[str, Any] | None, str, bool]:
@@ -880,6 +890,38 @@ DENIED_QWEN_TOOLS = (
     "zoom_image", "read_mcp_resource", "search_memory", "manage_memory",
 )
 
+# Opt-in MCP servers for Qwen Code settings.json "mcpServers". "requires" is Alia-only
+# and stripped on write; "<OUTDIR>" is resolved to an absolute path at generation time.
+# Browser: text snapshots only (local models may be text-only); browser_evaluate and
+# browser_run_code_unsafe are excluded because they run arbitrary JS.
+# trust=False keeps every MCP tool call behind Qwen's normal approval prompt.
+MCP_CATALOG: dict[str, dict[str, Any]] = {
+    "browser": {
+        "command": "npx",
+        "args": [
+            "-y", "@playwright/mcp@0.0.83", "--headless", "--isolated", "--codegen=none",
+            "--image-responses=omit", "--console-level=error", "--no-webmcp",
+            "--output-dir=<OUTDIR>", "--idle-timeout=600000",
+        ],
+        "timeout": 90000,
+        "trust": False,
+        "includeTools": [
+            "browser_navigate", "browser_navigate_back", "browser_snapshot", "browser_click",
+            "browser_type", "browser_fill_form", "browser_press_key", "browser_select_option",
+            "browser_wait_for", "browser_tabs", "browser_close", "browser_find",
+        ],
+        "requires": "npx",
+    },
+    "search": {
+        "command": "uvx",
+        "args": ["--from", "duckduckgo-mcp-server[browser]==0.7.0", "duckduckgo-mcp-server"],
+        "env": {"DDG_SEARCH_RPM": "10", "DDG_FETCH_RPM": "10", "DDG_PARSE_MODE": "markdown"},
+        "timeout": 60000,
+        "trust": False,
+        "requires": "uvx",
+    },
+}
+
 ENVIRONMENT_START = "<!-- alia:environment:start -->"
 ENVIRONMENT_END = "<!-- alia:environment:end -->"
 
@@ -939,10 +981,32 @@ def write_environment_context(qwen_home: Path) -> Path:
     return path
 
 
+def enabled_mcp(value: Any) -> list[str]:
+    """Known MCP names from the raw config value, in catalog order; anything else is ignored."""
+    if not isinstance(value, list):
+        return []
+    return [name for name in MCP_CATALOG if name in value]
+
+
+def mcp_requirement_found(name: str) -> bool:
+    return shutil.which(MCP_CATALOG[name]["requires"]) is not None
+
+
+def mcp_servers(names: Any) -> dict[str, dict[str, Any]]:
+    outdir = str(Path.home() / ".cache" / "alia" / "playwright")
+    servers = {}
+    for name in enabled_mcp(names):
+        entry = json.loads(json.dumps(MCP_CATALOG[name]))
+        entry.pop("requires")
+        entry["args"] = [arg.replace("<OUTDIR>", outdir) for arg in entry["args"]]
+        servers[name] = entry
+    return servers
+
+
 def generate_settings(
     profile: dict[str, Any], hw: dict[str, Any], target_dir: Path,
     branding_dir: Path = BRANDING_DIR, approval_mode: str = "default",
-    language: str | None = None, fast: bool = False,
+    language: str | None = None, fast: bool = False, mcp: list[str] | None = None,
 ) -> Path:
     language = language or _LANGUAGE
     ensure_private_dir(target_dir)
@@ -1038,6 +1102,9 @@ def generate_settings(
         "privacy": {"usageStatisticsEnabled": False},
         "telemetry": {"enabled": False},
     }
+    servers = mcp_servers(mcp)
+    if servers:
+        settings["mcpServers"] = servers
     output = target_dir / "settings.json"
     write_private_text(output, json.dumps(settings, indent=2, ensure_ascii=False) + "\n")
     write_environment_context(target_dir)
@@ -1313,6 +1380,10 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
     python3 = shutil.which("python3") or tr("version.not_found")
     python = shutil.which("python")
     python_text = f'{python3} · {tr("doctor.python_found", path=python) if python else tr("doctor.python_missing")}'
+    mcp_names = enabled_mcp(config.get("mcp"))
+    mcp_text = ", ".join(mcp_names) or tr("mcp.none")
+    if not all(mcp_requirement_found(name) for name in mcp_names):
+        mcp_text += " ⚠"
     foreign_port = port_open() and not (pid and process_owns_listen_port(pid, PORT))
     disk_free = shutil.disk_usage(Path.home()).free / 1_000_000_000
     gpu_index = hw.get("gpu_index")
@@ -1331,6 +1402,7 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
         ["Ollama", doctor_ollama_status()],
         [tr("doctor.label.cpu"), f"{hw['cpu_name']} · {hw['cpu_count']} {tr('doctor.threads')}"],
         [tr("doctor.label.python"), python_text],
+        ["MCP", mcp_text],
         [tr("doctor.label.profile"), profile["id"] if profile else tr("doctor.none")],
         [tr("doctor.label.selection"), reason + (" ⚠" if warning else "")],
         [tr("doctor.label.server"), f"PID {pid} · {tr('doctor.healthy') if health_ok() else tr('doctor.not_ready')} · Port {state.get('port', PORT)}" if pid else tr("doctor.stopped")],
@@ -1384,6 +1456,40 @@ def cmd_status(paths: dict[str, Path]) -> int:
     return 0 if ready else 1
 
 
+def cmd_mcp(args: list[str], paths: dict[str, Path]) -> int:
+    enabled = enabled_mcp(read_config(paths["config"]).get("mcp"))
+    if args in ([], ["list"]):
+        rows = []
+        for name, entry in MCP_CATALOG.items():
+            found = "mcp.requirement_found" if mcp_requirement_found(name) else "mcp.requirement_missing"
+            rows.append([
+                name, tr("mcp.yes" if name in enabled else "mcp.no"),
+                tr(found, command=entry["requires"]), tr(f"mcp.description.{name}"),
+            ])
+        print(format_table([
+            tr("mcp.header.name"), tr("mcp.header.enabled"), tr("mcp.header.requirement"),
+            tr("mcp.header.description"),
+        ], rows))
+        return 0
+    if len(args) != 2 or args[0] not in ("enable", "disable"):
+        raise RuntimeError(tr("args.mcp_usage"))
+    name = args[1]
+    if name not in MCP_CATALOG:
+        raise RuntimeError(tr("mcp.unknown", name=name, names=", ".join(MCP_CATALOG)))
+    if args[0] == "disable":
+        if name in enabled:
+            write_mcp_config(paths["config"], [item for item in enabled if item != name])
+        print(tr("mcp.disabled", name=name))
+        return 0
+    write_mcp_config(paths["config"], enabled_mcp([*enabled, name]))
+    print(tr("mcp.enabled", name=name))
+    if not mcp_requirement_found(name):
+        print(color("33", tr("mcp.requirement_warning", name=name, command=MCP_CATALOG[name]["requires"])))
+    if name == "search":
+        print(tr("mcp.search_note"))
+    return 0
+
+
 def prepare_runtime(
     profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[str, Path],
     approval_mode: str = "default", fast: bool = False, wait_gpu: float = 0,
@@ -1420,7 +1526,7 @@ def prepare_runtime(
                 wait_for_health(pid, paths, process=process, profile_id=profile["id"])
     generate_settings(
         profile, hw, paths["qwen_home"], approval_mode=approval_mode,
-        language=_LANGUAGE, fast=fast,
+        language=_LANGUAGE, fast=fast, mcp=config.get("mcp"),
     )
     return profile
 
@@ -1621,6 +1727,8 @@ def main(argv: list[str] | None = None) -> int:
                 set_language(requested)
                 print(tr("config.lang_set", language=requested))
             return 0
+        if argv and argv[0] == "mcp":
+            return cmd_mcp(argv[1:], paths)
         if argv and argv[0] == "stop":
             if len(argv) != 1:
                 raise RuntimeError(tr("args.stop_usage"))

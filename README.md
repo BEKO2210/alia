@@ -101,6 +101,9 @@ alia use auto
 alia lang de_DE.UTF-8             # persistent German; locale forms work
 alia lang en
 alia lang auto
+alia mcp                          # list optional MCP servers (browser, search)
+alia mcp enable browser           # opt in; takes effect with the next session
+alia mcp disable search
 alia logs
 alia stop
 alia --help
@@ -118,6 +121,15 @@ To coordinate with other GPU jobs, set `gpu_lock` in `~/.config/alia/config.json
 ```
 
 Runtime data is under `~/.local/state/alia`, models under `~/.local/share/alia/models`, and preferences under `~/.config/alia/config.json`. Qwen uses an isolated Alia `QWEN_HOME`; host-wide user skills are disabled, while project skills remain available.
+
+### Browser and web search (opt-in)
+
+Qwen Code has no browser of its own and its built-in web search needs a cloud key, so Alia can add two optional MCP servers. Both are off by default; `alia mcp enable browser|search` turns one on, `alia mcp disable NAME` turns it off, and `alia mcp` lists them. Changes apply to the next `alia` or `alia web` session.
+
+- `browser` — headless Playwright browser ([@playwright/mcp](https://github.com/microsoft/playwright-mcp) 0.0.83): open pages, read text snapshots, click, type, and fill forms. Screenshots and JavaScript evaluation are not exposed. Requires `npx` (Node.js) and Google Chrome; without Chrome run `npx playwright install chromium` once. Output goes to `~/.cache/alia/playwright`.
+- `search` — web search and page fetch via DuckDuckGo ([duckduckgo-mcp-server](https://pypi.org/project/duckduckgo-mcp-server/) 0.7.0), no API key. Requires `uvx` (uv). It scrapes html.duckduckgo.com, so results can break or be blocked; Alia limits it to 10 searches and 10 page fetches per minute.
+
+Every MCP tool call goes through the normal approval prompt; `--yolo` approves them without asking. The first session downloads the pinned packages.
 
 ## Bundled profiles
 
