@@ -1128,8 +1128,38 @@ def require_sandbox(config: dict[str, Any]) -> None:
         raise RuntimeError(tr("sandbox.mcp_conflict", names=", ".join(names)))
 
 
+def sandbox_overlap(workspace: Path, paths: dict[str, Path]) -> Path | None:
+    """Qwen Code refuses a sandbox workspace that overlaps its state or installation; say so first."""
+    workspace = Path(os.path.realpath(workspace))
+
+    def within(child: Path, parent: Path) -> bool:
+        return child == parent or parent in child.parents
+
+    home = Path(os.path.realpath(Path.home()))
+    # A project below $HOME is fine; $HOME itself or anything above it is not.
+    if within(home, workspace):
+        return home
+    roots = [Path(os.path.realpath(paths["qwen_home"]))]
+    qwen = Path(build_qwen_command([])[0])
+    if qwen.exists():
+        roots.append(Path(os.path.realpath(qwen)).parent)
+    return next((root for root in roots if within(workspace, root) or within(root, workspace)), None)
+
+
+def require_sandbox_workspace(workspace: Path, paths: dict[str, Path]) -> None:
+    overlap = sandbox_overlap(workspace, paths)
+    if overlap is not None:
+        raise RuntimeError(tr("sandbox.workspace_overlap", workspace=os.path.realpath(workspace), path=overlap))
+
+
+# English git messages: they are shown to users and must not depend on the host locale.
+GIT_ENV = {"LC_ALL": "C"}
+
+
 def git_run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=False)
+    return subprocess.run(
+        ["git", *args], cwd=cwd, capture_output=True, text=True, check=False, env={**os.environ, **GIT_ENV},
+    )
 
 
 def snapshot_pre_session(cwd: Path) -> None:
@@ -1154,7 +1184,7 @@ def snapshot_pre_session(cwd: Path) -> None:
             shutil.copy2(index, copy)
         created = subprocess.run(
             ["git", "stash", "create", "alia pre-session snapshot"], cwd=cwd, capture_output=True,
-            text=True, check=False, env={**os.environ, "GIT_INDEX_FILE": str(copy)},
+            text=True, check=False, env={**os.environ, **GIT_ENV, "GIT_INDEX_FILE": str(copy)},
         )
     if created.returncode != 0:
         lines = created.stderr.strip().splitlines()
@@ -1742,6 +1772,7 @@ def prepare_runtime(
     config = read_config(paths["config"])
     if sandbox:
         require_sandbox(config)
+        require_sandbox_workspace(Path.cwd(), paths)
         snapshot_pre_session(Path.cwd())
     profile, reason, warning = choose_profile(profiles, hw, config.get("profile"))
     gpu = f"{hw['gpu_name']} ({hw['vram_gb']:.1f} GB)" if hw["gpu_name"] else tr("startup.no_gpu")

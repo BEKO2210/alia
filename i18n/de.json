@@ -184,6 +184,7 @@
   "doctor.sandbox_none": "keine (für --sandbox bubblewrap installieren)",
   "sandbox.no_backend": "Sandbox nicht verfügbar: bubblewrap (bwrap) wurde nicht gefunden. Installiere es (z. B. apt install bubblewrap) oder starte ohne --sandbox.",
   "sandbox.mcp_conflict": "--sandbox unterstützt keine MCP-Server (aktiv: {names}). Deaktivieren mit: alia mcp disable <name>",
+  "sandbox.workspace_overlap": "--sandbox kann nicht in {workspace} laufen: überschneidet sich mit {path} (Zustand von Qwen Code, seine Installation oder dein Home-Verzeichnis). Starte Alia aus einem Projektverzeichnis unterhalb deines Home-Verzeichnisses.",
   "sandbox.web_unsupported": "alia web unterstützt --sandbox nicht: Qwen Code lehnt die Sandbox für Web-Sitzungen ab. Nutze alia --sandbox im Terminal.",
   "sandbox.active": "Sandbox: bwrap · Tools schreiben nur im Projekt, kein Tool-Netzwerk",
   "sandbox.no_git": "Kein Git-Repository: kein Snapshot vor der Sitzung, und /rewind kann in der Sandbox keine Dateien wiederherstellen.",

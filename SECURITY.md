@@ -57,6 +57,11 @@ Limits of Qwen Code 0.25.1 (checked in its bundle):
   replaced by a later session stays reachable through `git reflog refs/alia/pre-session` until the reflog
   entry expires (`gc.reflogExpireUnreachable`, 30 days by default) and `git gc` runs. Before the sandbox
   starts, Alia also runs a short `bwrap` probe and refuses `--sandbox` if bwrap cannot create a sandbox.
+  The snapshot's git calls run with `LC_ALL=C`, so their error messages are the same on every host.
+- The workspace (the current directory, symlinks resolved) must not be `$HOME` or a directory above it,
+  and must not contain or lie inside Alia's `QWEN_HOME` or the Qwen Code installation directory. Qwen Code
+  refuses such a workspace ("overlaps protected state or installation"); Alia stops earlier with a message
+  naming both paths. A project below `$HOME` is fine.
 
 ## Reporting
 

@@ -1469,8 +1469,8 @@ class SandboxTests(unittest.TestCase):
                     start.assert_not_called()
 
     def test_prepare_runtime_snapshots_and_passes_sandbox(self):
-        with tempfile.TemporaryDirectory() as directory:
-            paths = alia.user_paths(Path(directory))
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as project:
+            paths = alia.user_paths(Path(project) / "user")
             with mock.patch.object(alia.shutil, "which", side_effect=self._which("bwrap")), \
                     mock.patch.object(alia, "ensure_model", return_value=Path("/m.gguf")), \
                     mock.patch.object(alia, "start_server", return_value=(4242, True, None)), \
@@ -1481,6 +1481,9 @@ class SandboxTests(unittest.TestCase):
                     redirect_stdout(io.StringIO()) as output:
                 self.assertIsNotNone(alia.prepare_runtime(self.PROFILES, self.HW, paths, sandbox=True))
                 self.assertIsNotNone(alia.prepare_runtime(self.PROFILES, self.HW, paths))
+                with mock.patch.object(alia.Path, "cwd", return_value=Path(project)):
+                    with self.assertRaisesRegex(RuntimeError, "cannot run in"):
+                        alia.prepare_runtime(self.PROFILES, self.HW, paths, sandbox=True)
         snapshot.assert_called_once_with(Path(directory))
         self.assertEqual([call.kwargs["sandbox"] for call in generate.call_args_list], [True, False])
         self.assertEqual(output.getvalue().count("Sandbox: bwrap"), 1)
@@ -1574,6 +1577,64 @@ class SandboxTests(unittest.TestCase):
                     mock.patch.object(alia, "git_run", return_value=mock.Mock(returncode=0, stdout=".git/index\n")):
                 with self.assertRaisesRegex(RuntimeError, r"\(exit 1\)"):
                     self._snapshot(root)
+
+    def test_snapshot_git_calls_use_c_locale(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._git_repo(root)
+            (root / "a.txt").write_text("two\n", encoding="utf-8")
+            real_run = subprocess.run
+            with mock.patch.dict(alia.os.environ, {"LANG": "de_DE.UTF-8", "LANGUAGE": "de"}), \
+                    mock.patch.object(alia.subprocess, "run", side_effect=real_run) as run:
+                self.assertIn("Pre-session snapshot", self._snapshot(root))
+        git_calls = [call for call in run.call_args_list if call.args[0][0] == "git"]
+        self.assertGreaterEqual(len(git_calls), 5)
+        for call in git_calls:
+            self.assertEqual(call.kwargs["env"]["LC_ALL"], "C", call.args[0])
+            self.assertEqual(call.kwargs["env"]["LANG"], "de_DE.UTF-8")
+
+    def test_workspace_must_not_overlap_qwen_or_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(os.path.realpath(directory))
+            home = base / "home"
+            paths = alia.user_paths(home)
+            qwen_home = paths["qwen_home"]
+            package = base / "opt" / "qwen-code"
+            for folder in (home / "project", qwen_home / "sub", package / "sub", base / "bin"):
+                folder.mkdir(parents=True)
+            (package / "cli-entry.js").write_text("", encoding="utf-8")
+            (base / "bin" / "qwen").symlink_to(package / "cli-entry.js")
+            (home / "to-qwen-home").symlink_to(qwen_home)
+            (home / "project" / "to-root").symlink_to(base)
+            cases = (
+                (home / "project", None),
+                (home, home),
+                (base, home),
+                (qwen_home, qwen_home),
+                (qwen_home / "sub", qwen_home),
+                (home / ".local" / "state", qwen_home),
+                (home / "to-qwen-home", qwen_home),
+                (package, package),
+                (package / "sub", package),
+                (base / "opt", package),
+                (base / "bin", None),
+                (home / "project" / "to-root", home),
+            )
+            with mock.patch.object(alia.Path, "home", return_value=home), \
+                    mock.patch.object(alia.shutil, "which", side_effect=lambda name: str(base / "bin" / name)):
+                for workspace, expected in cases:
+                    with self.subTest(workspace=workspace):
+                        self.assertEqual(alia.sandbox_overlap(workspace, paths), expected)
+                with self.assertRaises(RuntimeError) as raised:
+                    alia.require_sandbox_workspace(home / "to-qwen-home", paths)
+                self.assertIn(f"cannot run in {qwen_home}: it overlaps {qwen_home}", str(raised.exception))
+                alia.require_sandbox_workspace(home / "project", paths)
+                alia.set_language("de")
+                with self.assertRaisesRegex(RuntimeError, f"überschneidet sich mit {home}"):
+                    alia.require_sandbox_workspace(home, paths)
+            with mock.patch.object(alia.Path, "home", return_value=home), \
+                    mock.patch.object(alia.shutil, "which", return_value=None):
+                self.assertIsNone(alia.sandbox_overlap(package, paths))
 
     def test_snapshot_without_commit_and_old_snapshot(self):
         with tempfile.TemporaryDirectory() as directory:
