@@ -7,7 +7,7 @@
   <meta name="description" content="Alia detects your GPU, picks a benchmarked model profile, starts llama.cpp and opens a full coding agent in your terminal. No API key, no cloud.">
   <meta name="theme-color" content="#07080c">
   <meta property="og:title" content="Alia — local coding agent">
-  <meta property="og:description" content="A 35B MoE coding agent at 47 tok/s on an 8 GB RTX 3070. No API key, no cloud.">
+  <meta property="og:description" content="A 35B MoE coding agent at 49.9 tok/s on an 8 GB RTX 3070. No API key, no cloud.">
   <meta property="og:type" content="website">
   <link rel="icon" href="logo-mark.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -72,7 +72,7 @@
     </section>
 
     <section class="stats wrap" aria-label="Key numbers">
-      <div class="stat"><b>47.0<small> tok/s</small></b><span data-i18n="stat.tg">generation with a 35B MoE model at 4K context, exact launch configuration</span></div>
+      <div class="stat"><b>49.9<small> tok/s</small></b><span data-i18n="stat.tg">generation with a 35B MoE model at 4K context, exact launch configuration</span></div>
       <div class="stat"><b>8<small> GB</small></b><span data-i18n="stat.vram">VRAM is enough: experts stream from system RAM</span></div>
       <div class="stat"><b>10.9K</b><span data-i18n="stat.code">tokens first prompt (was 22.8K)</span></div>
       <div class="stat"><b>0</b><span data-i18n="stat.cloud">API keys, accounts or cloud calls</span></div>
@@ -104,7 +104,7 @@
           <article class="card">
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h4l2-6 3 12 2-6h3"/></svg></div>
             <h3 data-i18n="f3.t">Speculative decoding</h3>
-            <p data-i18n="f3.d">The model's own MTP head drafts two tokens ahead. 62 % are accepted: +14 % speed at 4K, +10 % at 32K.</p>
+            <p data-i18n="f3.d">The model's own MTP head drafts two tokens ahead. 65 % are accepted: +14 % speed at 4K, +10 % at 32K.</p>
           </article>
           <article class="card">
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7l5 5-5 5M12 17h7"/></svg></div>
@@ -149,22 +149,22 @@
           <div class="grp" role="row">
             <span class="dep" role="rowheader" data-i18n="bench.d4">4K context</span>
             <div class="bars" role="cell">
-              <div class="b a" style="--v:47.0"><span>47.0</span></div>
-              <div class="b b2" style="--v:66.5"><span>66.5</span></div>
+              <div class="b a" style="--v:49.9"><span>49.9</span></div>
+              <div class="b b2" style="--v:66.2"><span>66.2</span></div>
             </div>
           </div>
           <div class="grp" role="row">
             <span class="dep" role="rowheader" data-i18n="bench.d32">32K context</span>
             <div class="bars" role="cell">
-              <div class="b a" style="--v:36.4"><span>36.4</span></div>
-              <div class="b b2" style="--v:57.9"><span>57.9</span></div>
+              <div class="b a" style="--v:39.1"><span>39.1</span></div>
+              <div class="b b2" style="--v:57.8"><span>57.8</span></div>
             </div>
           </div>
           <div class="grp" role="row">
             <span class="dep" role="rowheader" data-i18n="bench.d60">60K context</span>
             <div class="bars" role="cell">
-              <div class="b a" style="--v:31.7"><span>31.7</span></div>
-              <div class="b b2" style="--v:51.5"><span>51.5</span></div>
+              <div class="b a" style="--v:37.4"><span>37.4</span></div>
+              <div class="b b2" style="--v:51.4"><span>51.4</span></div>
             </div>
           </div>
         </div>
@@ -176,7 +176,7 @@
               <div><dt data-i18n="q.code">Code tasks</dt><dd>9/10</dd></div>
               <div><dt data-i18n="q.tools">Tool calls</dt><dd>7/8</dd></div>
               <div><dt data-i18n="q.json">JSON with / without schema</dt><dd>3/3 · 3/3</dd></div>
-              <div><dt data-i18n="q.pp">Prompt speed 4K / 32K</dt><dd>1,331 / 1,315 tok/s</dd></div>
+              <div><dt data-i18n="q.pp">Prompt speed 4K / 32K</dt><dd>1,034 / 1,451 tok/s</dd></div>
               <div><dt data-i18n="q.dl">Download</dt><dd>14.07 GB</dd></div>
             </dl>
           </div>
@@ -186,7 +186,7 @@
               <div><dt data-i18n="q.code">Code tasks</dt><dd>8/10*</dd></div>
               <div><dt data-i18n="q.tools">Tool calls</dt><dd>8/8*</dd></div>
               <div><dt data-i18n="q.json">JSON schema</dt><dd>—</dd></div>
-              <div><dt data-i18n="q.pp">Prompt speed 4K / 32K</dt><dd>2,582 / 2,384 tok/s</dd></div>
+              <div><dt data-i18n="q.pp">Prompt speed 4K / 32K</dt><dd>2,964 / 2,695 tok/s</dd></div>
               <div><dt data-i18n="q.dl">Download</dt><dd>5.7 GB</dd></div>
             </dl>
             <p class="fine" data-i18n="q.note9b">* Measured via Ollama with Qwen's own GGUF, not the unsloth GGUF and llama-server configuration this profile launches.</p>

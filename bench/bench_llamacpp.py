@@ -110,6 +110,8 @@ def main():
                     help="agent pattern: same long prefix twice with cache_prompt=true, second turn adds a short question")
     ap.add_argument("--list", action="store_true")
     a = ap.parse_args()
+    # Ollama's bundled build is the default for A/B against Ollama; profile numbers need LLAMA_SERVER=Alia's build.
+    print(f"llama-server: {BIN}", flush=True)
     if a.list:
         for k, v in CONFIGS.items():
             print(f"{k:9s} {' '.join(BASE)} {' '.join(v)}")

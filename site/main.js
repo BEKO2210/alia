@@ -26,7 +26,7 @@ const DE = {
   "f2.t": "35B auf einer 8-GB-Karte",
   "f2.d": "Ein Mixture-of-Experts-Modell nutzt pro Token nur 3B Parameter. Attention bleibt auf der GPU, die Experten liegen im RAM.",
   "f3.t": "Spekulatives Decoding",
-  "f3.d": "Der MTP-Kopf des Modells entwirft zwei Tokens im Voraus. 62 % werden übernommen: +14 % Tempo bei 4K, +10 % bei 32K.",
+  "f3.d": "Der MTP-Kopf des Modells entwirft zwei Tokens im Voraus. 65 % werden übernommen: +14 % Tempo bei 4K, +10 % bei 32K.",
   "f4.t": "Ein echter Agent",
   "f4.d": "Basiert auf Qwen Code: bearbeitet Dateien, führt Befehle aus, liest Fehler und behebt sie. Mit <code>alia -c</code> setzt du Sitzungen fort. Fragt vor jeder Aktion, außer du wählst <code>--auto-edit</code> oder <code>--yolo</code>.",
   "f5.t": "Terminal oder Browser",

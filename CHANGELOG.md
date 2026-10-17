@@ -37,7 +37,7 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 
 - Every bundled profile caps llama-server's host-RAM prompt cache at 2,048 MiB to avoid swap growth on 16 GB systems.
-- Published speeds are re-measured with exactly each profile's launch flags (`--jinja`, `--cache-ram 2048`): 35B 47.0 / 36.4 / 31.7 tok/s and 9B 66.5 / 57.9 / 51.5 tok/s at 4K / 32K / 60K. The former 35B 60K value (38.2) had been measured without `--jinja`.
+- Published speeds are re-measured with Alia's llama.cpp build and exactly each profile's launch flags (`--jinja`, `--cache-ram 2048`): 35B 49.9 / 39.1 / 37.4 tok/s and 9B 66.2 / 57.8 / 51.4 tok/s at 4K / 32K / 60K. Interim numbers from a run that used Ollama's bundled llama-server by mistake are withdrawn.
 - Every agent-task figure in `profiles.json` names its `bench/results/agent-*.jsonl` runs and context; speed sources measured before the cache cap say so. The test for unsourced metrics covers `agent_*` and all `*_tps` keys again.
 - `bench/agent_bench.py --server-args` rejects input that is not a JSON list of strings.
 - Generated Qwen Code settings load `CLAUDE.md` alongside `QWEN.md` and `AGENTS.md` for project instructions.
@@ -70,7 +70,7 @@ All notable changes to this project are documented here. The format follows
   33,408. Qwen Code 0.25.1 keeps 20,000 tokens for compaction summaries, so the
   old window compacted after 408 tokens and stopped requests at 10,408
   ("Context is too large to send safely"). Measured at the new size with the
-  launch flags: 66.5 / 57.9 / 51.5 tok/s at 4K / 32K / 60K, peak VRAM 7.2 GB
+  launch flags: 66.2 / 57.8 / 51.4 tok/s at 4K / 32K / 60K, peak VRAM 7.2 GB
   including the desktop.
 
 ## [0.1.0] - 2026-10-15
