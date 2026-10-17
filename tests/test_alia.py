@@ -1,8 +1,10 @@
 import importlib.machinery
 import importlib.util
+import contextlib
 import io
 import json
 import os
+import signal
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -1026,6 +1028,8 @@ class McpTests(unittest.TestCase):
         self.assertEqual((browser["timeout"], search["timeout"]), (90000, 60000))
         self.assertIs(browser["trust"], False)
         self.assertIs(search["trust"], False)
+        self.assertIs(browser["alwaysLoadTools"], True)
+        self.assertIs(search["alwaysLoadTools"], True)
         self.assertEqual(len(browser["includeTools"]), 12)
         for unsafe in ("browser_evaluate", "browser_run_code_unsafe"):
             self.assertNotIn(unsafe, browser["includeTools"])
@@ -1152,6 +1156,7 @@ class McpTests(unittest.TestCase):
     def test_usage_mentions_mcp_in_both_languages(self):
         for language in ("en", "de"):
             self.assertIn("alia mcp enable <name>", alia.tr_for(language, "usage.text"))
+            self.assertIn("alia mcp test [name]", alia.tr_for(language, "usage.text"))
 
     def test_doctor_mcp_row(self):
         profiles = alia.load_profiles(ROOT / "profiles.json")
@@ -1185,11 +1190,209 @@ class McpTests(unittest.TestCase):
             self.assertRegex(doctor(paths, all_found, "de")[1], r"MCP\S*\s+keine$")
             alia.write_mcp_config(paths["config"], ["browser", "search"])
             code_ok, line = doctor(paths, all_found)
-            self.assertTrue(line.endswith("browser, search"))
+            self.assertTrue(line.endswith("browser, search · check: alia mcp test"))
+            self.assertTrue(doctor(paths, all_found, "de")[1].endswith("browser, search · prüfen: alia mcp test"))
             code_warn, line = doctor(paths, no_uvx)
-            self.assertTrue(line.endswith("browser, search ⚠"))
+            self.assertTrue(line.endswith("browser, search ⚠ · check: alia mcp test"))
         self.assertEqual(code_none, code_ok)
         self.assertEqual(code_none, code_warn)
+
+
+FAKE_MCP_SERVER = r"""
+import json, os, sys, time
+log = open(os.environ["FAKE_LOG"], "a", encoding="utf-8")
+log.write(json.dumps({"argv": sys.argv[1:], "pid": os.getpid(), "env": os.environ.get("FAKE_ENV"),
+                     "qwen_home": os.environ.get("QWEN_HOME")}) + "\n")
+log.flush()
+mode = os.environ["FAKE_MODE"]
+if mode == "exit":
+    sys.stderr.write("first line\n" + "x" * 300 + "\n   \n")
+    sys.exit(3)
+if mode == "orphan":
+    import subprocess
+    # A detached grandchild keeps stdout open after the server's process group is killed.
+    grandchild = subprocess.Popen(["setsid", "sleep", "30"])
+    log.write(json.dumps({"grandchild": grandchild.pid}) + "\n")
+    log.flush()
+    mode = "hang"
+for line in sys.stdin:
+    message = json.loads(line)
+    log.write(line)
+    log.flush()
+    if mode == "hang" or "id" not in message:
+        continue
+    def reply(payload):
+        sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": message["id"], **payload}) + "\n")
+        sys.stdout.flush()
+    if mode == "error":
+        reply({"error": {"code": -32601, "message": "boom"}})
+    elif message["method"] == "initialize":
+        sys.stdout.write("not json\n")
+        sys.stdout.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/message"}) + "\n")
+        sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": 99, "result": {}}) + "\n")
+        reply({"result": {"protocolVersion": "2025-06-18", "capabilities": {}, "serverInfo": {"name": "fake"}}})
+    else:
+        # A server-to-client request reusing our id must not count as the response.
+        sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": message["id"], "method": "roots/list"}) + "\n")
+        reply({"result": {"tools": [{"name": "alpha"}, {"name": "beta"}, {"name": "hidden"}, "junk"]}})
+"""
+
+
+class McpTestCommandTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.script = self.root / "fake_mcp.py"
+        self.script.write_text(FAKE_MCP_SERVER, encoding="utf-8")
+        self.log = self.root / "fake.log"
+
+    def tearDown(self):
+        self.directory.cleanup()
+        alia.set_language("en")
+
+    def _entry(self, mode, include=None):
+        entry = {
+            "command": alia.sys.executable, "args": [str(self.script), "--output-dir=<OUTDIR>"],
+            "env": {"FAKE_MODE": mode, "FAKE_LOG": str(self.log), "FAKE_ENV": "set"},
+            "timeout": 1000, "trust": False, "alwaysLoadTools": True, "requires": "python3",
+        }
+        if include is not None:
+            entry["includeTools"] = include
+        return entry
+
+    def _log(self):
+        return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
+
+    def _main(self, argv, catalog):
+        with mock.patch.dict(alia.MCP_CATALOG, catalog), \
+                mock.patch.object(alia, "user_paths", return_value=alia.user_paths(self.root)), \
+                mock.patch.object(alia.Path, "home", return_value=self.root), \
+                mock.patch.dict(alia.os.environ, {"ALIA_LANG": "en"}), \
+                io.StringIO() as output, io.StringIO() as error, \
+                redirect_stdout(output), redirect_stderr(error):
+            code = alia.main(argv)
+            result = code, output.getvalue(), error.getvalue()
+        alia.set_language("en")
+        return result
+
+    def test_protocol_matches_generated_settings(self):
+        with mock.patch.object(alia.Path, "home", return_value=self.root):
+            entry = alia.mcp_servers(["browser"])["browser"] | {
+                "command": alia.sys.executable,
+                "args": [str(self.script), "--output-dir=" + str(self.root / ".cache/alia/playwright")],
+                "env": self._entry("ok")["env"],
+            }
+        paths = alia.user_paths(self.root)
+        with mock.patch.dict(alia.os.environ, {"QWEN_HOME": "/elsewhere"}):
+            self.assertEqual(alia.mcp_probe(entry, alia.qwen_environment(paths), timeout=30), ["alpha", "beta", "hidden"])
+        started, initialize, initialized, tools_list = self._log()
+        self.assertEqual(started["env"], "set")
+        self.assertEqual(started["qwen_home"], str(paths["qwen_home"]))
+        self.assertEqual(initialize["method"], "initialize")
+        self.assertEqual(initialize["params"]["protocolVersion"], "2025-06-18")
+        self.assertEqual(initialize["params"]["clientInfo"]["name"], "alia")
+        self.assertEqual(initialized, {"jsonrpc": "2.0", "method": "notifications/initialized"})
+        self.assertEqual((tools_list["id"], tools_list["method"]), (2, "tools/list"))
+
+    def test_enabled_servers_pass_and_filter_include_tools(self):
+        catalog = {"browser": self._entry("ok", include=["alpha", "beta", "gamma"]), "search": self._entry("ok")}
+        alia.write_mcp_config(alia.user_paths(self.root)["config"], ["browser", "search"])
+        code, output, _ = self._main(["mcp", "test"], catalog)
+        self.assertEqual(code, 0)
+        self.assertRegex(output, r"browser: OK, 2 tools in [0-9.]+ s: alpha, beta\n")
+        self.assertRegex(output, r"search: OK, 3 tools in [0-9.]+ s: alpha, beta, hidden\n")
+        outdir = str(self.root / ".cache" / "alia" / "playwright")
+        self.assertEqual([item["argv"] for item in self._log() if "argv" in item], [[f"--output-dir={outdir}"]] * 2)
+        qwen_home = str(alia.user_paths(self.root)["qwen_home"])
+        self.assertEqual([item["qwen_home"] for item in self._log() if "argv" in item], [qwen_home] * 2)
+
+    def test_server_without_allowed_tools_fails(self):
+        code, output, _ = self._main(["mcp", "test", "browser"], {"browser": self._entry("ok", include=["gamma"])})
+        self.assertEqual(code, 1)
+        self.assertIn("browser: failed: the server listed no allowed tools", output)
+        code, output, _ = self._main(["--lang", "de", "mcp", "test", "browser"], {"browser": self._entry("ok", include=[])})
+        self.assertEqual(code, 1)
+        self.assertIn("der Server hat keine erlaubten Tools gemeldet", output)
+
+    def test_named_server_and_failures_exit_1(self):
+        catalog = {"browser": self._entry("ok"), "search": self._entry("error")}
+        code, output, _ = self._main(["mcp", "test", "search"], catalog)
+        self.assertEqual(code, 1)
+        self.assertIn("search: failed: initialize returned an error:", output)
+        self.assertIn("boom", output)
+        self.assertNotIn("browser", output)
+        code, output, _ = self._main(["mcp", "test", "browser"], {"browser": self._entry("exit")})
+        self.assertEqual(code, 1)
+        self.assertIn("browser: failed: the server exited before answering: " + "x" * 200 + "\n", output)
+        self.assertNotIn("first line", output)
+        missing = self._entry("ok") | {"command": "alia-missing-command"}
+        code, output, _ = self._main(["mcp", "test", "browser"], {"browser": missing})
+        self.assertEqual(code, 1)
+        self.assertIn("browser: failed: command not found: alia-missing-command\n", output)
+        self.assertNotIn("Errno", output)
+        code, output, _ = self._main(["--lang", "de", "mcp", "test", "browser"], {"browser": missing})
+        self.assertIn("Befehl nicht gefunden: alia-missing-command", output)
+
+    def test_no_enabled_server(self):
+        code, output, _ = self._main(["mcp", "test"], {})
+        self.assertEqual(code, 0)
+        self.assertIn("No MCP server is enabled", output)
+
+    def test_unknown_name_and_usage_errors(self):
+        code, _, error = self._main(["mcp", "test", "nope"], {})
+        self.assertEqual(code, 1)
+        self.assertIn("Unknown MCP server: nope (available: browser, search)", error)
+        code, _, error = self._main(["mcp", "test", "browser", "search"], {})
+        self.assertEqual(code, 1)
+        self.assertIn("alia mcp test [name]", error)
+
+    def test_timeout_terminates_child(self):
+        started = alia.time.monotonic()
+        with self.assertRaisesRegex(RuntimeError, r"no answer within 0.5 s"):
+            alia.mcp_probe(self._entry("hang"), dict(os.environ), timeout=0.5)
+        self.assertLess(alia.time.monotonic() - started, 10)
+        pid = self._log()[0]["pid"]
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid, 0)
+
+
+    def test_start_error_is_reported_and_stderr_file_closed(self):
+        script = self.root / "not-executable"
+        script.write_text("#!/bin/sh\n", encoding="utf-8")
+        script.chmod(0o644)
+        entry = self._entry("ok") | {"command": str(script)}
+        opened = []
+        real_temporary_file = alia.tempfile.TemporaryFile
+
+        def tracking_temporary_file(*args, **kwargs):
+            opened.append(real_temporary_file(*args, **kwargs))
+            return opened[-1]
+
+        with mock.patch.object(alia.tempfile, "TemporaryFile", side_effect=tracking_temporary_file), \
+                self.assertRaisesRegex(RuntimeError, r"^cannot start .*not-executable: Permission denied$"):
+            alia.mcp_probe(entry, dict(os.environ), timeout=5)
+        with mock.patch.object(alia.tempfile, "TemporaryFile", side_effect=tracking_temporary_file), \
+                self.assertRaisesRegex(RuntimeError, r"^command not found: alia-missing-command$"):
+            alia.mcp_probe(entry | {"command": "alia-missing-command"}, dict(os.environ), timeout=5)
+        self.assertEqual(len(opened), 2)
+        self.assertTrue(all(handle.closed for handle in opened))
+        code, output, _ = self._main(["--lang", "de", "mcp", "test", "browser"], {"browser": entry})
+        self.assertEqual(code, 1)
+        self.assertIn("lässt sich nicht starten: Permission denied", output)
+
+    def test_detached_grandchild_holding_stdout_does_not_block_timeout(self):
+        started = alia.time.monotonic()
+        try:
+            with self.assertRaisesRegex(RuntimeError, r"no answer within 2 s"):
+                alia.mcp_probe(self._entry("orphan"), dict(os.environ), timeout=2)
+            elapsed = alia.time.monotonic() - started
+        finally:
+            for item in self._log():
+                if "grandchild" in item:
+                    with contextlib.suppress(ProcessLookupError):
+                        os.kill(item["grandchild"], signal.SIGKILL)
+        self.assertLess(elapsed, 5)
+        self.assertTrue(any("grandchild" in item for item in self._log()))
 
 
 if __name__ == "__main__":

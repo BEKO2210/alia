@@ -104,6 +104,7 @@ alia lang auto
 alia mcp                          # list optional MCP servers (browser, search)
 alia mcp enable browser           # opt in; takes effect with the next session
 alia mcp disable search
+alia mcp test                     # start enabled MCP servers and list their tools
 alia logs
 alia stop
 alia --help
@@ -131,7 +132,7 @@ Qwen Code has no browser of its own and its built-in web search needs a cloud ke
 - `browser` — headless Playwright browser ([@playwright/mcp](https://github.com/microsoft/playwright-mcp) 0.0.83): open pages, read text snapshots, click, type, and fill forms. Screenshots and JavaScript evaluation are not exposed. Requires `npx` (Node.js) and Google Chrome; without Chrome run `npx playwright install chromium` once. Output goes to `~/.cache/alia/playwright`.
 - `search` — web search and page fetch via DuckDuckGo ([duckduckgo-mcp-server](https://pypi.org/project/duckduckgo-mcp-server/) 0.7.0), no API key. Requires `uvx` (uv). It scrapes html.duckduckgo.com, so results can break or be blocked; Alia limits it to 10 searches and 10 page fetches per minute.
 
-Every MCP tool call goes through the normal approval prompt; `--yolo` approves them without asking. The first session downloads the pinned packages.
+Every MCP tool call goes through the normal approval prompt; `--yolo` approves them without asking. The first session downloads the pinned packages. `alia mcp test [NAME]` starts the enabled servers (or just NAME) exactly as a session would and lists their tools, waiting up to 90 s for a first download. Alia loads MCP tool schemas upfront (`alwaysLoadTools`), so the model can call them without a `tool_search` round trip.
 
 ## Bundled profiles
 
