@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Background sub-agents are serialized to match llama-server's single request slot.
+- Slow deep-context streams may run for 30 minutes before Qwen Code aborts them.
+- `alia --continue` and `alia --resume [ID]` pass session selection to Qwen Code.
+- Model-load progress learns the selected profile's last load time.
+- `alia doctor` reports the llama-server build.
+- Low-RAM startup warnings suggest the lighter 9B profile when applicable, and `alia doctor` marks low available RAM.
 - Interactive sessions disable follow-up suggestions that would make an extra full-context request.
 - Qwen Code's pinned release no longer checks for updates or opens the feedback dialog.
 - Optional automatic-title and tool-summary model requests are disabled in the environment.
@@ -30,6 +36,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `alia status` reports managed-server health, PID, profile, port, uptime, and model.
 - `alia doctor` reports whether Ollama is unavailable, idle, or has loaded models.
 - `alia doctor` shows Qwen Code's auto-compaction and hard limit for the
   selected profile, and startup warns when a profile's context is too small

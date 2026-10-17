@@ -58,7 +58,8 @@ For measurement caveats and an independent recount, see
 
 - `agent-*.jsonl` — `../agent_bench.py`: Qwen Code solves the eight tasks in
   `../agent_tasks/` headless with Alia's settings; hidden tests score the result.
-  One run per task, temperature 0.6, so single differences are noise.
+  One run per task by default, temperature 0.6, so single differences are noise.
+  Use `--repeat N` to run every task N times; task rows identify repetitions with `run`.
   Use `--probe` for cold/warm one-word startup probes. Extra llama.cpp arguments use
   `--server-arg`, for example `--server-arg=-cms --server-arg=1024`; llama.cpp arguments
   passed there cannot use `--flag=value`.
@@ -86,3 +87,5 @@ For measurement caveats and an independent recount, see
   - `-114111` (round 2 branch, still with loop detection on): vat failed after 18 s —
     Qwen Code's heuristic loop detector halted a correct run as "repetitive_thoughts".
     Loop detection is therefore left off (Qwen Code's default).
+  - `-114452`: micro round 2 (sub-agents serialized, 30-min stream lifetime, resume flags,
+    status, doctor rows): all three passed; perf / rename / vat 88 / 59 / 59 s.

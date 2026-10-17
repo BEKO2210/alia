@@ -287,13 +287,21 @@ class ArgumentTests(unittest.TestCase):
         self.assertFalse(alia.compaction_summary(65536).endswith("⚠"))
 
     def test_ram_warning(self):
-        profile = {"ram_free_gb": 11}
+        profile = {"id": "large", "ram_free_gb": 11}
         self.assertIsNone(alia.ram_warning(profile, 12.0))
         self.assertIsNone(alia.ram_warning(profile, None))
         self.assertIsNone(alia.ram_warning({}, 2.0))
         warning = alia.ram_warning(profile, 9.4)
         self.assertIn("9.4", warning)
         self.assertIn("11", warning)
+        self.assertIn("rtx8gb-qwen35-9b-fast", warning)
+        light = {"id": "rtx8gb-qwen35-9b-fast", "ram_free_gb": 11}
+        self.assertNotIn("alia use", alia.ram_warning(light, 9.4))
+
+    def test_load_bar_scales_to_last_load_time(self):
+        self.assertEqual(alia.load_bar(15, None), "█████░░░░░")
+        self.assertEqual(alia.load_bar(15, 60), "██░░░░░░░░")
+        self.assertEqual(alia.load_bar(90, 60), "██████████")
 
     def test_mem_available_reads_meminfo(self):
         meminfo = "MemTotal:       16000000 kB\nMemAvailable:    9961472 kB\n"
@@ -371,6 +379,27 @@ class ArgumentTests(unittest.TestCase):
             alia.parse_start_args(["--yolo", "--fast", "--wait-gpu", "2.5"]),
             ("yolo", [], True, 2.5),
         )
+
+    def test_session_arguments_precede_passthrough_arguments(self):
+        cases = (
+            (["-c"], ("default", ["--continue"], False, 0.0)),
+            (["--resume"], ("default", ["--resume"], False, 0.0)),
+            (["-r", "abc"], ("default", ["--resume", "abc"], False, 0.0)),
+            (["-r", "--", "--foo"], ("default", ["--resume", "--foo"], False, 0.0)),
+            (["--yolo", "-r", "abc", "--", "task"],
+             ("yolo", ["--resume", "abc", "task"], False, 0.0)),
+        )
+        for arguments, expected in cases:
+            with self.subTest(arguments=arguments):
+                self.assertEqual(alia.parse_start_args(arguments), expected)
+
+    def test_version_reads_llama_server_stderr(self):
+        result = mock.Mock(stdout="", stderr="version: 0.6.0-dev (build 1, commit a0e6dc7)\n")
+        with mock.patch.object(alia.subprocess, "run", return_value=result):
+            self.assertEqual(
+                alia._version(["llama-server", "--version"]),
+                "version: 0.6.0-dev (build 1, commit a0e6dc7)",
+            )
 
     def test_yolo_warning_is_red_on_a_terminal(self):
         class TerminalBuffer(io.StringIO):
@@ -457,6 +486,7 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(environment["QWEN_CODE_LANG"], "de")
             self.assertEqual(environment["QWEN_DISABLE_AUTO_TITLE"], "1")
             self.assertEqual(environment["QWEN_CODE_EMIT_TOOL_USE_SUMMARIES"], "0")
+            self.assertEqual(environment["QWEN_STREAM_MAX_LIFETIME_MS"], "1800000")
         alia.set_language("en")
 
     def test_generation_is_isolated_and_complete(self):
@@ -472,6 +502,7 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(settings["tools"]["truncateToolOutputThreshold"], 12000)
             self.assertEqual(settings["tools"]["truncateToolOutputLines"], 400)
             self.assertEqual(settings["tools"]["toolOutputBatchBudget"], 40000)
+            self.assertEqual(settings["agents"]["maxParallelAgents"], 1)
             self.assertFalse(settings["general"]["enableAutoUpdate"])
             self.assertTrue(settings["model"]["skipLoopDetection"])
             self.assertFalse(settings["ui"]["enableFollowupSuggestions"])
@@ -695,6 +726,87 @@ class PidTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "exited"):
                     alia.wait_for_health(4242, paths, timeout=30, process=process)
             process.wait.assert_called_once()
+
+    def test_wait_for_health_scales_bar_and_records_load_time(self):
+        class TtyBuffer(io.StringIO):
+            def isatty(self):
+                return True
+
+        with tempfile.TemporaryDirectory() as directory:
+            paths = self._paths(directory)
+            paths["state"].mkdir(parents=True, exist_ok=True)
+            load_file = paths["state"] / "last-load.json"
+            load_file.write_text(json.dumps({"profile": "p", "seconds": 20}), encoding="utf-8")
+            output = TtyBuffer()
+            with mock.patch.object(alia, "health_ok", side_effect=[False, True]), \
+                    mock.patch.object(alia, "process_start_ticks", return_value="1"), \
+                    mock.patch.object(alia.time, "sleep"), redirect_stdout(output):
+                alia.wait_for_health(4242, paths, timeout=30, profile_id="p")
+            self.assertIn("~20", output.getvalue())
+            self.assertEqual(json.loads(load_file.read_text(encoding="utf-8"))["profile"], "p")
+            # A failed write of the load record must not abort a healthy start.
+            with mock.patch.object(alia, "health_ok", return_value=True), \
+                    mock.patch.object(alia, "write_private_text", side_effect=OSError("disk full")), \
+                    redirect_stdout(io.StringIO()):
+                alia.wait_for_health(4242, paths, timeout=30, profile_id="p")
+
+    def test_main_status_dispatch(self):
+        with mock.patch.object(alia, "cmd_status", return_value=3) as status, \
+                redirect_stdout(io.StringIO()):
+            self.assertEqual(alia.main(["status"]), 3)
+        status.assert_called_once()
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(alia.main(["status", "extra"]), 1)
+        alia.set_language("en")  # main() picks the host locale
+
+    def test_doctor_shows_llama_build_and_ram_warning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = alia.user_paths(Path(directory))
+            profiles = alia.load_profiles(ROOT / "profiles.json")
+            hw = {"gpu_name": "NVIDIA GeForce RTX 3070", "vram_gb": 8.0, "ram_gb": 15.5,
+                  "cpu_name": "CPU", "cpu_count": 16, "gpu_index": 0}
+            with mock.patch.object(alia, "find_llama_server", return_value=(Path("/x/llama-server"), {"LD_LIBRARY_PATH": "/x"})), \
+                    mock.patch.object(alia, "_version", return_value="version: test (build 1)") as version, \
+                    mock.patch.object(alia, "mem_available_gb", return_value=1.0), \
+                    mock.patch.object(alia, "ollama_loaded_models", return_value=None), \
+                    mock.patch.object(alia, "port_open", return_value=False), \
+                    mock.patch.object(alia, "health_ok", return_value=False), \
+                    io.StringIO() as output, redirect_stdout(output):
+                alia.cmd_doctor(profiles, hw, paths)
+                text = output.getvalue()
+            self.assertIn("version: test (build 1)", text)
+            self.assertIn("⚠", text)
+            self.assertEqual(version.call_args_list[0].args[1]["LD_LIBRARY_PATH"], "/x")
+
+    def test_status_stopped_and_healthy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = self._paths(directory)
+            with mock.patch.object(alia, "managed_pid", return_value=None), \
+                    io.StringIO() as output, redirect_stdout(output):
+                self.assertEqual(alia.cmd_status(paths), 3)
+                self.assertIn("stopped", output.getvalue())
+
+            paths["server_state"].write_text("{}", encoding="utf-8")
+            state = {
+                "profile": "test-profile", "port": 8090, "model": "model.gguf",
+            }
+            with mock.patch.object(alia, "managed_pid", return_value=4242), \
+                    mock.patch.object(alia, "read_server_state", return_value=state), \
+                    mock.patch.object(alia, "health_ok", return_value=True), \
+                    mock.patch.object(alia, "process_owns_listen_port", return_value=True), \
+                    io.StringIO() as output, redirect_stdout(output):
+                self.assertEqual(alia.cmd_status(paths), 0)
+                text = output.getvalue()
+                self.assertIn("PID     4242", text)
+                self.assertIn("test-profile", text)
+                self.assertIn("ready", text)
+                self.assertIn("model.gguf", text)
+            with mock.patch.object(alia, "managed_pid", return_value=4242), \
+                    mock.patch.object(alia, "read_server_state", return_value=state), \
+                    mock.patch.object(alia, "health_ok", return_value=True), \
+                    mock.patch.object(alia, "process_owns_listen_port", return_value=False), \
+                    io.StringIO() as output, redirect_stdout(output):
+                self.assertEqual(alia.cmd_status(paths), 1)
 
     def test_interrupt_before_state_files_stops_new_child(self):
         profile = alia.load_profiles(ROOT / "profiles.json")[0]
