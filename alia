@@ -829,10 +829,13 @@ def wait_for_health(
             if health_ok():
                 measured = max(0.1, round(time.monotonic() - started, 1))
                 if profile_id:
-                    write_private_text(
-                        load_path,
-                        json.dumps({"profile": profile_id, "seconds": measured}) + "\n",
-                    )
+                    try:
+                        write_private_text(
+                            load_path,
+                            json.dumps({"profile": profile_id, "seconds": measured}) + "\n",
+                        )
+                    except OSError:
+                        pass  # only feeds the progress bar; never block a healthy start
                 if interactive:
                     print(f"\r{color('32', '✓')} {tr('server.ready_tty', seconds=elapsed)}" + " " * 15)
                 else:
@@ -1167,9 +1170,9 @@ def cmd_profiles(profiles: list[dict[str, Any]], hw: dict[str, Any], selected: s
     return 0
 
 
-def _version(command: list[str]) -> str:
+def _version(command: list[str], env: dict[str, str] | None = None) -> str:
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=5, check=False)
+        result = subprocess.run(command, capture_output=True, text=True, timeout=5, check=False, env=env)
         return (result.stdout or result.stderr).strip().splitlines()[0]
     except (OSError, subprocess.TimeoutExpired, IndexError):
         return tr("version.not_found")
@@ -1235,8 +1238,9 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
     profile, reason, warning = choose_profile(profiles, hw, config.get("profile"))
     pid = managed_pid(paths)
     state = read_server_state(paths) if pid else {}
-    llama, _ = find_llama_server()
-    llama_version = _version([str(llama), "--version"]) if llama else None
+    llama, llama_env = find_llama_server()
+    # Same library path as start_server, or a binary next to its shared libraries reads "not found".
+    llama_version = _version([str(llama), "--version"], {**os.environ, **llama_env}) if llama else None
     qwen = shutil.which("qwen") or str(Path.home() / ".npm-global/bin/qwen")
     qwen_version = _version([qwen, "--version"])
     model = find_model(profile, paths) if profile else None
@@ -1299,7 +1303,8 @@ def cmd_status(paths: dict[str, Path]) -> int:
         print(tr("status.stopped"))
         return 3
     state = read_server_state(paths)
-    ready = health_ok()
+    # Another process could answer /health on the port while the managed PID is still alive.
+    ready = health_ok() and process_owns_listen_port(pid, PORT)
     started = state.get("started_at")
     uptime = max(0, int(time.time() - started)) if isinstance(started, (int, float)) else 0
     print(tr(

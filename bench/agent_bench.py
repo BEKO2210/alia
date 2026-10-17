@@ -209,9 +209,12 @@ def main() -> None:
                                 code, stdout = "timeout", raw.decode(errors="replace") if isinstance(raw, bytes) else raw
                             seconds = time.time() - start
                             served = metrics_delta(before, server_metrics())
-                            subprocess.run(["git", "add", "-A"], cwd=workdir)
-                            diff = subprocess.run(["git", "diff", "--cached", "HEAD"], cwd=workdir,
-                                                  capture_output=True, text=True).stdout
+                            try:
+                                subprocess.run(["git", "add", "-A"], cwd=workdir, timeout=120)
+                                diff = subprocess.run(["git", "diff", "--cached", "HEAD"], cwd=workdir,
+                                                      capture_output=True, text=True, timeout=120).stdout
+                            except subprocess.TimeoutExpired:
+                                diff = "git add/diff timed out\n"
                             log_name = f"{task}-run{run_number}" if a.repeat > 1 else task
                             (logs / f"{log_name}.diff").write_text(diff)
                             (logs / f"{log_name}.qwen.json").write_text(stdout[-200000:])

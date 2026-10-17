@@ -19,7 +19,7 @@ llama.cpp llama-server  (local inference, 127.0.0.1:8090, one slot)
 
 | Part | Where | Notes |
 |---|---|---|
-| Hardware detection and profile choice | `detect_hardware`, `choose_profile`, `profiles.json` | Profiles carry measured tok/s, context size, RAM need |
+| Hardware detection and profile choice | `detect_hardware`, `choose_profile`, `profiles.json` | Profiles carry context size, RAM need and measured tok/s where available (two 35B Q4 profiles are still unmeasured) |
 | Model files | `ensure_model`, `find_model` | Hugging Face download, size check |
 | Server lifecycle | `start_server`, `stop_server`, `wait_for_health`, `GpuStartLock` | PID + start-tick checks, never kills foreign processes |
 | Preflight | `unload_ollama`, `ram_warning`, compaction warning | Ollama and llama-server cannot share 8 GB VRAM |

@@ -11,14 +11,14 @@ generated settings, a wrapper flag or an extension; patch Qwen Code only when no
 | Area | Qwen Code 0.25.1 | Alia today | Gap / plan |
 |---|---|---|---|
 | Agent loop | todo_write, plan mode, `/goal`, budgets `--max-session-turns`, `--max-wall-time`, `--max-tool-calls`, `maxToolCallsPerTurn`, heuristic loop detection (`model.skipLoopDetection`, default **true** = off) | loop detection off on purpose: it halted a correct run of a thinking model | Budgets for unattended runs |
-| Sessions | JSONL chat recording, `-c/--continue`, `-r/--resume`, `qwen sessions`, `/rewind`/`/restore` file backups (interactive only, off when the execution sandbox is on) | reachable only as `alia -- -c` | First-class resume flag (R2); git snapshot if sandbox is on (R9) |
+| Sessions | JSONL chat recording, `-c/--continue`, `-r/--resume`, `qwen sessions`, `/rewind`/`/restore` file backups (interactive only, off when the execution sandbox is on) | `alia -c` / `alia -r [ID]` pass the session flags | Git snapshot if the sandbox is on (R9) |
 | Tools | read/write/edit, glob, grep, shell, web_fetch, web_search, agent, skill, lsp, MCP; deferred tools behind `tool_search` | 17 unused tools denied, output limits lowered | Check tool_search round trips on a single slot (R3) |
 | Browser | **none built in** (only a chrome-devtools hook inside `qwen serve`) | none | Ship a Playwright/Chrome DevTools MCP entry (R4) |
 | Web search | `web_search` works only with the DashScope API; `web_fetch` runs an extra model pass per page | unusable without a key | Key-less search through an MCP server (R4) |
 | Memory | QWEN.md / AGENTS.md context files, managed auto memory, `manage_memory`/`search_memory`, `/remember` | auto memory off, memory tools denied (they cost model calls on the one slot) | Project memory through context files first (R5) |
 | MCP | full client: stdio/SSE/HTTP, include/exclude tools, trust, timeouts, `qwen mcp add` | none configured | Curated `mcpServers` entries (R4, R7) |
 | Skills, extensions, hooks | `.qwen/skills`, `qwen extensions install`, ~23 hook events | none | Optional Alia skill pack (R7) |
-| Subagents | `agent` tool (background by default, worktree isolation), custom agents, `agents.maxParallelAgents` | agent tool allowed, no limit set | Serialize to the single llama-server slot (R2/R8) |
+| Subagents | `agent` tool (background by default, worktree isolation), custom agents, `agents.maxParallelAgents` | `agents.maxParallelAgents: 1`: sub-agents queue for the one slot | Measure whether sub-agents help at all on one slot (R8) |
 | Sandbox | `tools.executionSandbox` (bwrap/landlock, read-only/workspace-write, network open/closed), docker/podman `-s` | none | Opt-in sandbox profile; keep 127.0.0.1:8090 reachable (R9) |
 | Permissions | approval modes plan/default/auto-edit/auto/yolo, allow/ask/deny rules | default mode, deny list | `auto` costs a classifier model call per gated tool; keep it off (R9) |
 | Observability | telemetry with local `outfile`, `-o json` stats, `--openai-logging` | off; bench measures server metrics | Local-only telemetry option (R6) |

@@ -742,6 +742,7 @@ class PidTests(unittest.TestCase):
             with mock.patch.object(alia, "managed_pid", return_value=4242), \
                     mock.patch.object(alia, "read_server_state", return_value=state), \
                     mock.patch.object(alia, "health_ok", return_value=True), \
+                    mock.patch.object(alia, "process_owns_listen_port", return_value=True), \
                     io.StringIO() as output, redirect_stdout(output):
                 self.assertEqual(alia.cmd_status(paths), 0)
                 text = output.getvalue()
@@ -749,6 +750,12 @@ class PidTests(unittest.TestCase):
                 self.assertIn("test-profile", text)
                 self.assertIn("ready", text)
                 self.assertIn("model.gguf", text)
+            with mock.patch.object(alia, "managed_pid", return_value=4242), \
+                    mock.patch.object(alia, "read_server_state", return_value=state), \
+                    mock.patch.object(alia, "health_ok", return_value=True), \
+                    mock.patch.object(alia, "process_owns_listen_port", return_value=False), \
+                    io.StringIO() as output, redirect_stdout(output):
+                self.assertEqual(alia.cmd_status(paths), 1)
 
     def test_interrupt_before_state_files_stops_new_child(self):
         profile = alia.load_profiles(ROOT / "profiles.json")[0]
