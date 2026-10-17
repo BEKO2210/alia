@@ -59,6 +59,11 @@ For measurement caveats and an independent recount, see
 - `agent-*.jsonl` — `../agent_bench.py`: Qwen Code solves the eight tasks in
   `../agent_tasks/` headless with Alia's settings; hidden tests score the result.
   One run per task, temperature 0.6, so single differences are noise.
+  Use `--probe` for cold/warm one-word startup probes. Extra llama.cpp arguments use
+  `--server-arg`, for example `--server-arg=-cms --server-arg=1024`; llama.cpp arguments
+  passed there cannot use `--flag=value`.
+  Task rows include `evaluated_prompt_tokens`, `prompt_eval_s`, `generated_tokens`, and
+  `generation_s` server metrics; the final summary row totals passes, time, and tokens.
   - `agent-20261017-011504` (smoke), `-011929`, `-020336` … `-021111`: Qwen3.6-35B
     default profile, before the lean settings; 7/8 tasks passed (`duration` hit
     the 10-minute limit).
@@ -67,4 +72,17 @@ For measurement caveats and an independent recount, see
   - `-030517`: Qwen3.6-35B with the lean Qwen Code settings (17 tools denied,
     background memory off): perf, rename and vat passed in 59 / 45 / 69 s
     (before: 71 / 85 / 136 s).
-
+  - `-110513`: Qwen3.6-35B, micro round 1 baseline (lean settings, `--probe`): cold/warm
+    probe 19.4 / 3.6 s; perf, rename, vat passed in 57 / 46 / 65 s.
+  - `-110930`: same with `--server-arg=-cms --server-arg=1024` (context checkpoint every
+    1,024 tokens): no gain. A new session still re-evaluates the whole ~13K-token first
+    prompt, because the prompt differs from the previous session around token 7.6K and
+    llama.cpp keeps hybrid-model checkpoints only near the end of earlier prompts.
+  - `-112312`: micro round 1 settings (no follow-up suggestions, loop detection, smaller
+    tool output): warm probe 2.9 s, all three passed; rename / vat 38 / 59 s. perf took
+    228 s because the model benchmarked the old O(n²) code itself and hit the 120 s shell
+    timeout (model time ~70 s). Cold probe 31.6 s: model pages were evicted by an
+    earlier `--load-mode none` test that drove RAM critical (not kept).
+  - `-114111` (round 2 branch, still with loop detection on): vat failed after 18 s —
+    Qwen Code's heuristic loop detector halted a correct run as "repetitive_thoughts".
+    Loop detection is therefore left off (Qwen Code's default).

@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Interactive sessions disable follow-up suggestions that would make an extra full-context request.
+- Qwen Code's pinned release no longer checks for updates or opens the feedback dialog.
+- Optional automatic-title and tool-summary model requests are disabled in the environment.
+- Tool output limits are reduced while full results remain available in Qwen Code's saved files.
 - Qwen Code starts lean: 17 tools a local single-slot agent does not use
   (cron, worktrees, goals, team messages, memory, image zoom, MCP resources)
   are denied, and background memory extraction is off. The first prompt
@@ -17,6 +21,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Ollama unloading now retries models reloaded by other clients during the bounded wait.
 - The 9B fast profile now launches with a 65,536-token context instead of
   33,408. Qwen Code 0.25.1 keeps 20,000 tokens for compaction summaries, so the
   old window compacted after 408 tokens and stopped requests at 10,408
@@ -25,6 +30,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `alia doctor` reports whether Ollama is unavailable, idle, or has loaded models.
 - `alia doctor` shows Qwen Code's auto-compaction and hard limit for the
   selected profile, and startup warns when a profile's context is too small
   for Qwen Code.
