@@ -1,0 +1,1 @@
+Implementiere `import_customers(path)` in `customers.py` wie im Docstring beschrieben. Nutze nur die Standardbibliothek. Schreibe Tests dafür.

@@ -6,3 +6,4 @@ _internal/
 coverage.xml
 .ruff_cache/
 bench/results/*.log
+bench/results/agent-logs/

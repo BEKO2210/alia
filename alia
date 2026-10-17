@@ -834,6 +834,14 @@ def wait_for_health(
     raise RuntimeError(tr("server.timeout", seconds=int(timeout), log=paths["log"]))
 
 
+DENIED_QWEN_TOOLS = (
+    "cron_create", "cron_list", "cron_delete", "loop_wakeup", "monitor",
+    "send_message", "list_agents", "enter_worktree", "exit_worktree",
+    "record_artifact", "get_goal", "update_goal", "report_findings",
+    "zoom_image", "read_mcp_resource", "search_memory", "manage_memory",
+)
+
+
 def generate_settings(
     profile: dict[str, Any], hw: dict[str, Any], target_dir: Path,
     branding_dir: Path = BRANDING_DIR, approval_mode: str = "default",
@@ -886,6 +894,11 @@ def generate_settings(
         "env": {"ALIA_LOCAL_API_KEY": API_KEY},
         "security": {"auth": {"selectedType": "openai"}},
         "tools": {"approvalMode": approval_mode},
+        # Every tool schema is resent with each request. These have no use for a local single-slot
+        # coding agent; dropping them cuts the first prompt from about 22.8K to 12.8K tokens.
+        "permissions": {"deny": list(DENIED_QWEN_TOOLS)},
+        # Background memory extraction is an extra model call per session on the single server slot.
+        "memory": {"enableManagedAutoMemory": False, "enableManagedAutoDream": False},
         "model": {"name": profile["id"], "baseUrl": f"http://{HOST}:{PORT}/v1"},
         "modelProviders": {"openai": [{
             "id": profile["id"],

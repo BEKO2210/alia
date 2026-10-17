@@ -1,0 +1,1 @@
+Rename the function `calc_total` to `compute_total` everywhere in the `shop` package and its callers. Keep `calc_total` importable from the same module as a deprecated alias that emits a `DeprecationWarning` (with the message mentioning `compute_total`) and returns the same result. All existing tests must still pass.

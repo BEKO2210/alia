@@ -53,3 +53,18 @@ measurement values are unchanged.
 
 For measurement caveats and an independent recount, see
 `../reviews/grok-bench-review.md`.
+
+## Agentic coding tasks
+
+- `agent-*.jsonl` — `../agent_bench.py`: Qwen Code solves the eight tasks in
+  `../agent_tasks/` headless with Alia's settings; hidden tests score the result.
+  One run per task, temperature 0.6, so single differences are noise.
+  - `agent-20261017-011504` (smoke), `-011929`, `-020336` … `-021111`: Qwen3.6-35B
+    default profile, before the lean settings; 7/8 tasks passed (`duration` hit
+    the 10-minute limit).
+  - `-021353` … `-023251`: Ornith-1.5-35B-A3B APEX-MTP I-Mini with its own chat
+    template, 4/4 tasks passed before the run was interrupted.
+  - `-030517`: Qwen3.6-35B with the lean Qwen Code settings (17 tools denied,
+    background memory off): perf, rename and vat passed in 59 / 45 / 69 s
+    (before: 71 / 85 / 136 s).
+
