@@ -1,0 +1,1 @@
+`python3 -m unittest discover -s tests` fails. Fix slugify in pkg/util.py so the tests pass.
