@@ -1,0 +1,1 @@
+`report.py` builds a report from event logs, but `merge_events` is far too slow for real logs with hundreds of thousands of events. Make it fast without changing its results (read the function and the tests carefully: ordering and tie-breaking must stay exactly the same).

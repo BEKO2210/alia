@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Qwen Code starts lean: 17 tools a local single-slot agent does not use
+  (cron, worktrees, goals, team messages, memory, image zoom, MCP resources)
+  are denied, and background memory extraction is off. The first prompt
+  shrinks from 22.8K to 12.8K tokens; a one-word reply takes 11.7 s instead
+  of 29.9 s cold and 2.0 s instead of 7.0 s warm. Three agent tasks ran in
+  173 s instead of 292 s, all passing.
+
 ### Fixed
 
 - The 9B fast profile now launches with a 65,536-token context instead of
@@ -22,6 +31,8 @@ All notable changes to this project are documented here. The format follows
 - Startup warns when less RAM is available than the 35B default profile needs
   to keep its experts in memory (11 GB, from the runner's resident set in the
   full-speed runs); `alia doctor` shows the available RAM.
+- `bench/agent_bench.py`: eight repository tasks solved headless by Qwen Code
+  with Alia's settings and scored by hidden tests.
 
 ## [0.1.0] - 2026-10-15
 

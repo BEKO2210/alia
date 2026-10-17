@@ -1,0 +1,1 @@
+Implement `parse_duration(text)` in `durations.py` according to its docstring. Return the total number of seconds as an int. Raise `ValueError` for anything invalid. Add tests for the cases you consider important.

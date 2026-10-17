@@ -1,0 +1,1 @@
+The README of this repo documents how `load_config()` merges settings. Users report that values from environment variables do not behave as documented. Find and fix the bug(s) so the implementation matches the README exactly. Keep the public API unchanged and make sure the existing tests pass.

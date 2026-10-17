@@ -467,6 +467,10 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(settings["model"]["name"], profile["id"])
             self.assertEqual(settings["security"]["auth"]["selectedType"], "openai")
             self.assertEqual(settings["tools"]["approvalMode"], "default")
+            self.assertIn("cron_create", settings["permissions"]["deny"])
+            for core in ("read_file", "edit", "write_file", "run_shell_command", "grep_search", "glob"):
+                self.assertNotIn(core, settings["permissions"]["deny"])
+            self.assertFalse(settings["memory"]["enableManagedAutoMemory"])
             self.assertEqual(
                 settings["modelProviders"]["openai"][0]["baseUrl"],
                 "http://127.0.0.1:8090/v1",
