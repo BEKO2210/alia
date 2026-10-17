@@ -93,11 +93,14 @@ class ProfileMatchingTests(unittest.TestCase):
                 continue
             sources = measured.get("metric_sources", {})
             for key, value in measured.items():
-                if key.startswith(("tg_tps", "pp_tps")) or key == "mtp_acceptance":
+                speed = key.endswith("_tps") or "_tps_" in key or key == "mtp_acceptance"
+                if speed or key.startswith("agent_"):
                     with self.subTest(profile=profile["id"], metric=key):
-                        self.assertIsInstance(value, (int, float))
+                        if speed:
+                            self.assertIsInstance(value, (int, float))
                         self.assertIn("bench/results/", sources[key])
                         self.assertIn("ctx ", sources[key])
+                        self.assertIn(f"ctx {profile['ctx']}", sources[key].replace(",", ""))
 
 
 class ConfigTests(unittest.TestCase):

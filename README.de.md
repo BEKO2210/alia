@@ -146,7 +146,7 @@ Jeder MCP-Tool-Aufruf läuft durch die normale Bestätigung; `--yolo` genehmigt 
 |---|---|---|---:|---:|---|
 | `rtx8gb-16gb-qwen36-35b` | 8 GB VRAM, 16 GB RAM | 35B IQ3_XXS, 14,07 GB | 46,5 / 35,2 | 1.008 / 1.301 | gemessen, Startkonfiguration; 32K braucht freien RAM |
 | `rtx8gb-16gb-ornith15-35b-quality` | 8 GB VRAM, 16 GB RAM | Ornith-1.5 35B-A3B I-Mini, 14,37 GB + Template | — | — | Agent-Aufgaben 16/16, Mittel 248 s, 41,8 Gen.-Tok/s |
-| `rtx8gb-16gb-qwen36-35b-128k` | 8 GB VRAM, 16 GB RAM | dasselbe GGUF wie der Standard, ctx 131.072 | — | — | Agent-Aufgaben 3/3, 44,0 Gen.-Tok/s (≈20 % unter 64K); 120K-Prompt: 25 Tok/s |
+| `rtx8gb-16gb-qwen36-35b-128k` | 8 GB VRAM, 16 GB RAM | dasselbe GGUF wie der Standard, ctx 131.072 | — | — | Agent-Aufgaben 3/3, 44,1 Gen.-Tok/s (≈20 % unter den 54,6 des Standards) |
 | `rtx8gb-qwen35-9b-fast` | 8 GB VRAM, 12 GB RAM | 9B Q4_K_M, 5,7 GB | 65,7 / 57,5 | 2.978 / 2.708 | gemessen, Startkonfiguration |
 | `rtx12-16gb-qwen36-35b-q4` | 12–16 GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20,8 GB | — | — | unvermessen; nie auf Zielhardware gelaufen |
 | `rtx24gb-qwen36-35b-q4` | ab 20 GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20,8 GB | — | — | unvermessen; nie auf Zielhardware gelaufen |

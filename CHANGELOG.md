@@ -23,6 +23,8 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 
 - Every bundled profile caps llama-server's host-RAM prompt cache at 2,048 MiB to avoid swap growth on 16 GB systems.
+- Every agent-task figure in `profiles.json` names its `bench/results/agent-*.jsonl` runs and context; speed sources measured before the cache cap say so. The test for unsourced metrics covers `agent_*` and all `*_tps` keys again.
+- `bench/agent_bench.py --server-args` rejects input that is not a JSON list of strings.
 - Generated Qwen Code settings load `CLAUDE.md` alongside `QWEN.md` and `AGENTS.md` for project instructions.
 - MCP servers load their tool schemas upfront (`alwaysLoadTools`), so the model no longer wastes its first call on a deferred tool before `tool_search`.
 - Alia writes detected shell constraints into a managed block in the isolated global `QWEN.md`.

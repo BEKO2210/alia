@@ -65,31 +65,37 @@
       "json_schema_pass": "3/3",
       "json_prompt_pass": "3/3",
       "llama_cpp": "a0e6dc7 (2026-10-14)",
-      "source": "Performance with the exact launch configuration (ctx 65536, profile server_args): 4K/32K bench/results/llamacpp-20261015-100648.jsonl, 60K bench/results/llamacpp-20261015-024711.jsonl. Quality: bench/results/quality-20261015-014745.jsonl (server context/args not recorded).",
-      "metric_sources": {
-        "tg_tps_4k": "bench/results/llamacpp-20261015-100648.jsonl, ctx 65536, exact launch args",
-        "tg_tps_32k": "bench/results/llamacpp-20261015-100648.jsonl, ctx 65536, exact launch args",
-        "pp_tps_4k": "bench/results/llamacpp-20261015-100648.jsonl, ctx 65536, exact launch args",
-        "pp_tps_32k": "bench/results/llamacpp-20261015-100648.jsonl, ctx 65536, exact launch args",
-        "mtp_acceptance": "bench/results/llamacpp-20261015-100648.jsonl, ctx 65536, exact launch args",
-        "tg_tps_60k": "bench/results/llamacpp-20261015-024711.jsonl, ctx 65536, same flags without --jinja",
-        "pp_tps_60k": "bench/results/llamacpp-20261015-024711.jsonl, ctx 65536, same flags without --jinja",
-        "code_pass": "bench/results/quality-20261015-014745.jsonl",
-        "tool_pass": "bench/results/quality-20261015-014745.jsonl",
-        "json_schema_pass": "bench/results/quality-20261015-014745.jsonl",
-        "json_prompt_pass": "bench/results/quality-20261015-014745.jsonl"
-      },
+      "source": "Performance with the profile server_args before --cache-ram 2048 was added (ctx 65536): 4K/32K bench/results/llamacpp-20261015-100648.jsonl, 60K bench/results/llamacpp-20261015-024711.jsonl. Quality: bench/results/quality-20261015-014745.jsonl (server context/args not recorded).",
       "ram_pressure": {
         "tg_tps_4k": 48.1,
         "tg_tps_32k": 24.6,
         "tg_tps_60k": 9.7,
         "pp_tps_32k": 305,
         "pp_tps_60k": 161,
-        "source": "bench/results/llamacpp-20261015-101143.jsonl, same launch configuration",
+        "source": "bench/results/llamacpp-20261015-101143.jsonl, same flags without --cache-ram 2048",
         "note": "With less free RAM the 13 GB model drops out of the page cache (runner RSS 11.1 -> 7.4 GB, NVMe reads up to 626 MB/s) and deep-context speed collapses. 32 GB RAM is recommended for long contexts."
       },
       "notes": "4K speed is stable across three launch-config runs (46.5 / 48.1 / 49.7 tok/s); 32K/60K speed depends on free RAM. At ctx 33792 the same flags reached 53.6 / 48.5 tok/s (bench/results/llamacpp-20261015-023913.jsonl) because the smaller KV cache leaves more VRAM for experts. MTP n=2 +14 % TG @4K, +10 % @32K vs. no MTP (ctx 33792 runs). --moe-cache-mib 1024 measured slower on 8 GB and is off.",
-      "note_128k": "128K works (120K prompt: 25.0 t/s TG, 543 t/s PP, ~3.7 min to first token) but is too slow as a default"
+      "note_128k": "128K works (120K prompt: 25.0 t/s TG, 543 t/s PP, ~3.7 min to first token) but is too slow as a default",
+      "agent_pass": "13/16",
+      "agent_mean_s": 104,
+      "agent_gen_tps": 54.6,
+      "metric_sources": {
+        "tg_tps_4k": "bench/results/llamacpp-20261015-100648.jsonl, ctx 65536, same flags without --cache-ram 2048",
+        "tg_tps_32k": "bench/results/llamacpp-20261015-100648.jsonl, ctx 65536, same flags without --cache-ram 2048",
+        "pp_tps_4k": "bench/results/llamacpp-20261015-100648.jsonl, ctx 65536, same flags without --cache-ram 2048",
+        "pp_tps_32k": "bench/results/llamacpp-20261015-100648.jsonl, ctx 65536, same flags without --cache-ram 2048",
+        "mtp_acceptance": "bench/results/llamacpp-20261015-100648.jsonl, ctx 65536, same flags without --cache-ram 2048",
+        "tg_tps_60k": "bench/results/llamacpp-20261015-024711.jsonl, ctx 65536, same flags without --jinja",
+        "pp_tps_60k": "bench/results/llamacpp-20261015-024711.jsonl, ctx 65536, same flags without --jinja",
+        "code_pass": "bench/results/quality-20261015-014745.jsonl",
+        "tool_pass": "bench/results/quality-20261015-014745.jsonl",
+        "json_schema_pass": "bench/results/quality-20261015-014745.jsonl",
+        "json_prompt_pass": "bench/results/quality-20261015-014745.jsonl",
+        "agent_pass": "bench/results/agent-20261017-{143436,143700,143952,144453,145102,145337,145544,150749}.jsonl, ctx 65536, exact profile server_args incl. --cache-ram 2048 (env records)",
+        "agent_mean_s": "bench/results/agent-20261017-{143436,143700,143952,144453,145102,145337,145544,150749}.jsonl, ctx 65536, exact profile server_args incl. --cache-ram 2048 (env records)",
+        "agent_gen_tps": "bench/results/agent-20261017-{143436,143700,143952,144453,145102,145337,145544,150749}.jsonl, ctx 65536, exact profile server_args incl. --cache-ram 2048 (env records); generated tokens / generation seconds summed over the agent records"
+      }
     }
   },
   {
@@ -143,6 +149,7 @@
     ],
     "ctx": 65536,
     "ram_free_gb": 11,
+    "ram_free_source": "Assumed from the Qwen3.6 default profile (same architecture, similar GGUF size); the Ornith runs started with 11.8 GB available (env record of bench/results/agent-20261017-151241.jsonl).",
     "sampling": {
       "temperature": 0.6,
       "top_p": 0.95,
@@ -154,7 +161,12 @@
       "agent_pass": "16/16",
       "agent_mean_s": 248,
       "agent_gen_tps": 41.8,
-      "source": "bench/results/README.md (model comparison 2026-10-17)"
+      "source": "Model comparison 2026-10-17, 8 frozen agent tasks x 2 runs (bench/results/README.md)",
+      "metric_sources": {
+        "agent_pass": "bench/results/agent-20261017-{151241,151908,152718,154746,155842,160423,160735,161431}.jsonl, ctx 65536, exact profile server_args incl. --cache-ram 2048, template ornith-1.5-chat_template.jinja (env records)",
+        "agent_mean_s": "bench/results/agent-20261017-{151241,151908,152718,154746,155842,160423,160735,161431}.jsonl, ctx 65536, exact profile server_args incl. --cache-ram 2048, template ornith-1.5-chat_template.jinja (env records)",
+        "agent_gen_tps": "bench/results/agent-20261017-{151241,151908,152718,154746,155842,160423,160735,161431}.jsonl, ctx 65536, exact profile server_args incl. --cache-ram 2048, template ornith-1.5-chat_template.jinja (env records); generated tokens / generation seconds summed over the agent records"
+      }
     }
   },
   {
@@ -211,10 +223,16 @@
     },
     "measured": {
       "agent_pass": "3/3 (perf, rename, vat)",
-      "agent_gen_tps": 44.0,
-      "agent_pp_tps": 560,
-      "note_128k": "128K works (120K prompt: 25.0 t/s TG, 543 t/s PP, ~3.7 min to first token) but is too slow as a default",
-      "source": "bench/results/agent-20261017-193850.jsonl (ctx 131072, profile server_args); 120K prompt: profile rtx8gb-16gb-qwen36-35b note_128k"
+      "agent_mean_s": 68,
+      "agent_gen_tps": 44.1,
+      "agent_pp_tps": 590,
+      "source": "Perf, rename and vat with the 128K launch configuration (bench/results/README.md)",
+      "metric_sources": {
+        "agent_pass": "bench/results/agent-20261017-193850.jsonl, ctx 131072, exact profile server_args incl. --cache-ram 2048 (env record)",
+        "agent_mean_s": "bench/results/agent-20261017-193850.jsonl, ctx 131072, exact profile server_args incl. --cache-ram 2048 (env record)",
+        "agent_gen_tps": "bench/results/agent-20261017-193850.jsonl, ctx 131072, exact profile server_args incl. --cache-ram 2048 (env record); generated tokens / generation seconds summed over the agent records",
+        "agent_pp_tps": "bench/results/agent-20261017-193850.jsonl, ctx 131072, exact profile server_args incl. --cache-ram 2048 (env record); evaluated prompt tokens / prompt seconds summed over the agent records"
+      }
     }
   },
   {
@@ -275,14 +293,14 @@
       "pp_tps_32k": 2708,
       "pp_tps_60k": 2423,
       "llama_cpp": "a0e6dc7 (2026-10-14)",
-      "source": "Performance with the exact launch configuration: bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, exact launch args, Alia's llama.cpp build and the unsloth GGUF. Peak VRAM 7706 MiB including 777 MiB used by the desktop.",
+      "source": "Performance with the profile server_args before --cache-ram 2048 was added: bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, same flags without --cache-ram 2048, Alia's llama.cpp build and the unsloth GGUF. Peak VRAM 7706 MiB including 777 MiB used by the desktop.",
       "metric_sources": {
-        "tg_tps_4k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
-        "tg_tps_32k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
-        "pp_tps_4k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
-        "pp_tps_32k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
-        "tg_tps_60k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, exact launch args, Alia's llama.cpp build and the unsloth GGUF",
-        "pp_tps_60k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, exact launch args, Alia's llama.cpp build and the unsloth GGUF"
+        "tg_tps_4k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, same flags without --cache-ram 2048, Alia's llama.cpp build and the unsloth GGUF",
+        "tg_tps_32k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, same flags without --cache-ram 2048, Alia's llama.cpp build and the unsloth GGUF",
+        "pp_tps_4k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, same flags without --cache-ram 2048, Alia's llama.cpp build and the unsloth GGUF",
+        "pp_tps_32k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, same flags without --cache-ram 2048, Alia's llama.cpp build and the unsloth GGUF",
+        "tg_tps_60k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, same flags without --cache-ram 2048, Alia's llama.cpp build and the unsloth GGUF",
+        "pp_tps_60k": "bench/results/llamacpp-20261016-211736.jsonl, ctx 65536, same flags without --cache-ram 2048, Alia's llama.cpp build and the unsloth GGUF"
       },
       "notes": "The context was 33408 until 0.1.0. Qwen Code reserves 20,000 tokens for compaction summaries, so that window gave an auto-compact threshold of 408 tokens and a hard limit of 10,408. At 65536 the thresholds are 32,536 and 42,536; 4K/32K speed is unchanged (66.1 / 57.7 tok/s at ctx 33408, bench/results/llamacpp-20261015-101002.jsonl)."
     }
