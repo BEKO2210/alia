@@ -1,0 +1,1 @@
+Use the web search tools to find the latest released version of the PyPI package "duckduckgo-mcp-server". Write only the version number into answer.txt and the URL of the page you took it from into source.txt.

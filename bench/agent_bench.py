@@ -28,6 +28,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 TASKS = HERE / "agent_tasks"
+# Gate tasks for features outside the frozen set (MCP browser/search, context files); run them by name.
+LIVE_TASKS = HERE / "live_tasks"
+WEB_PORT = 8766  # live_tasks/browser/prompt.txt points here
 OUT = HERE / "results"
 PORT = 8097
 
@@ -133,6 +136,7 @@ def main() -> None:
     ap.add_argument("--wall", type=int, default=600, help="Qwen Code --max-wall-time per task, seconds")
     ap.add_argument("--server-arg", action="append", default=[],
                     help="extra llama-server argument for A/B runs, e.g. --server-arg=--no-reasoning-preserve")
+    ap.add_argument("--mcp", default="", help="comma list of Alia MCP servers to enable, e.g. browser,search")
     ap.add_argument("--probe", action="store_true", help="time a cold and a warm one-word reply first")
     ap.add_argument("--repeat", type=int, default=1, metavar="N", help="run each task N times (noise check)")
     a = ap.parse_args()
@@ -165,7 +169,8 @@ def main() -> None:
         with tempfile.TemporaryDirectory() as home_dir:
             qwen_home = Path(home_dir) / "qwen-home"
             hw = alia.detect_hardware()
-            settings = alia.generate_settings(profile, hw, qwen_home, approval_mode="yolo", language="en")
+            mcp = [name for name in a.mcp.split(",") if name]
+            settings = alia.generate_settings(profile, hw, qwen_home, approval_mode="yolo", language="en", mcp=mcp)
             text = settings.read_text().replace(f":{alia.PORT}/v1", f":{PORT}/v1")
             settings.write_text(text)
             qenv = alia.qwen_environment({"qwen_home": qwen_home})
@@ -173,7 +178,7 @@ def main() -> None:
                 agent_rows = []
                 f.write(json.dumps({"mode": "env", "name": a.name, "gguf": Path(a.gguf).name,
                                     "template": Path(a.template).name if a.template else None,
-                                    "profile": profile["id"], "ctx": profile["ctx"],
+                                    "profile": profile["id"], "ctx": profile["ctx"], "mcp": a.mcp or None,
                                     "server_args": profile["server_args"] + a.server_arg, "load_s": round(load_s, 1),
                                     "mem_available_gb": round(free, 1) if free else None,
                                     "wall_limit_s": a.wall, "ts": time.time()}) + "\n")
@@ -185,7 +190,11 @@ def main() -> None:
                     print(f"{a.name:14} {row['task']:10} {row['seconds']:5.1f} s  "
                           f"prompt {row.get('prompt_tokens')} tokens", flush=True)
                 for task in tasks:
-                    source = TASKS / task
+                    source = TASKS / task if (TASKS / task).exists() else LIVE_TASKS / task
+                    web = None
+                    if (source / "web").is_dir():
+                        web = subprocess.Popen(["python3", "-m", "http.server", str(WEB_PORT), "--bind", "127.0.0.1"],
+                                               cwd=source / "web", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     for run_number in range(1, a.repeat + 1):
                         with tempfile.TemporaryDirectory() as work:
                             workdir = Path(work) / task
@@ -236,6 +245,9 @@ def main() -> None:
                         print(f"{a.name:14} {task:10} #{run_number} "
                               f"{'PASS' if row['pass'] else 'fail'} {passed}/{total} tests  "
                               f"{seconds:5.0f} s  exit {code}", flush=True)
+                    if web is not None:
+                        web.terminate()
+                        web.wait()
                 summary = {
                     "mode": "summary", "passed": sum(row["pass"] for row in agent_rows),
                     "tasks": len(agent_rows), "seconds": round(sum(row["seconds"] for row in agent_rows), 1),
