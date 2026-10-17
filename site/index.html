@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preload" href="fonts/Outfit.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/Inter.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
   <a class="skip" href="#main" data-i18n="skip">Skip to content</a>
@@ -89,6 +89,8 @@
             <p data-i18n="f1.d">Alia reads VRAM and RAM, then starts the best <em>measured</em> profile for your machine. Pin another one with <code>alia use</code>, compare them with <code>alia profiles</code>.</p>
             <div class="profiles" aria-hidden="true">
               <div class="pr on"><span>8 GB VRAM · 16 GB RAM</span><b>Qwen3.6 35B-A3B</b><i class="chip ok" data-i18n="chip.measured">measured</i></div>
+              <div class="pr"><span>8 GB VRAM · 16 GB RAM</span><b>Ornith-1.5 35B · quality</b><i class="chip ok" data-i18n="chip.optin">opt-in</i></div>
+              <div class="pr"><span>8 GB VRAM · 16 GB RAM</span><b>Qwen3.6 35B · 128K context</b><i class="chip ok" data-i18n="chip.optin">opt-in</i></div>
               <div class="pr"><span>8 GB VRAM</span><b>Qwen3.5 9B · fast</b><i class="chip ok" data-i18n="chip.measured">measured</i></div>
               <div class="pr"><span>12–16 GB VRAM</span><b>Qwen3.6 35B Q4</b><i class="chip" data-i18n="chip.unmeasured">unmeasured</i></div>
               <div class="pr"><span>24 GB VRAM</span><b>Qwen3.6 35B Q4 · full GPU</b><i class="chip" data-i18n="chip.unmeasured">unmeasured</i></div>
@@ -102,7 +104,7 @@
           <article class="card">
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h4l2-6 3 12 2-6h3"/></svg></div>
             <h3 data-i18n="f3.t">Speculative decoding</h3>
-            <p data-i18n="f3.d">The model's own MTP head drafts two tokens ahead. 75 % are accepted: +14 % speed at 4K, +10 % at 32K.</p>
+            <p data-i18n="f3.d">The model's own MTP head drafts two tokens ahead. 62 % are accepted: +14 % speed at 4K, +10 % at 32K.</p>
           </article>
           <article class="card">
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7l5 5-5 5M12 17h7"/></svg></div>
@@ -189,13 +191,24 @@
             </dl>
             <p class="fine" data-i18n="q.note9b">* Measured via Ollama with Qwen's own GGUF, not the unsloth GGUF and llama-server configuration this profile launches.</p>
           </div>
-          <div class="q q-wide">
+          <div class="q q-wide agent" id="agentchart">
             <h3 data-i18n="q.agent.title">Agent tasks by profile</h3>
-            <dl>
-              <div><dt data-i18n="q.agent.def">Qwen3.6 35B · default</dt><dd>13/16 · 104 s</dd></div>
-              <div><dt data-i18n="q.agent.qual">Ornith-1.5 35B · quality, opt-in</dt><dd>16/16 · 248 s</dd></div>
-              <div><dt data-i18n="q.agent.long">Qwen3.6 35B · 128K context, opt-in</dt><dd>3/3 · 44.1 tok/s</dd></div>
-            </dl>
+            <p class="asub" data-i18n="q.agent.sub">Share of hidden tests passed on real repository tasks. Longer bar = more tasks solved.</p>
+            <div class="arow">
+              <div class="ahead"><b>Ornith-1.5 35B</b><em class="atag" data-i18n="q.agent.tqual">quality · opt-in</em><span class="ascore">16/16</span></div>
+              <div class="atrack"><i style="--p:100"></i></div>
+              <span class="ameta" data-i18n="q.agent.mqual">248 s per run · 41.8 tok/s</span>
+            </div>
+            <div class="arow">
+              <div class="ahead"><b>Qwen3.6 35B</b><em class="atag on" data-i18n="q.agent.tdef">default</em><span class="ascore">13/16</span></div>
+              <div class="atrack"><i style="--p:81.25"></i></div>
+              <span class="ameta" data-i18n="q.agent.mdef">104 s per run · 54.6 tok/s · 2.4× faster</span>
+            </div>
+            <div class="arow">
+              <div class="ahead"><b>Qwen3.6 35B · 128K</b><em class="atag" data-i18n="q.agent.tlong">long context · opt-in</em><span class="ascore">3/3</span></div>
+              <div class="atrack"><i style="--p:100" class="part"></i></div>
+              <span class="ameta" data-i18n="q.agent.mlong">3 of the 8 tasks · 68 s per run · 44.1 tok/s · compacts at ~98K instead of ~32.5K</span>
+            </div>
             <p class="fine" data-i18n="q.agent.note">Eight frozen repository tasks, two runs each, solved headless by Qwen Code and scored by hidden tests; time is the mean per run. Switch with <code>alia use &lt;profile&gt;</code>, back with <code>alia use auto</code>.</p>
           </div>
         </div>
@@ -305,6 +318,6 @@ alia mcp    # browser &amp; web search</code></pre><button type="button" class="
     </div>
   </footer>
 
-  <script src="main.js?v=3" defer></script>
+  <script src="main.js?v=4" defer></script>
 </body>
 </html>

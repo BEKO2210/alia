@@ -26,7 +26,7 @@ const DE = {
   "f2.t": "35B auf einer 8-GB-Karte",
   "f2.d": "Ein Mixture-of-Experts-Modell nutzt pro Token nur 3B Parameter. Attention bleibt auf der GPU, die Experten liegen im RAM.",
   "f3.t": "Spekulatives Decoding",
-  "f3.d": "Der MTP-Kopf des Modells entwirft zwei Tokens im Voraus. 75 % werden übernommen: +14 % Tempo bei 4K, +10 % bei 32K.",
+  "f3.d": "Der MTP-Kopf des Modells entwirft zwei Tokens im Voraus. 62 % werden übernommen: +14 % Tempo bei 4K, +10 % bei 32K.",
   "f4.t": "Ein echter Agent",
   "f4.d": "Basiert auf Qwen Code: bearbeitet Dateien, führt Befehle aus, liest Fehler und behebt sie. Mit <code>alia -c</code> setzt du Sitzungen fort. Fragt vor jeder Aktion, außer du wählst <code>--auto-edit</code> oder <code>--yolo</code>.",
   "f5.t": "Terminal oder Browser",
@@ -51,9 +51,14 @@ const DE = {
   "q.pp": "Prompt-Tempo 4K / 32K",
   "q.dl": "Download",
   "q.agent.title": "Agent-Aufgaben je Profil",
-  "q.agent.def": "Qwen3.6 35B · Standard",
-  "q.agent.qual": "Ornith-1.5 35B · Qualität, optional",
-  "q.agent.long": "Qwen3.6 35B · 128K Kontext, optional",
+  "q.agent.sub": "Anteil bestandener versteckter Tests bei echten Repository-Aufgaben. Längerer Balken = mehr Aufgaben gelöst.",
+  "q.agent.tqual": "Qualität · optional",
+  "q.agent.tdef": "Standard",
+  "q.agent.tlong": "langer Kontext · optional",
+  "q.agent.mqual": "248 s je Lauf · 41,8 Tok/s",
+  "q.agent.mdef": "104 s je Lauf · 54,6 Tok/s · 2,4× schneller",
+  "q.agent.mlong": "3 der 8 Aufgaben · 68 s je Lauf · 44,1 Tok/s · komprimiert erst bei ~98K statt ~32,5K",
+  "chip.optin": "optional",
   "q.agent.note": "Acht eingefrorene Repository-Aufgaben, je zwei Läufe, von Qwen Code ohne Oberfläche gelöst und mit versteckten Tests bewertet; die Zeit ist der Mittelwert je Lauf. Umschalten mit <code>alia use &lt;Profil&gt;</code>, zurück mit <code>alia use auto</code>.",
   "q.note9b": "* Gemessen über Ollama mit Qwens eigener GGUF, nicht mit der unsloth-GGUF und der llama-server-Konfiguration, mit der dieses Profil startet.",
   "bench.fine": "Alle Werte nutzen genau die Flags und die Kontextgröße, mit denen das Profil startet (bei beiden 65.536 Tokens). Langer Kontext braucht freien RAM: Mit offenem Browser und anderen Programmen wurde das 35B-Modell von der SSD gestreamt und fiel auf 24,6 Tok/s bei 32K und 9,7 bei 60K. Für lange Kontexte sind 32 GB RAM empfohlen. Die Qualitätswerte stammen aus separaten Läufen. <a href=\"https://github.com/BEKO2210/alia/tree/main/bench/results\">Rohdaten und Methodik →</a>",
@@ -138,6 +143,13 @@ tabs.forEach((t, i) => {
 
 /* benchmark bars grow when visible */
 const chart = document.querySelector(".chart");
+const agentChart = document.querySelector("#agentchart");
+if (agentChart && !window.matchMedia("(prefers-reduced-motion: reduce)").matches && "IntersectionObserver" in window) {
+  agentChart.classList.add("pre");
+  new IntersectionObserver((entries, obs) => {
+    if (entries.some((e) => e.isIntersecting)) { agentChart.classList.remove("pre"); obs.disconnect(); }
+  }, { threshold: .35 }).observe(agentChart);
+}
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 if (chart && !reduce && "IntersectionObserver" in window) {
   chart.classList.add("pre");
