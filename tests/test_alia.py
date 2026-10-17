@@ -1401,6 +1401,12 @@ class SandboxTests(unittest.TestCase):
     HW = {"gpu_name": "NVIDIA GeForce RTX 3070", "vram_gb": 8.0, "ram_gb": 15.5,
           "cpu_name": "CPU", "cpu_count": 16, "gpu_index": 0}
 
+    def setUp(self):
+        # The real bwrap probe is covered in SandboxProbeTests; CI may have no bwrap.
+        patcher = mock.patch.object(alia, "bwrap_problem", return_value=None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def tearDown(self):
         alia.set_language("en")
 
@@ -1503,14 +1509,20 @@ class SandboxTests(unittest.TestCase):
             git("add", "b.txt")
             (root / "new.txt").write_text("untracked\n", encoding="utf-8")
             before = (git("status", "--porcelain"), git("diff"), git("diff", "--cached"), git("stash", "list"))
+            index = root / ".git" / "index"
+            index_before = (index.read_bytes(), index.stat().st_mtime_ns)
+            scratch = sorted(Path(tempfile.gettempdir()).glob("alia-index-*"))
             output = self._snapshot(root)
+            self.assertEqual((index.read_bytes(), index.stat().st_mtime_ns), index_before)
+            self.assertEqual(sorted(Path(tempfile.gettempdir()).glob("alia-index-*")), scratch)
+            self.assertIn("alia pre-session snapshot", git("reflog", "show", "refs/alia/pre-session"))
             after = (git("status", "--porcelain"), git("diff"), git("diff", "--cached"), git("stash", "list"))
             self.assertEqual(before, after)
             self.assertEqual(after[3], "")
             self.assertEqual((root / "a.txt").read_text(encoding="utf-8"), "two\n")
             commit = git("rev-parse", "refs/alia/pre-session").strip()
             self.assertIn(f"refs/alia/pre-session → {commit[:12]}", output)
-            self.assertIn("git stash apply refs/alia/pre-session", output)
+            self.assertIn("git stash apply --index refs/alia/pre-session", output)
             self.assertIn("untracked files are not part", output)
             self.assertEqual(git("show", f"{commit}:a.txt"), "two\n")
             self.assertEqual(git("show", f"{commit}:b.txt"), "staged\n")
@@ -1526,6 +1538,58 @@ class SandboxTests(unittest.TestCase):
             self.assertIn("Warning: untracked files", output)
             self.assertIn("no pre-session snapshot needed", output)
             self.assertEqual(git("for-each-ref", "refs/alia"), "")
+
+    def test_snapshot_ignores_index_lock_and_missing_index(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            git = self._git_repo(root)
+            (root / "a.txt").write_text("two\n", encoding="utf-8")
+            lock = root / ".git" / "index.lock"
+            lock.write_bytes(b"")
+            self.assertIn("Pre-session snapshot", self._snapshot(root))
+            self.assertTrue(lock.exists())
+            lock.unlink()
+            (root / ".git" / "index").unlink()
+            git("update-ref", "-d", "refs/alia/pre-session")
+            self.assertIn("Pre-session snapshot", self._snapshot(root))
+            self.assertFalse((root / ".git" / "index").exists())
+
+    def test_snapshot_stash_failure_is_an_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            git = self._git_repo(root)
+            git("checkout", "-qb", "other")
+            (root / "a.txt").write_text("other\n", encoding="utf-8")
+            git("commit", "-qam", "other")
+            git("checkout", "-q", "-")
+            (root / "a.txt").write_text("main\n", encoding="utf-8")
+            git("commit", "-qam", "main")
+            subprocess.run(["git", "merge", "other"], cwd=root, capture_output=True, check=False)
+            with io.StringIO() as output, redirect_stdout(output):
+                with self.assertRaisesRegex(RuntimeError, r"git stash create \(Cannot save the current index state\)"):
+                    alia.snapshot_pre_session(root)
+                self.assertNotIn("no pre-session snapshot needed", output.getvalue())
+            self.assertEqual(git("for-each-ref", "refs/alia"), "")
+            with mock.patch.object(alia.subprocess, "run", return_value=mock.Mock(returncode=1, stdout="", stderr="")), \
+                    mock.patch.object(alia, "git_run", return_value=mock.Mock(returncode=0, stdout=".git/index\n")):
+                with self.assertRaisesRegex(RuntimeError, r"\(exit 1\)"):
+                    self._snapshot(root)
+
+    def test_snapshot_without_commit_and_old_snapshot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            self.assertIn("has no commit yet", self._snapshot(root))
+            self.assertNotIn("Not a git repository", self._snapshot(root))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            git = self._git_repo(root)
+            self.assertNotIn("earlier session", self._snapshot(root))
+            git("update-ref", "refs/alia/pre-session", "HEAD")
+            output = self._snapshot(root)
+            self.assertIn("no pre-session snapshot needed", output)
+            self.assertIn("refs/alia/pre-session still holds a snapshot from an earlier session", output)
+            self.assertEqual(git("rev-parse", "refs/alia/pre-session"), git("rev-parse", "HEAD"))
 
     def test_snapshot_ref_failure_is_an_error(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1581,6 +1645,45 @@ class SandboxTests(unittest.TestCase):
                 alia.cmd_doctor(self.PROFILES, self.HW, alia.user_paths(Path(directory)))
                 line = next(row for row in output.getvalue().splitlines() if "Sandbox" in row)
             self.assertRegex(line, expected)
+
+
+
+class SandboxProbeTests(unittest.TestCase):
+    def tearDown(self):
+        alia.set_language("en")
+
+    def test_probe_results(self):
+        with mock.patch.object(alia.subprocess, "run", return_value=mock.Mock(returncode=0, stderr="")) as run:
+            self.assertIsNone(alia.bwrap_problem())
+        self.assertEqual(run.call_args.args[0], ["bwrap", "--unshare-all", "--die-with-parent", "--ro-bind", "/", "/", "true"])
+        self.assertEqual(run.call_args.kwargs["timeout"], 5)
+        cases = (
+            (mock.Mock(returncode=1, stderr="bwrap: No permissions to create new namespace\n"), "No permissions"),
+            (mock.Mock(returncode=3, stderr=""), "exit 3"),
+            (alia.subprocess.TimeoutExpired(["bwrap"], 5), "no answer within 5 s"),
+            (PermissionError(13, "Permission denied"), "Permission denied"),
+        )
+        for outcome, expected in cases:
+            kwargs = {"side_effect": outcome} if isinstance(outcome, BaseException) else {"return_value": outcome}
+            with self.subTest(expected=expected), mock.patch.object(alia.subprocess, "run", **kwargs):
+                self.assertIn(expected, alia.bwrap_problem())
+
+    def test_unusable_bwrap_stops_start_and_shows_in_doctor(self):
+        with mock.patch.object(alia.shutil, "which", side_effect=lambda name: f"/usr/bin/{name}"), \
+                mock.patch.object(alia, "bwrap_problem", return_value="no namespaces"):
+            with self.assertRaisesRegex(RuntimeError, r"cannot create a sandbox \(no namespaces\)"):
+                alia.require_sandbox({})
+            with tempfile.TemporaryDirectory() as directory, \
+                    mock.patch.object(alia, "find_llama_server", return_value=(None, {})), \
+                    mock.patch.object(alia, "_version", return_value="test"), \
+                    mock.patch.object(alia, "mem_available_gb", return_value=None), \
+                    mock.patch.object(alia, "ollama_loaded_models", return_value=None), \
+                    mock.patch.object(alia, "port_open", return_value=False), \
+                    mock.patch.object(alia, "health_ok", return_value=False), \
+                    io.StringIO() as output, redirect_stdout(output):
+                alia.cmd_doctor(SandboxTests.PROFILES, SandboxTests.HW, alia.user_paths(Path(directory)))
+                line = next(row for row in output.getvalue().splitlines() if "Sandbox" in row)
+        self.assertTrue(line.endswith("bwrap not usable: no namespaces ⚠"))
 
 
 if __name__ == "__main__":

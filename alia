@@ -1100,9 +1100,28 @@ SANDBOX_POLICY = {"backend": "auto", "filesystem": "workspace-write", "network":
 SNAPSHOT_REF = "refs/alia/pre-session"
 
 
+def bwrap_problem() -> str | None:
+    """Run a tiny bwrap probe; kernels or containers without user namespaces fail here."""
+    try:
+        result = subprocess.run(
+            ["bwrap", "--unshare-all", "--die-with-parent", "--ro-bind", "/", "/", "true"],
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return tr("sandbox.probe_timeout", seconds=5)
+    except OSError as exc:
+        return str(exc)
+    if result.returncode != 0:
+        return result.stderr.strip() or f"exit {result.returncode}"
+    return None
+
+
 def require_sandbox(config: dict[str, Any]) -> None:
     if shutil.which("bwrap") is None:
         raise RuntimeError(tr("sandbox.no_backend"))
+    problem = bwrap_problem()
+    if problem:
+        raise RuntimeError(tr("sandbox.bwrap_unusable", error=problem))
     # Qwen Code 0.25.1 refuses to start a sandboxed session that has any MCP server.
     names = enabled_mcp(config.get("mcp"))
     if names:
@@ -1118,17 +1137,35 @@ def snapshot_pre_session(cwd: Path) -> None:
 
     Only objects and refs/alia/pre-session are written; the working tree and index stay as they are.
     """
-    if shutil.which("git") is None or git_run(cwd, "rev-parse", "--verify", "-q", "HEAD").returncode != 0:
+    if shutil.which("git") is None or git_run(cwd, "rev-parse", "--is-inside-work-tree").returncode != 0:
         print(tr("sandbox.no_git"))
+        return
+    if git_run(cwd, "rev-parse", "--verify", "-q", "HEAD").returncode != 0:
+        print(tr("sandbox.no_commit"))
         return
     status = git_run(cwd, "--no-optional-locks", "status", "--porcelain").stdout.splitlines()
     if any(line.startswith("??") for line in status):
         print(color("33", tr("sandbox.untracked_warning")))
-    commit = git_run(cwd, "stash", "create", "alia pre-session snapshot").stdout.strip()
+    # `git stash create` rewrites the index (stat refresh); run it on a private copy instead.
+    index = cwd / git_run(cwd, "rev-parse", "--git-path", "index").stdout.strip()
+    with tempfile.TemporaryDirectory(prefix="alia-index-") as scratch:
+        copy = Path(scratch) / "index"
+        if index.is_file():
+            shutil.copy2(index, copy)
+        created = subprocess.run(
+            ["git", "stash", "create", "alia pre-session snapshot"], cwd=cwd, capture_output=True,
+            text=True, check=False, env={**os.environ, "GIT_INDEX_FILE": str(copy)},
+        )
+    if created.returncode != 0:
+        lines = created.stderr.strip().splitlines()
+        raise RuntimeError(tr("sandbox.stash_failed", error=lines[-1] if lines else f"exit {created.returncode}"))
+    commit = created.stdout.strip()
     if not commit:
         print(tr("sandbox.clean_tree"))
+        if git_run(cwd, "rev-parse", "--verify", "-q", SNAPSHOT_REF).returncode == 0:
+            print(tr("sandbox.old_snapshot", ref=SNAPSHOT_REF))
         return
-    result = git_run(cwd, "update-ref", "-m", "alia pre-session snapshot", SNAPSHOT_REF, commit)
+    result = git_run(cwd, "update-ref", "--create-reflog", "-m", "alia pre-session snapshot", SNAPSHOT_REF, commit)
     if result.returncode != 0:
         raise RuntimeError(tr("sandbox.snapshot_failed", error=result.stderr.strip()))
     print(f"{color('32', '✓')} {tr('sandbox.snapshot_saved', ref=SNAPSHOT_REF, commit=commit[:12])}")
@@ -1550,6 +1587,11 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
     python3 = shutil.which("python3") or tr("version.not_found")
     python = shutil.which("python")
     python_text = f'{python3} · {tr("doctor.python_found", path=python) if python else tr("doctor.python_missing")}'
+    if shutil.which("bwrap") is None:
+        sandbox_text = tr("doctor.sandbox_none")
+    else:
+        bwrap_error = bwrap_problem()
+        sandbox_text = tr("doctor.sandbox_unusable", error=bwrap_error) if bwrap_error else "bwrap"
     mcp_names = enabled_mcp(config.get("mcp"))
     mcp_text = ", ".join(mcp_names) or tr("mcp.none")
     if not all(mcp_requirement_found(name) for name in mcp_names):
@@ -1575,7 +1617,7 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
         [tr("doctor.label.cpu"), f"{hw['cpu_name']} · {hw['cpu_count']} {tr('doctor.threads')}"],
         [tr("doctor.label.python"), python_text],
         ["MCP", mcp_text],
-        [tr("doctor.label.sandbox"), "bwrap" if shutil.which("bwrap") else tr("doctor.sandbox_none")],
+        [tr("doctor.label.sandbox"), sandbox_text],
         [tr("doctor.label.profile"), profile["id"] if profile else tr("doctor.none")],
         [tr("doctor.label.selection"), reason + (" ⚠" if warning else "")],
         [tr("doctor.label.server"), f"PID {pid} · {tr('doctor.healthy') if health_ok() else tr('doctor.not_ready')} · Port {state.get('port', PORT)}" if pid else tr("doctor.stopped")],
@@ -1700,6 +1742,7 @@ def prepare_runtime(
     config = read_config(paths["config"])
     if sandbox:
         require_sandbox(config)
+        snapshot_pre_session(Path.cwd())
     profile, reason, warning = choose_profile(profiles, hw, config.get("profile"))
     gpu = f"{hw['gpu_name']} ({hw['vram_gb']:.1f} GB)" if hw["gpu_name"] else tr("startup.no_gpu")
     print(f"{color('32', '✓')} {tr('startup.hardware', gpu=gpu, ram=hw['ram_gb'])}")
@@ -1733,7 +1776,6 @@ def prepare_runtime(
             else:
                 wait_for_health(pid, paths, process=process, profile_id=profile["id"])
     if sandbox:
-        snapshot_pre_session(Path.cwd())
         print(f"{color('32', '✓')} {tr('sandbox.active')}")
     generate_settings(
         profile, hw, paths["qwen_home"], approval_mode=approval_mode,

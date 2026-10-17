@@ -48,8 +48,14 @@ Limits of Qwen Code 0.25.1 (checked in its bundle):
   `assertExecutionSandboxSupported(bootSettings, "serve / ACP / web terminals")`, which throws
   "tools.executionSandbox does not yet support serve / ACP / web terminals".
 - File checkpoints (`/rewind` code restore) are off in the sandbox. Before the session Alia stores
-  uncommitted tracked changes with `git stash create` in `refs/alia/pre-session` (working tree and
-  index are not touched; untracked files are not included) and prints `git stash apply refs/alia/pre-session`.
+  uncommitted tracked changes with `git stash create` in `refs/alia/pre-session` and prints
+  `git stash apply --index refs/alia/pre-session` (restores staged and unstaged changes). `git stash create`
+  runs on a temporary copy of the index (`GIT_INDEX_FILE`), so the working tree, `.git/index` and the stash
+  list are not touched; untracked files are not included (Alia warns). If it fails (for example during an
+  unfinished merge), Alia stops before anything starts. The ref is written with a reflog, so a snapshot
+  replaced by a later session stays reachable through `git reflog refs/alia/pre-session` until the reflog
+  entry expires (`gc.reflogExpireUnreachable`, 30 days by default) and `git gc` runs. Before the sandbox
+  starts, Alia also runs a short `bwrap` probe and refuses `--sandbox` if bwrap cannot create a sandbox.
 
 ## Reporting
 
