@@ -562,23 +562,17 @@ def stop_server(
     return True
 
 
-def unload_ollama() -> int:
-    def loaded_models() -> list[dict[str, Any]] | None:
-        try:
-            with urllib.request.urlopen("http://127.0.0.1:11434/api/ps", timeout=1.0) as response:
-                value = json.load(response).get("models", [])
-                return value if isinstance(value, list) else []
-        except (OSError, ValueError, urllib.error.URLError):
-            return None
+def ollama_loaded_models() -> list[dict[str, Any]] | None:
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:11434/api/ps", timeout=1.0) as response:
+            value = json.load(response).get("models", [])
+            return value if isinstance(value, list) else []
+    except (OSError, ValueError, urllib.error.URLError):
+        return None
 
-    models = loaded_models()
-    if models is None:
-        return 0
-    unloaded = 0
-    for item in models:
-        name = item.get("name") or item.get("model")
-        if not name:
-            continue
+
+def unload_ollama() -> int:
+    def unload(name: str) -> bool:
         payload = json.dumps({"model": name, "keep_alive": 0}).encode()
         request = urllib.request.Request(
             "http://127.0.0.1:11434/api/generate", data=payload,
@@ -586,17 +580,34 @@ def unload_ollama() -> int:
         )
         try:
             with urllib.request.urlopen(request, timeout=3.0):
-                unloaded += 1
+                return True
         except (OSError, urllib.error.URLError):
-            pass
+            return False
+
+    models = ollama_loaded_models()
+    if models is None:
+        return 0
+    unloaded = 0
+    for item in models:
+        name = item.get("name") or item.get("model")
+        if name and unload(name):
+            unloaded += 1
     if models:
         deadline = time.monotonic() + 10.0
+        resend_at = time.monotonic() + 1.0
         while time.monotonic() < deadline:
-            remaining = loaded_models()
+            remaining = ollama_loaded_models()
             if remaining == []:
                 return unloaded
             if remaining is None:
                 break
+            # A LAN client can reload a model meanwhile; repeat the unload at most once per second.
+            if time.monotonic() >= resend_at:
+                resend_at = time.monotonic() + 1.0
+                for item in remaining:
+                    name = item.get("name") or item.get("model")
+                    if name and unload(name):
+                        unloaded += 1
             time.sleep(0.25)
         raise RuntimeError(tr("ollama.unload_failed"))
     return unloaded
@@ -890,16 +901,27 @@ def generate_settings(
         }
     settings = {
         "$version": 4,
-        "general": {"language": language, "outputLanguage": "auto"},
+        # The pinned Qwen Code needs no network update check at startup.
+        "general": {"language": language, "outputLanguage": "auto", "enableAutoUpdate": False},
         "env": {"ALIA_LOCAL_API_KEY": API_KEY},
         "security": {"auth": {"selectedType": "openai"}},
-        "tools": {"approvalMode": approval_mode},
+        # Bound context use; Qwen saves complete tool output for later reads.
+        "tools": {
+            "approvalMode": approval_mode,
+            "truncateToolOutputThreshold": 12000,
+            "truncateToolOutputLines": 400,
+            "toolOutputBatchBudget": 40000,
+        },
         # Every tool schema is resent with each request. These have no use for a local single-slot
         # coding agent; dropping them cuts the first prompt from about 22.8K to 12.8K tokens.
         "permissions": {"deny": list(DENIED_QWEN_TOOLS)},
         # Background memory extraction is an extra model call per session on the single server slot.
         "memory": {"enableManagedAutoMemory": False, "enableManagedAutoDream": False},
-        "model": {"name": profile["id"], "baseUrl": f"http://{HOST}:{PORT}/v1"},
+        # Heuristic loop detection catches repetition without another model request.
+        "model": {
+            "name": profile["id"], "baseUrl": f"http://{HOST}:{PORT}/v1",
+            "skipLoopDetection": False,
+        },
         "modelProviders": {"openai": [{
             "id": profile["id"],
             "name": profile_title(profile, language),
@@ -918,6 +940,9 @@ def generate_settings(
             },
             "theme": str(target_dir / "theme.json"),
             "hideTips": True,
+            # Follow-ups otherwise occupy the single server slot with another full-context request.
+            "enableFollowupSuggestions": False,
+            "enableUserFeedback": False,
         },
         "privacy": {"usageStatisticsEnabled": False},
         "telemetry": {"enabled": False},
@@ -974,6 +999,9 @@ def qwen_environment(paths: dict[str, Path]) -> dict[str, str]:
         "QWEN_CODE_LANG": _LANGUAGE,
         "QWEN_USAGE_STATISTICS_ENABLED": "false",
         "QWEN_TELEMETRY_ENABLED": "false",
+        # Keep optional title and tool-summary side requests off if a fast model is configured.
+        "QWEN_DISABLE_AUTO_TITLE": "1",
+        "QWEN_CODE_EMIT_TOOL_USE_SUMMARIES": "0",
     })
     return env
 
@@ -1163,6 +1191,15 @@ def port_open(host: str = HOST, port: int = PORT) -> bool:
         return False
 
 
+def doctor_ollama_status() -> str:
+    models = ollama_loaded_models()
+    if models is None:
+        return tr("doctor.ollama_off")
+    names = [item.get("name") or item.get("model") for item in models]
+    names = [name for name in names if name]
+    return tr("doctor.ollama_loaded", models=", ".join(names)) if names else tr("doctor.ollama_idle")
+
+
 def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[str, Path]) -> int:
     config = read_config(paths["config"])
     profile, reason, warning = choose_profile(profiles, hw, config.get("profile"))
@@ -1186,6 +1223,7 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
     rows = [
         [tr("doctor.label.gpu"), gpu_text if hw["gpu_name"] else tr("doctor.no_gpu")],
         [tr("doctor.label.ram"), ram_text],
+        ["Ollama", doctor_ollama_status()],
         [tr("doctor.label.cpu"), f"{hw['cpu_name']} · {hw['cpu_count']} {tr('doctor.threads')}"],
         [tr("doctor.label.profile"), profile["id"] if profile else tr("doctor.none")],
         [tr("doctor.label.selection"), reason + (" ⚠" if warning else "")],

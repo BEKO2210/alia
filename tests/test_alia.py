@@ -455,6 +455,8 @@ class SettingsTests(unittest.TestCase):
                 alia.set_language("de")
                 environment = alia.qwen_environment(paths)
             self.assertEqual(environment["QWEN_CODE_LANG"], "de")
+            self.assertEqual(environment["QWEN_DISABLE_AUTO_TITLE"], "1")
+            self.assertEqual(environment["QWEN_CODE_EMIT_TOOL_USE_SUMMARIES"], "0")
         alia.set_language("en")
 
     def test_generation_is_isolated_and_complete(self):
@@ -467,6 +469,13 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(settings["model"]["name"], profile["id"])
             self.assertEqual(settings["security"]["auth"]["selectedType"], "openai")
             self.assertEqual(settings["tools"]["approvalMode"], "default")
+            self.assertEqual(settings["tools"]["truncateToolOutputThreshold"], 12000)
+            self.assertEqual(settings["tools"]["truncateToolOutputLines"], 400)
+            self.assertEqual(settings["tools"]["toolOutputBatchBudget"], 40000)
+            self.assertFalse(settings["general"]["enableAutoUpdate"])
+            self.assertFalse(settings["model"]["skipLoopDetection"])
+            self.assertFalse(settings["ui"]["enableFollowupSuggestions"])
+            self.assertFalse(settings["ui"]["enableUserFeedback"])
             self.assertIn("cron_create", settings["permissions"]["deny"])
             for core in ("read_file", "edit", "write_file", "run_shell_command", "grep_search", "glob"):
                 self.assertNotIn(core, settings["permissions"]["deny"])
@@ -492,6 +501,45 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(output.stat().st_mode & 0o777, 0o600)
             self.assertFalse((ROOT / ".qwen").exists())
 
+    def test_ollama_unload_retries_models_reloaded_by_clients(self):
+        # A client reloads model-a until the second unload; the retry waits one second.
+        ps_answers = [[{"name": "model-a"}]] * 6 + [[]]
+        posts = []
+        clock = [0.0]
+
+        def urlopen(request, timeout):
+            if isinstance(request, alia.urllib.request.Request):
+                posts.append(json.loads(request.data))
+                body = {}
+            else:
+                body = {"models": ps_answers.pop(0)}
+            response = mock.MagicMock()
+            response.__enter__.return_value = io.BytesIO(json.dumps(body).encode())
+            return response
+
+        def sleep(seconds):
+            clock[0] += seconds
+
+        with mock.patch.object(alia.urllib.request, "urlopen", side_effect=urlopen), \
+                mock.patch.object(alia.time, "sleep", side_effect=sleep), \
+                mock.patch.object(alia.time, "monotonic", side_effect=lambda: clock[0]):
+            self.assertEqual(alia.unload_ollama(), 2)
+        self.assertEqual(posts, [{"model": "model-a", "keep_alive": 0}] * 2)
+        self.assertEqual(ps_answers, [])
+
+    def test_doctor_ollama_texts(self):
+        alia.set_language("en")
+        cases = (
+            (None, "not running"),
+            ([], "running, no model loaded"),
+            ([{"name": "a"}, {"model": "b"}], "loaded: a, b – Alia unloads it at start"),
+        )
+        for models, expected in cases:
+            with self.subTest(models=models), mock.patch.object(
+                alia, "ollama_loaded_models", return_value=models
+            ):
+                self.assertEqual(alia.doctor_ollama_status(), expected)
+
     def test_generated_language_settings_for_english_and_german(self):
         profile = alia.load_profiles(ROOT / "profiles.json")[0]
         with tempfile.TemporaryDirectory() as directory:
@@ -507,7 +555,10 @@ class SettingsTests(unittest.TestCase):
                 settings = json.loads(output.read_text(encoding="utf-8"))
                 self.assertEqual(
                     settings["general"],
-                    {"language": language, "outputLanguage": "auto"},
+                    {
+                        "language": language, "outputLanguage": "auto",
+                        "enableAutoUpdate": False,
+                    },
                 )
                 subtitle = settings["ui"]["customBannerSubtitle"]
                 self.assertTrue(subtitle.startswith(prefix))

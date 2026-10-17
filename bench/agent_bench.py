@@ -79,7 +79,9 @@ def server_metrics() -> dict[str, float]:
 def metrics_delta(before: dict[str, float], after: dict[str, float]) -> dict:
     keys = {"prompt_tokens_total": "evaluated_prompt_tokens", "prompt_seconds_total": "prompt_eval_s",
             "tokens_predicted_total": "generated_tokens", "tokens_predicted_seconds_total": "generation_s"}
-    return {name: round(after[key] - before.get(key, 0), 1) for key, name in keys.items() if key in after}
+    # A failed scrape on either side would turn the delta into a cumulative counter.
+    return {name: round(after[key] - before[key], 1) for key, name in keys.items()
+            if key in after and key in before}
 
 
 def run_tests(workdir: Path) -> tuple[int, int, str]:
@@ -165,6 +167,7 @@ def main() -> None:
             settings.write_text(text)
             qenv = alia.qwen_environment({"qwen_home": qwen_home})
             with out_path.open("w") as f:
+                agent_rows = []
                 f.write(json.dumps({"mode": "env", "name": a.name, "gguf": Path(a.gguf).name,
                                     "template": Path(a.template).name if a.template else None,
                                     "profile": profile["id"], "ctx": profile["ctx"],
@@ -218,10 +221,23 @@ def main() -> None:
                            "exit": code, "ts": time.time()}
                     row.update(qwen_stats(stdout))
                     row.update(served)
+                    agent_rows.append(row)
                     f.write(json.dumps(row) + "\n")
                     f.flush()
                     print(f"{a.name:14} {task:10} {'PASS' if row['pass'] else 'fail'} "
                           f"{passed}/{total} tests  {seconds:5.0f} s  exit {code}", flush=True)
+                summary = {
+                    "mode": "summary", "passed": sum(row["pass"] for row in agent_rows),
+                    "tasks": len(agent_rows), "seconds": round(sum(row["seconds"] for row in agent_rows), 1),
+                }
+                for field in ("evaluated_prompt_tokens", "generated_tokens"):
+                    values = [row[field] for row in agent_rows if field in row]
+                    if values:
+                        summary[field] = round(sum(values), 1)
+                f.write(json.dumps(summary) + "\n")
+                print(f"summary: {summary['passed']}/{summary['tasks']} PASS · {summary['seconds']:g} s · "
+                      f"evaluated prompt {summary.get('evaluated_prompt_tokens', 0):g} tok · "
+                      f"generated {summary.get('generated_tokens', 0):g} tok", flush=True)
     finally:
         stop(proc)
     print(f"raw results: {out_path}")
