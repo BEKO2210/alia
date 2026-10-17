@@ -20,9 +20,9 @@ Alia is a Linux-only, fully local coding-agent launcher. It detects NVIDIA GPU, 
 
 > **Measured on an RTX 3070 8 GB, Ryzen 7 5800X, 16 GB RAM — launch configuration**
 >
-> Qwen3.6 35B-A3B IQ3_XXS (default, context 65,536): **46.5 / 35.2 / 38.2 tok/s** generation and 1,008 / 1,301 / 1,041 tok/s prompt processing at 4K / 32K / 60K (the 60K value is from an earlier run with the same flags except `--jinja`, which only selects the chat template). The 4K speed is stable (46.5–49.7 tok/s over three runs). Deep-context speed depends on free RAM: when other apps push the 13 GB model out of the page cache, it streams from the SSD and drops to 24.6 tok/s at 32K and 9.7 at 60K (run `llamacpp-20261015-101143`). **Use 32 GB RAM for long contexts**, or close the browser. Alia warns at startup when less than 11 GB RAM is available, and `alia doctor` shows the free RAM.
+> Qwen3.6 35B-A3B IQ3_XXS (default, context 65,536): **47.0 / 36.4 / 31.7 tok/s** generation and 1,331 / 1,315 / 1,257 tok/s prompt processing at 4K / 32K / 60K (run `llamacpp-20261017-212042`, exact profile flags). The 4K speed is stable (46.5–49.7 tok/s over four runs). Deep-context speed depends on free RAM: when other apps push the 13 GB model out of the page cache, it streams from the SSD and drops to 24.6 tok/s at 32K and 9.7 at 60K (run `llamacpp-20261015-101143`). **Use 32 GB RAM for long contexts**, or close the browser. Alia warns at startup when less than 11 GB RAM is available, and `alia doctor` shows the free RAM.
 >
-> Qwen3.5 9B Q4_K_M (fast, context 65,536): **65.7 / 57.5 / 50.2 tok/s** generation and 2,978 / 2,708 / 2,423 tok/s prompt processing at 4K / 32K / 60K.
+> Qwen3.5 9B Q4_K_M (fast, context 65,536): **66.5 / 57.9 / 51.5 tok/s** generation and 2,582 / 2,384 / 2,172 tok/s prompt processing at 4K / 32K / 60K (run `llamacpp-20261017-212832`).
 
 TG means token generation rate; PP means prompt-processing rate. MTP is multi-token prediction (speculative decoding using the model's MTP heads). Exact run and context provenance lives beside every numeric metric in `profiles.json`.
 Quality scores (35B: code 9/10, tools 7/8, JSON 3/3 with schema and 3/3 prompt-only; 9B: code 8/10, tools 8/8) come from separate quality runs whose server context and arguments were not recorded; the 9B quality run used Ollama.
@@ -144,10 +144,10 @@ Every MCP tool call goes through the normal approval prompt; `--yolo` approves t
 
 | Profile | Target | Model/download | TG 4K / 32K | PP 4K / 32K | Status |
 |---|---|---|---:|---:|---|
-| `rtx8gb-16gb-qwen36-35b` | 8 GB VRAM, 16 GB RAM | 35B IQ3_XXS, 14.07 GB | 46.5 / 35.2 | 1,008 / 1,301 | measured, launch config; 32K speed needs free RAM |
+| `rtx8gb-16gb-qwen36-35b` | 8 GB VRAM, 16 GB RAM | 35B IQ3_XXS, 14.07 GB | 47.0 / 36.4 | 1,331 / 1,315 | measured, launch config; 32K speed needs free RAM |
 | `rtx8gb-16gb-ornith15-35b-quality` | 8 GB VRAM, 16 GB RAM | Ornith-1.5 35B-A3B I-Mini, 14.37 GB + template | — | — | agent tasks 16/16, 248 s mean, 41.8 gen tok/s |
 | `rtx8gb-16gb-qwen36-35b-128k` | 8 GB VRAM, 16 GB RAM | same GGUF as the default, ctx 131,072 | — | — | agent tasks 3/3, 44.1 gen tok/s (≈20 % below the default's 54.6) |
-| `rtx8gb-qwen35-9b-fast` | 8 GB VRAM, 12 GB RAM | 9B Q4_K_M, 5.7 GB | 65.7 / 57.5 | 2,978 / 2,708 | measured, launch config |
+| `rtx8gb-qwen35-9b-fast` | 8 GB VRAM, 12 GB RAM | 9B Q4_K_M, 5.7 GB | 66.5 / 57.9 | 2,582 / 2,384 | measured, launch config |
 | `rtx12-16gb-qwen36-35b-q4` | 12–16 GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20.8 GB | — | — | unmeasured; never run on target hardware |
 | `rtx24gb-qwen36-35b-q4` | 20+ GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20.8 GB | — | — | unmeasured; never run on target hardware |
 

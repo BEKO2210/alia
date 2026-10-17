@@ -100,7 +100,7 @@ class ProfileMatchingTests(unittest.TestCase):
                             self.assertIsInstance(value, (int, float))
                         self.assertIn("bench/results/", sources[key])
                         self.assertIn("ctx ", sources[key])
-                        self.assertIn(f"ctx {profile['ctx']}", sources[key].replace(",", ""))
+                        self.assertRegex(sources[key].replace(",", ""), rf"\bctx {profile['ctx']}\b")
 
 
 class ConfigTests(unittest.TestCase):
