@@ -11,6 +11,9 @@ All notable changes to this project are documented here. The format follows
 - `alia --sandbox` runs tool commands in Qwen Code's bubblewrap sandbox (project writes only, no tool network), checks for `bwrap` and conflicting MCP servers before startup, stores uncommitted tracked changes in `refs/alia/pre-session`, and `alia doctor` shows a `Sandbox` row; `alia web --sandbox` is rejected.
 - Prompt-injection gate tasks `bench/live_tasks/inject_readme`, `inject_tool_output`, and `inject_comment`.
 - `SECURITY.md` documents what the sandbox protects and what it does not.
+- Opt-in long-context profile `rtx8gb-16gb-qwen36-35b-128k`: Qwen Code compacts at ~98K instead of ~32.5K tokens, about 20 % slower.
+- Optional per-profile chat templates, including one-confirmation downloads alongside a missing model and exact server-reuse tracking.
+- The opt-in `rtx8gb-16gb-ornith15-35b-quality` profile, measured at 16/16 agent tasks versus 13/16 for the faster automatic default.
 - `bench/agent_bench.py --mcp browser,search` and gate tasks in `bench/live_tasks/` (browser page that needs JavaScript, key-less search, `CLAUDE.md` context).
 - Project context discovery reports `QWEN.md`, `AGENTS.md`, and `CLAUDE.md` with estimated token sizes in `alia doctor`, and warns at startup when they consume more than 25% of the profile's auto-compaction budget.
 - Opt-in MCP servers for a headless browser (`@playwright/mcp` 0.0.83) and key-less DuckDuckGo web search (`duckduckgo-mcp-server` 0.7.0), managed with `alia mcp [list]`, `alia mcp enable NAME`, and `alia mcp disable NAME`.
@@ -19,6 +22,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Every bundled profile caps llama-server's host-RAM prompt cache at 2,048 MiB to avoid swap growth on 16 GB systems.
 - Generated Qwen Code settings load `CLAUDE.md` alongside `QWEN.md` and `AGENTS.md` for project instructions.
 - MCP servers load their tool schemas upfront (`alwaysLoadTools`), so the model no longer wastes its first call on a deferred tool before `tool_search`.
 - Alia writes detected shell constraints into a managed block in the isolated global `QWEN.md`.

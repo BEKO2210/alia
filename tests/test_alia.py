@@ -33,6 +33,30 @@ class ProfileMatchingTests(unittest.TestCase):
         self.assertIn("measured", reason)
         self.assertFalse(warning)
 
+    def test_quality_profile_is_opt_in_and_remains_visible(self):
+        hw = {"gpu_name": "RTX 3070", "vram_gb": 8.0, "ram_gb": 15.5}
+        quality_id = "rtx8gb-16gb-ornith15-35b-quality"
+        automatic, _, _ = alia.choose_profile(self.profiles, hw)
+        pinned, _, _ = alia.choose_profile(self.profiles, hw, quality_id)
+        self.assertEqual(automatic["id"], "rtx8gb-16gb-qwen36-35b")
+        self.assertEqual(pinned["id"], quality_id)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            alia.cmd_profiles(self.profiles, hw, automatic["id"])
+        self.assertIn(quality_id, output.getvalue())
+        self.assertIn("Agent tasks 16/16", output.getvalue())
+
+    def test_long_context_profile_is_opt_in(self):
+        hw = {"gpu_name": "RTX 3070", "vram_gb": 8.0, "ram_gb": 15.5}
+        long_id = "rtx8gb-16gb-qwen36-35b-128k"
+        automatic, _, _ = alia.choose_profile(self.profiles, hw)
+        pinned, _, warning = alia.choose_profile(self.profiles, hw, long_id)
+        self.assertEqual(automatic["id"], "rtx8gb-16gb-qwen36-35b")
+        self.assertEqual(pinned["ctx"], 131072)
+        self.assertFalse(warning)
+        # The point of the profile: Qwen Code compacts at ~98K instead of ~32.5K.
+        self.assertGreater(alia.qwen_compaction_thresholds(pinned["ctx"])[0], 95000)
+
     def test_24gb_machine_falls_back_to_unmeasured(self):
         hw = {"gpu_name": "RTX 4090", "vram_gb": 24.0, "ram_gb": 63.0}
         profile, _, warning = alia.choose_profile(self.profiles, hw)
@@ -69,7 +93,7 @@ class ProfileMatchingTests(unittest.TestCase):
                 continue
             sources = measured.get("metric_sources", {})
             for key, value in measured.items():
-                if key.endswith("_tps") or "_tps_" in key or key == "mtp_acceptance":
+                if key.startswith(("tg_tps", "pp_tps")) or key == "mtp_acceptance":
                     with self.subTest(profile=profile["id"], metric=key):
                         self.assertIsInstance(value, (int, float))
                         self.assertIn("bench/results/", sources[key])
@@ -210,9 +234,16 @@ class ArgumentTests(unittest.TestCase):
                 alia, "process_start_ticks", return_value="123"
             ), mock.patch.object(alia.subprocess, "Popen", return_value=process) as popen, \
                     mock.patch.dict(os.environ, environment, clear=True), redirect_stdout(io.StringIO()) as out:
-                alia.start_server(profile, Path("/model.gguf"), paths, hw["gpu_index"])
+                alia.start_server(
+                    profile, Path("/model.gguf"), paths, hw["gpu_index"],
+                    Path("/template.jinja"),
+                )
             self.assertIn("5.0", out.getvalue())
             self.assertEqual(popen.call_args.kwargs["env"]["CUDA_VISIBLE_DEVICES"], "1")
+            self.assertEqual(
+                popen.call_args.args[0][-2:],
+                ["--chat-template-file", "/template.jinja"],
+            )
             self.assertEqual(json.loads(paths["server_state"].read_text())["gpu_index"], 1)
 
     def test_inherited_cuda_mask_limits_detection_and_is_kept(self):
@@ -353,6 +384,7 @@ class ArgumentTests(unittest.TestCase):
         profile = next(p for p in alia.load_profiles(ROOT / "profiles.json") if p["id"] == "rtx8gb-16gb-qwen36-35b")
         self.assertGreater(profile["ram_free_gb"], 0)
         self.assertIn("bench/results/", profile["ram_free_source"])
+        self.assertIn("8.7 GB", profile["cache_ram_source"])
 
     def test_bundled_profiles_leave_room_before_compaction(self):
         for profile in alia.load_profiles(ROOT / "profiles.json"):
@@ -365,13 +397,29 @@ class ArgumentTests(unittest.TestCase):
         self.assertEqual(args[:3], ["/bin/llama-server", "-m", "/m.gguf"])
         self.assertIn("--alias", args)
         self.assertIn(profile["id"], args)
-        self.assertNotIn("--cache-ram", args)
+        self.assertEqual(args[args.index("--cache-ram") + 1], "2048")
         self.assertNotIn("-ngl", args)
         self.assertIn("--no-webui", args)
         self.assertEqual(args[args.index("--api-key") + 1], "local")
         self.assertEqual(args[args.index("--host") + 1], "127.0.0.1")
         self.assertEqual(args[args.index("--port") + 1], "8090")
         self.assertEqual(args[args.index("-c") + 1], str(profile["ctx"]))
+
+    def test_every_profile_caps_the_host_prompt_cache(self):
+        for profile in alia.load_profiles(ROOT / "profiles.json"):
+            with self.subTest(profile=profile["id"]):
+                index = profile["server_args"].index("--cache-ram")
+                self.assertEqual(profile["server_args"][index + 1], "2048")
+
+    def test_chat_template_argument_is_appended(self):
+        profile = alia.load_profiles(ROOT / "profiles.json")[1]
+        args = alia.build_server_args(
+            Path("/bin/llama-server"), profile, Path("/m.gguf"), Path("/template.jinja")
+        )
+        self.assertEqual(
+            args[args.index("--chat-template-file") + 1], "/template.jinja"
+        )
+        self.assertEqual(args[-2:], ["--chat-template-file", "/template.jinja"])
 
     def test_profile_cannot_override_loopback_or_port(self):
         original = alia.load_profiles(ROOT / "profiles.json")[0]
@@ -407,6 +455,29 @@ class ArgumentTests(unittest.TestCase):
         changed = dict(state)
         changed["argv"] = [*state["argv"], "--changed"]
         self.assertFalse(alia.server_state_matches_profile(changed, profile, model, binary))
+
+    def test_server_reuse_requires_matching_template_path(self):
+        profile = alia.load_profiles(ROOT / "profiles.json")[1]
+        model = Path("/models/model.gguf")
+        binary = Path("/bin/llama-server")
+        template = Path("/templates/ornith.jinja")
+        state = {
+            "profile": profile["id"], "ctx": profile["ctx"],
+            "model_path": str(model), "binary": str(binary), "port": alia.PORT,
+            "gpu_index": None,
+            "argv": alia.build_server_args(binary, profile, model, template),
+        }
+        self.assertTrue(
+            alia.server_state_matches_profile(
+                state, profile, model, binary, template_path=template
+            )
+        )
+        self.assertFalse(
+            alia.server_state_matches_profile(
+                state, profile, model, binary,
+                template_path=Path("/templates/changed.jinja"),
+            )
+        )
 
     def test_alia_approval_arguments(self):
         self.assertEqual(alia.parse_start_args([]), ("default", [], False, 0.0))
@@ -973,6 +1044,165 @@ class FirstRunTests(unittest.TestCase):
             modified["model"]["local_candidates"] = [str(candidate)]
             paths = {"models": root / "downloads"}
             self.assertIsNone(alia.find_model(modified, paths))
+
+    def test_template_is_found_in_local_candidates_and_models_dir(self):
+        profile = alia.load_profiles(ROOT / "profiles.json")[1]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = {"models": root / "models"}
+            modified = json.loads(json.dumps(profile))
+            local = root / "local.jinja"
+            local.write_text("local", encoding="utf-8")
+            modified["template"]["local_candidates"] = [str(local)]
+            self.assertEqual(alia.find_template(modified, paths), local)
+
+            local.unlink()
+            downloaded = (
+                paths["models"] / "ornith-ai--Ornith-1.5-35B-A3B" /
+                "chat_template.jinja"
+            )
+            downloaded.parent.mkdir(parents=True)
+            downloaded.write_text("downloaded", encoding="utf-8")
+            self.assertEqual(alia.find_template(modified, paths), downloaded)
+
+            downloaded.write_text("", encoding="utf-8")
+            self.assertIsNone(alia.find_template(modified, paths))
+        self.assertIsNone(alia.find_template({}, {"models": Path("/unused")}))
+        self.assertIsNone(alia.template_download_command({}, {"models": Path("/unused")}))
+
+        with mock.patch.object(alia.Path, "is_file", return_value=True), \
+                mock.patch.object(alia.Path, "stat", side_effect=OSError):
+            self.assertIsNone(alia.find_template(profile, {"models": Path("/unused")}))
+
+    def test_missing_template_lists_both_download_commands(self):
+        profile = alia.load_profiles(ROOT / "profiles.json")[1]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = {"models": root / "models"}
+            modified = json.loads(json.dumps(profile))
+            model = root / "model.gguf"
+            model.write_bytes(b"complete")
+            modified["model"]["local_candidates"] = [str(model)]
+            modified["model"].pop("size_gb")
+            modified["template"]["local_candidates"] = []
+            output = io.StringIO()
+            with mock.patch("builtins.input", return_value="n"), redirect_stdout(output):
+                self.assertIsNone(alia.ensure_model(modified, paths))
+            text = output.getvalue()
+            self.assertIn(modified["model"]["hf_repo"], text)
+            self.assertIn(modified["template"]["hf_repo"], text)
+
+    def test_one_confirmation_downloads_only_the_missing_template(self):
+        profile = alia.load_profiles(ROOT / "profiles.json")[1]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = {"models": root / "models"}
+            modified = json.loads(json.dumps(profile))
+            model = root / "model.gguf"
+            model.write_bytes(b"complete")
+            modified["model"]["local_candidates"] = [str(model)]
+            modified["model"].pop("size_gb")
+            modified["template"]["local_candidates"] = []
+            target = (
+                paths["models"] / "ornith-ai--Ornith-1.5-35B-A3B" /
+                "chat_template.jinja"
+            )
+
+            def download(command, check):
+                self.assertFalse(check)
+                target.write_text("template", encoding="utf-8")
+                return mock.Mock(returncode=0)
+
+            with mock.patch("builtins.input", return_value="yes"), mock.patch.object(
+                alia.shutil, "which", return_value="/usr/bin/hf"
+            ), mock.patch.object(alia.subprocess, "run", side_effect=download) as run, \
+                    redirect_stdout(io.StringIO()):
+                self.assertEqual(alia.ensure_model(modified, paths), model)
+            self.assertEqual(run.call_count, 1)
+            self.assertEqual(run.call_args.args[0][2], modified["template"]["hf_repo"])
+
+    def test_existing_model_and_template_need_no_prompt(self):
+        profile = alia.load_profiles(ROOT / "profiles.json")[1]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            modified = json.loads(json.dumps(profile))
+            model = root / "model.gguf"
+            template = root / "template.jinja"
+            model.write_bytes(b"model")
+            template.write_text("template", encoding="utf-8")
+            modified["model"]["local_candidates"] = [str(model)]
+            modified["model"].pop("size_gb")
+            modified["template"]["local_candidates"] = [str(template)]
+            with mock.patch("builtins.input") as prompt:
+                self.assertEqual(
+                    alia.ensure_model(modified, {"models": root / "downloads"}), model
+                )
+            prompt.assert_not_called()
+
+    def test_download_prompt_eof_and_missing_hf_are_handled(self):
+        profile = json.loads(json.dumps(alia.load_profiles(ROOT / "profiles.json")[1]))
+        profile["model"]["local_candidates"] = []
+        profile["template"]["local_candidates"] = []
+        with tempfile.TemporaryDirectory() as directory:
+            paths = {"models": Path(directory) / "models"}
+            with mock.patch("builtins.input", side_effect=EOFError), \
+                    redirect_stdout(io.StringIO()):
+                self.assertIsNone(alia.ensure_model(profile, paths))
+            with mock.patch("builtins.input", return_value="y"), mock.patch.object(
+                alia.shutil, "which", return_value=None
+            ), redirect_stdout(io.StringIO()), self.assertRaisesRegex(
+                RuntimeError, "'hf' was not found"
+            ):
+                alia.ensure_model(profile, paths)
+
+    def test_downloads_both_missing_files_and_reports_failure(self):
+        profile = json.loads(json.dumps(alia.load_profiles(ROOT / "profiles.json")[1]))
+        profile["model"].pop("size_gb")
+        profile["model"]["local_candidates"] = []
+        profile["template"]["local_candidates"] = []
+        with tempfile.TemporaryDirectory() as directory:
+            paths = {"models": Path(directory) / "models"}
+
+            def download(command, check):
+                self.assertFalse(check)
+                (Path(command[-1]) / command[3]).write_text("complete", encoding="utf-8")
+                return mock.Mock(returncode=0)
+
+            with mock.patch("builtins.input", return_value="ja"), mock.patch.object(
+                alia.shutil, "which", return_value="/usr/bin/hf"
+            ), mock.patch.object(alia.subprocess, "run", side_effect=download) as run, \
+                    redirect_stdout(io.StringIO()):
+                model = alia.ensure_model(profile, paths)
+            self.assertEqual(model, paths["models"] / "mudler--Ornith-1.5-35B-A3B-APEX-MTP-GGUF" / profile["model"]["file"])
+            self.assertEqual(run.call_count, 2)
+
+        with tempfile.TemporaryDirectory() as directory:
+            paths = {"models": Path(directory) / "models"}
+            with mock.patch("builtins.input", return_value="y"), mock.patch.object(
+                alia.shutil, "which", return_value="/usr/bin/hf"
+            ), mock.patch.object(
+                alia.subprocess, "run", return_value=mock.Mock(returncode=7)
+            ), redirect_stdout(io.StringIO()), self.assertRaisesRegex(
+                RuntimeError, "Download failed.*7"
+            ):
+                alia.ensure_model(profile, paths)
+
+    def test_successful_download_without_resulting_template_is_rejected(self):
+        profile = json.loads(json.dumps(alia.load_profiles(ROOT / "profiles.json")[1]))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = {"models": root / "models"}
+            model = root / "model.gguf"
+            model.write_bytes(b"model")
+            profile["model"]["local_candidates"] = [str(model)]
+            profile["model"].pop("size_gb")
+            profile["template"]["local_candidates"] = []
+            with mock.patch("builtins.input", return_value="y"), mock.patch.object(
+                alia.shutil, "which", return_value="/usr/bin/hf"
+            ), mock.patch.object(
+                alia.subprocess, "run", return_value=mock.Mock(returncode=0)
+            ), redirect_stdout(io.StringIO()):
+                self.assertIsNone(alia.ensure_model(profile, paths))
 
     def test_private_writes_use_private_modes(self):
         with tempfile.TemporaryDirectory() as directory:

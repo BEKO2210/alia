@@ -37,11 +37,14 @@
       "-ctkd",
       "q8_0",
       "-ctvd",
-      "q8_0"
+      "q8_0",
+      "--cache-ram",
+      "2048"
     ],
     "ctx": 65536,
     "ram_free_gb": 11,
     "ram_free_source": "Runner RSS 11.1 GB in the full-speed runs bench/results/llamacpp-20261015-100648.jsonl and -101143.jsonl (4K); at 7.4 GB RSS the 60K speed fell from 38.2 to 9.7 tok/s.",
+    "cache_ram_source": "llama-server's default 8192 MiB host-RAM prompt cache pushed 8.7 GB of the 35B server into swap during a long interactive session on 16 GB RAM; --cache-ram 2048 completed the 6-model, 96-run comparison without swap growth.",
     "sampling": {
       "temperature": 0.6,
       "top_p": 0.95,
@@ -90,6 +93,131 @@
     }
   },
   {
+    "id": "rtx8gb-16gb-ornith15-35b-quality",
+    "rank": 350,
+    "title_key": "profile.title.quality",
+    "match": {
+      "min_vram_gb": 7.5,
+      "max_vram_gb": 11.9,
+      "min_ram_gb": 15
+    },
+    "model": {
+      "hf_repo": "mudler/Ornith-1.5-35B-A3B-APEX-MTP-GGUF",
+      "file": "Ornith-1.5-35B-A3B-APEX-MTP-I-Mini.gguf",
+      "local_candidates": [
+        "~/models/gguf/Ornith-1.5-35B-A3B-APEX-MTP-I-Mini.gguf"
+      ],
+      "size_gb": 14.37
+    },
+    "template": {
+      "hf_repo": "ornith-ai/Ornith-1.5-35B-A3B",
+      "file": "chat_template.jinja",
+      "local_candidates": [
+        "~/models/gguf/templates/ornith-1.5-chat_template.jinja"
+      ]
+    },
+    "server_args": [
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-np",
+      "1",
+      "--jinja",
+      "-b",
+      "2048",
+      "-ub",
+      "2048",
+      "--spec-type",
+      "draft-mtp",
+      "--spec-draft-n-max",
+      "2",
+      "-ctkd",
+      "q8_0",
+      "-ctvd",
+      "q8_0",
+      "--cache-ram",
+      "2048"
+    ],
+    "ctx": 65536,
+    "ram_free_gb": 11,
+    "sampling": {
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0,
+      "presence_penalty": 0
+    },
+    "measured": {
+      "agent_pass": "16/16",
+      "agent_mean_s": 248,
+      "agent_gen_tps": 41.8,
+      "source": "bench/results/README.md (model comparison 2026-10-17)"
+    }
+  },
+  {
+    "id": "rtx8gb-16gb-qwen36-35b-128k",
+    "rank": 340,
+    "title_key": "profile.title.long",
+    "match": {
+      "min_vram_gb": 7.5,
+      "max_vram_gb": 11.9,
+      "min_ram_gb": 15
+    },
+    "model": {
+      "hf_repo": "unsloth/Qwen3.6-35B-A3B-MTP-GGUF",
+      "file": "Qwen3.6-35B-A3B-UD-IQ3_XXS.gguf",
+      "local_candidates": [
+        "~/models/gguf/mtp/Qwen3.6-35B-A3B-UD-IQ3_XXS.gguf"
+      ],
+      "size_gb": 14.07
+    },
+    "server_args": [
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-np",
+      "1",
+      "--jinja",
+      "-b",
+      "2048",
+      "-ub",
+      "2048",
+      "--spec-type",
+      "draft-mtp",
+      "--spec-draft-n-max",
+      "2",
+      "-ctkd",
+      "q8_0",
+      "-ctvd",
+      "q8_0",
+      "--cache-ram",
+      "2048"
+    ],
+    "ctx": 131072,
+    "ram_free_gb": 11,
+    "ram_free_source": "Runner RSS 11.1 GB in the full-speed runs bench/results/llamacpp-20261015-100648.jsonl and -101143.jsonl (4K); at 7.4 GB RSS the 60K speed fell from 38.2 to 9.7 tok/s.",
+    "sampling": {
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0,
+      "presence_penalty": 0
+    },
+    "measured": {
+      "agent_pass": "3/3 (perf, rename, vat)",
+      "agent_gen_tps": 44.0,
+      "agent_pp_tps": 560,
+      "note_128k": "128K works (120K prompt: 25.0 t/s TG, 543 t/s PP, ~3.7 min to first token) but is too slow as a default",
+      "source": "bench/results/agent-20261017-193850.jsonl (ctx 131072, profile server_args); 120K prompt: profile rtx8gb-16gb-qwen36-35b note_128k"
+    }
+  },
+  {
     "id": "rtx8gb-qwen35-9b-fast",
     "rank": 300,
     "title_key": "profile.title.fast",
@@ -121,7 +249,9 @@
       "-b",
       "1024",
       "-ub",
-      "1024"
+      "1024",
+      "--cache-ram",
+      "2048"
     ],
     "ctx": 65536,
     "sampling": {
@@ -189,7 +319,7 @@
       "-ub",
       "2048",
       "--cache-ram",
-      "4096"
+      "2048"
     ],
     "ctx": 32768,
     "sampling": {
@@ -233,6 +363,8 @@
       "-b",
       "2048",
       "-ub",
+      "2048",
+      "--cache-ram",
       "2048"
     ],
     "ctx": 32768,
