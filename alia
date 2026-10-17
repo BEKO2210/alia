@@ -880,6 +880,64 @@ DENIED_QWEN_TOOLS = (
     "zoom_image", "read_mcp_resource", "search_memory", "manage_memory",
 )
 
+ENVIRONMENT_START = "<!-- alia:environment:start -->"
+ENVIRONMENT_END = "<!-- alia:environment:end -->"
+
+
+def environment_notes() -> list[str]:
+    python = shutil.which("python")
+    python3 = shutil.which("python3")
+    notes = []
+    if python is None and python3 is not None:
+        notes.append("Use `python3`; there is no `python` command.")
+    if shutil.which("pip") is None and python3 is not None:
+        notes.append("Use `python3 -m pip`, not `pip`.")
+    notes.extend([
+        "Foreground shell commands time out after 120 s; run long jobs with a smaller input or in the background.",
+        "Commands that need `sudo` cannot be answered interactively; tell the user to run them.",
+        "You run on a local model with one inference slot: prefer few, targeted tool calls; read only the file parts you need (grep -n first).",
+    ])
+    return notes
+
+
+def write_python_shim(qwen_home: Path) -> Path | None:
+    """Link `python` to `python3` on hosts without `python`; models reach for `python` by habit."""
+    shim_dir = qwen_home / "bin"
+    shim = shim_dir / "python"
+    python3 = shutil.which("python3")
+    if shutil.which("python") is not None and not shim.is_symlink():
+        return None
+    if python3 is None:
+        return None
+    ensure_private_dir(shim_dir)
+    if shim.is_symlink() or shim.exists():
+        if shim.is_symlink() and os.readlink(shim) == python3:
+            return shim
+        shim.unlink()
+    shim.symlink_to(python3)
+    return shim
+
+
+def write_environment_context(qwen_home: Path) -> Path:
+    path = qwen_home / "QWEN.md"
+    managed_content = "\n" + "\n".join(f"- {note}" for note in environment_notes()) + "\n"
+    try:
+        # Decode bytes directly so newline translation cannot alter user-owned text.
+        current = path.read_bytes().decode("utf-8")
+    except FileNotFoundError:
+        updated = f"# Alia environment\n\n{ENVIRONMENT_START}{managed_content}{ENVIRONMENT_END}\n"
+    else:
+        start = current.find(ENVIRONMENT_START)
+        end = current.find(ENVIRONMENT_END, start + len(ENVIRONMENT_START))
+        if start >= 0 and end >= 0:
+            content_start = start + len(ENVIRONMENT_START)
+            updated = current[:content_start] + managed_content + current[end:]
+        else:
+            separator = "" if not current else ("\n" if current.endswith("\n") else "\n\n")
+            updated = current + separator + ENVIRONMENT_START + managed_content + ENVIRONMENT_END + "\n"
+    write_private_text(path, updated)
+    return path
+
 
 def generate_settings(
     profile: dict[str, Any], hw: dict[str, Any], target_dir: Path,
@@ -935,6 +993,8 @@ def generate_settings(
         "security": {"auth": {"selectedType": "openai"}},
         # All sub-agents share one server slot; parallel calls only queue and evict caches.
         "agents": {"maxParallelAgents": 1},
+        # Ignore host-wide agent skills while keeping project skills available.
+        "skills": {"disabledLevels": ["user"]},
         # Bound context use; Qwen saves complete tool output for later reads.
         "tools": {
             "approvalMode": approval_mode,
@@ -980,6 +1040,8 @@ def generate_settings(
     }
     output = target_dir / "settings.json"
     write_private_text(output, json.dumps(settings, indent=2, ensure_ascii=False) + "\n")
+    write_environment_context(target_dir)
+    write_python_shim(target_dir)
     write_private_text(
         target_dir / "output-language.md",
         """# Output language preference: auto
@@ -1036,6 +1098,9 @@ def qwen_environment(paths: dict[str, Path]) -> dict[str, str]:
         "QWEN_DISABLE_AUTO_TITLE": "1",
         "QWEN_CODE_EMIT_TOOL_USE_SUMMARIES": "0",
     })
+    shim_dir = paths["qwen_home"] / "bin"
+    if (shim_dir / "python").is_symlink():
+        env["PATH"] = f"{shim_dir}{os.pathsep}{env.get('PATH', '')}"
     return env
 
 
@@ -1245,6 +1310,9 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
     qwen_version = _version([qwen, "--version"])
     model = find_model(profile, paths) if profile else None
     hf = shutil.which("hf")
+    python3 = shutil.which("python3") or tr("version.not_found")
+    python = shutil.which("python")
+    python_text = f'{python3} · {tr("doctor.python_found", path=python) if python else tr("doctor.python_missing")}'
     foreign_port = port_open() and not (pid and process_owns_listen_port(pid, PORT))
     disk_free = shutil.disk_usage(Path.home()).free / 1_000_000_000
     gpu_index = hw.get("gpu_index")
@@ -1262,6 +1330,7 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
         [tr("doctor.label.ram"), ram_text],
         ["Ollama", doctor_ollama_status()],
         [tr("doctor.label.cpu"), f"{hw['cpu_name']} · {hw['cpu_count']} {tr('doctor.threads')}"],
+        [tr("doctor.label.python"), python_text],
         [tr("doctor.label.profile"), profile["id"] if profile else tr("doctor.none")],
         [tr("doctor.label.selection"), reason + (" ⚠" if warning else "")],
         [tr("doctor.label.server"), f"PID {pid} · {tr('doctor.healthy') if health_ok() else tr('doctor.not_ready')} · Port {state.get('port', PORT)}" if pid else tr("doctor.stopped")],

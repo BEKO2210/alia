@@ -117,7 +117,7 @@ To coordinate with other GPU jobs, set `gpu_lock` in `~/.config/alia/config.json
 {"gpu_lock": "~/.cache/shared-gpu.lock"}
 ```
 
-Runtime data is under `~/.local/state/alia`, models under `~/.local/share/alia/models`, and preferences under `~/.config/alia/config.json`. Qwen uses an isolated Alia `QWEN_HOME`.
+Runtime data is under `~/.local/state/alia`, models under `~/.local/share/alia/models`, and preferences under `~/.config/alia/config.json`. Qwen uses an isolated Alia `QWEN_HOME`; host-wide user skills are disabled, while project skills remain available.
 
 ## Bundled profiles
 
