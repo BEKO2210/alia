@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preload" href="fonts/Outfit.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/Inter.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
   <a class="skip" href="#main" data-i18n="skip">Skip to content</a>
@@ -61,9 +61,10 @@
       <div class="wrap">
         <figure class="term term-demo" id="term" aria-label="Recorded Alia session: it builds a live GPU dashboard">
           <button type="button" class="replay" id="replay" data-i18n="term.replay">Replay</button>
-          <video class="term-video" id="demo" width="1200" height="806" muted playsinline loop preload="metadata"
+          <video class="term-video" id="demo" muted playsinline loop autoplay preload="metadata"
                  poster="alia-demo-poster.webp" aria-describedby="demo-caption">
-            <source src="alia-demo.mp4" type="video/mp4">
+            <source src="alia-demo-mobile.mp4?v=2" type="video/mp4" media="(max-width: 600px)">
+            <source src="alia-demo.mp4?v=2" type="video/mp4">
           </video>
         </figure>
         <p class="caption" id="demo-caption" data-i18n="term.caption">Three real prompts on an RTX 3070, no edits by hand: Alia writes a live GPU dashboard (one Python file, standard library only), polishes the layout, then finds and fixes its own bug with grep. Terminal parts are sped up as labelled; the polish round was slow because the server was swapping. The last clip is the result running in real time.</p>
@@ -295,6 +296,6 @@ alia mcp    # browser &amp; web search</code></pre><button type="button" class="
     </div>
   </footer>
 
-  <script src="main.js" defer></script>
+  <script src="main.js?v=2" defer></script>
 </body>
 </html>
