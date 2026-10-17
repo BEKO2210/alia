@@ -59,45 +59,21 @@
       </div>
 
       <div class="wrap">
-        <figure class="term" id="term" aria-label="Recorded Alia session">
-          <div class="term-bar">
-            <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
-            <span class="term-title">alia — ~/my-project</span>
-            <button type="button" class="replay" id="replay" data-i18n="term.replay">Replay</button>
-          </div>
-          <div class="term-body" id="term-body">
-            <div class="l" data-step><span class="ps">$</span> <span class="typed" data-text="alia"></span></div>
-            <div class="l" data-step><span class="ok">✓</span> Hardware detected  <span class="mut">NVIDIA GeForce RTX 3070 (8.0 GB) · 15.5 GB RAM</span></div>
-            <div class="l" data-step><span class="ok">✓</span> Profile            <span class="mut">rtx8gb-16gb-qwen36-35b — best matching measured profile</span></div>
-            <div class="l" data-step><span class="ok">✓</span> Model              <span class="mut">~/models/gguf/mtp/Qwen3.6-35B-A3B-UD-IQ3_XXS.gguf</span></div>
-            <div class="l" data-step="load"><span class="spin">⠋</span> Model loading <span class="bar"></span> <span class="secs">0 s</span></div>
-            <div class="l" data-step><span class="ok">✓</span> Model ready after 24 s</div>
-            <div class="banner" data-step>
-              <img src="logo-terminal.svg" alt="ALIA" class="banner-logo" width="324" height="144">
-              <div class="banner-box">
-                <div><b class="vio">Alia 0.1.0</b> <span class="mut">(v0.25.1)</span></div>
-                <div class="mut">local · RTX 3070 · 35.2 tok/s measured</div>
-                <div class="mut">API Key | Qwen3.6 35B-A3B IQ3_XXS (balanced)</div>
-                <div class="mut">~/my-project</div>
-              </div>
-            </div>
-            <div class="l prompt" data-step><span class="vio">&gt;</span> <span class="typed" data-text="Create primes.py that prints the first 10 prime numbers, then run it."></span></div>
-            <div class="l" data-step><span class="ok">✓</span> <b>WriteFile</b> <span class="mut">primes.py</span></div>
-            <div class="l" data-step><span class="err">x</span> <b>Shell</b> <span class="mut">python primes.py</span></div>
-            <div class="l ind mut" data-step>bash: Zeile 1: python: Befehl nicht gefunden · Exit Code: 127</div>
-            <div class="l" data-step><span class="ok">✓</span> <b>Shell</b> <span class="mut">python3 primes.py</span> <span class="dim">(Run primes.py with python3)</span></div>
-            <div class="l ind" data-step>[2, 3, 5, 7, 11, 13, 17, 19, 23, 29]</div>
-            <div class="l" data-step><span class="vio">◆</span> Done. <span class="cy">primes.py</span> prints the first 10 prime numbers.</div>
-          </div>
+        <figure class="term term-demo" id="term" aria-label="Recorded Alia session: it builds a live GPU dashboard">
+          <button type="button" class="replay" id="replay" data-i18n="term.replay">Replay</button>
+          <video class="term-video" id="demo" width="1200" height="806" muted playsinline loop preload="metadata"
+                 poster="alia-demo-poster.webp" aria-describedby="demo-caption">
+            <source src="alia-demo.mp4" type="video/mp4">
+          </video>
         </figure>
-        <p class="caption" data-i18n="term.caption">A real session on an RTX 3070, replayed in the browser. The model's own self-correction (python → python3) is unedited; load time is shown faster than real.</p>
+        <p class="caption" id="demo-caption" data-i18n="term.caption">Three real prompts on an RTX 3070, no edits by hand: Alia writes a live GPU dashboard (one Python file, standard library only), polishes the layout, then finds and fixes its own bug with grep. Terminal parts are sped up as labelled; the polish round was slow because the server was swapping. The last clip is the result running in real time.</p>
       </div>
     </section>
 
     <section class="stats wrap" aria-label="Key numbers">
       <div class="stat"><b>46.5<small> tok/s</small></b><span data-i18n="stat.tg">generation with a 35B MoE model at 4K context, exact launch configuration</span></div>
       <div class="stat"><b>8<small> GB</small></b><span data-i18n="stat.vram">VRAM is enough: experts stream from system RAM</span></div>
-      <div class="stat"><b>9<small>/10</small></b><span data-i18n="stat.code">coding tasks passed, checked by unit tests</span></div>
+      <div class="stat"><b>10.9K</b><span data-i18n="stat.code">tokens first prompt (was 22.8K)</span></div>
       <div class="stat"><b>0</b><span data-i18n="stat.cloud">API keys, accounts or cloud calls</span></div>
     </section>
 
@@ -130,7 +106,7 @@
           <article class="card">
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7l5 5-5 5M12 17h7"/></svg></div>
             <h3 data-i18n="f4.t">A real agent</h3>
-            <p data-i18n="f4.d">Built on Qwen Code: it edits files, runs commands, reads errors and fixes them. It asks before acting unless you choose <code>--auto-edit</code> or <code>--yolo</code>.</p>
+            <p data-i18n="f4.d">Built on Qwen Code: it edits files, runs commands, reads errors and fixes them. Resume anytime with <code>alia -c</code>. It asks before acting unless you choose <code>--auto-edit</code> or <code>--yolo</code>.</p>
           </article>
           <article class="card">
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 8h18M8 21h8"/></svg></div>
@@ -141,6 +117,16 @@
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-6"/></svg></div>
             <h3 data-i18n="f6.t">Evidence, not claims</h3>
             <p data-i18n="f6.d">Every benchmark number on this page links to raw JSONL; configuration gaps are identified explicitly.</p>
+          </article>
+          <article class="card">
+            <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+            <h3 data-i18n="f8.t">Lean by design</h3>
+            <p data-i18n="f8.d">17 unused tools denied, no background memory calls, no follow-up requests, skills in <code>~/.agents/skills</code> not loaded. The first prompt shrank from 22.8K to 10.9K tokens. A one-word reply on a warm server takes ~3 s (was 7 s).</p>
+          </article>
+          <article class="card c-wide-row">
+            <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></svg></div>
+            <h3 data-i18n="f7.t">Browser and web search, opt-in</h3>
+            <p data-i18n="f7.d">Optional via MCP, off by default: <code>alia mcp enable browser</code> (Playwright MCP, text snapshots, no arbitrary JavaScript tool) and <code>alia mcp enable search</code> (DuckDuckGo, no API key, rate-limited). <code>alia mcp test</code> checks both. In tests, the local 35B model read a JavaScript-rendered page in 26 s and found a package version with source in 24 s.</p>
           </article>
         </div>
       </div>
@@ -279,9 +265,12 @@ cmake --build build -j"$(nproc)" --target llama-server</code></pre><button type=
 cd alia &amp;&amp; ./install.sh &amp;&amp; alia doctor</code></pre><button type="button" class="copy" data-i18n="copy">Copy</button></div>
           </li>
           <li>
-            <h3 data-i18n="inst.s4">Start</h3>
-            <div class="code"><pre><code>alia</code></pre><button type="button" class="copy" data-i18n="copy">Copy</button></div>
-            <p class="fine" data-i18n="inst.note">The first start shows the exact model download (14.07 GB for the default profile) and asks before fetching anything.</p>
+            <h3 data-i18n="inst.s4">Start &amp; commands</h3>
+            <div class="code"><pre><code>alia        # start agent
+alia -c     # resume session
+alia status # server PID, profile, uptime
+alia mcp    # browser &amp; web search</code></pre><button type="button" class="copy" data-i18n="copy">Copy</button></div>
+            <p class="fine" data-i18n="inst.note">The first start shows the exact model download (14.07 GB for the default profile) and asks before fetching anything. Check status with <code>alia status</code>, continue with <code>alia -c</code>, or manage tools with <code>alia mcp</code>.</p>
           </li>
         </ol>
       </div>

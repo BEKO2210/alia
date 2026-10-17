@@ -12,10 +12,10 @@ const DE = {
   "hero.github": "Auf GitHub ansehen",
   "hero.meta": "Linux · NVIDIA · getestet auf einer RTX 3070 mit 8 GB VRAM",
   "term.replay": "Nochmal",
-  "term.caption": "Eine echte Sitzung auf einer RTX 3070, im Browser abgespielt. Die Selbstkorrektur des Modells (python → python3) ist ungeschnitten; die Ladezeit läuft schneller als in echt.",
+  "term.caption": "Drei echte Prompts auf einer RTX 3070, nichts von Hand bearbeitet: Alia schreibt ein Live-GPU-Dashboard (eine Python-Datei, nur Standardbibliothek), poliert das Layout und findet und behebt dann per grep den eigenen Fehler. Die Terminal-Teile laufen wie angegeben schneller; die Polier-Runde war langsam, weil der Server auslagerte. Der letzte Clip zeigt das Ergebnis in Echtzeit.",
   "stat.tg": "Ausgabe mit einem 35B-MoE-Modell bei 4K Kontext, exakte Startkonfiguration",
   "stat.vram": "VRAM reichen: die Experten kommen aus dem Arbeitsspeicher",
-  "stat.code": "Coding\u2011Aufgaben bestanden, per Unit-Test geprüft",
+  "stat.code": "Tokens im ersten Prompt (vorher 22,8K)",
   "stat.cloud": "API-Keys, Konten oder Cloud-Aufrufe",
   "feat.eyebrow": "Warum Alia",
   "feat.title": "Alles, was ein Coding\u2011Agent braucht.<br><span class=\"mut2\">Nichts, was nach Hause telefoniert.</span>",
@@ -28,11 +28,15 @@ const DE = {
   "f3.t": "Spekulatives Decoding",
   "f3.d": "Der MTP-Kopf des Modells entwirft zwei Tokens im Voraus. 75 % werden übernommen: +14 % Tempo bei 4K, +10 % bei 32K.",
   "f4.t": "Ein echter Agent",
-  "f4.d": "Basiert auf Qwen Code: bearbeitet Dateien, führt Befehle aus, liest Fehler und behebt sie. Fragt vor jeder Aktion, außer du wählst <code>--auto-edit</code> oder <code>--yolo</code>.",
+  "f4.d": "Basiert auf Qwen Code: bearbeitet Dateien, führt Befehle aus, liest Fehler und behebt sie. Mit <code>alia -c</code> setzt du Sitzungen fort. Fragt vor jeder Aktion, außer du wählst <code>--auto-edit</code> oder <code>--yolo</code>.",
   "f5.t": "Terminal oder Browser",
   "f5.d": "<code>alia web</code> öffnet denselben Agenten als Web-Shell, nur auf 127.0.0.1.",
   "f6.t": "Belege statt Behauptungen",
   "f6.d": "Jede Benchmark-Zahl auf dieser Seite verweist auf JSONL-Rohdaten; Lücken in der Konfiguration sind ausdrücklich gekennzeichnet.",
+  "f8.t": "Von Grund auf schlank",
+  "f8.d": "17 ungenutzte Tools gesperrt, keine Hintergrund-Memory-Aufrufe, keine Folgefragen, Skills aus <code>~/.agents/skills</code> nicht geladen. Der erste Prompt sank von 22,8K auf 10,9K Tokens. Eine Ein-Wort-Antwort dauert auf dem warmen Server ca. 3 s (vorher 7 s).",
+  "f7.t": "Browser und Websuche, Opt-in",
+  "f7.d": "Optional über MCP, standardmäßig aus: <code>alia mcp enable browser</code> (Playwright-MCP, Text-Snapshots) und <code>alia mcp enable search</code> (DuckDuckGo, kein API-Key, ratenbegrenzt). <code>alia mcp test</code> prüft beides. Im Test las das 35B-Modell eine JS-gerenderte Seite in 26 s und fand eine Paketversion samt Quelle in 24 s.",
   "bench.eyebrow": "Messwerte",
   "bench.title": "Gemessen, nicht geschätzt.",
   "bench.sub": "Ausgabetempo, während sich der Kontext füllt, jeweils mit der exakten Startkonfiguration des Profils. RTX 3070 8 GB, Ryzen 7 5800X, 16 GB RAM, llama.cpp a0e6dc7.",
@@ -70,8 +74,8 @@ const DE = {
   "inst.s1": "Agent und Downloader",
   "inst.s2": "llama.cpp mit CUDA",
   "inst.s3": "Alia",
-  "inst.s4": "Starten",
-  "inst.note": "Der erste Start zeigt den genauen Modell-Download (14,07 GB beim Standardprofil) und fragt, bevor etwas geladen wird.",
+  "inst.s4": "Starten &amp; Befehle",
+  "inst.note": "Der erste Start zeigt den genauen Modell-Download (14,07 GB beim Standardprofil) und fragt, bevor etwas geladen wird. Status prüfen mit <code>alia status</code>, fortsetzen mit <code>alia -c</code> oder Tools verwalten mit <code>alia mcp</code>.",
   "copy": "Kopieren",
   "final.title": "Dein eigener Coding\u2011Agent.",
   "final.sub": "Kostenlos, Open Source und läuft auf der Hardware, die du schon hast.",
@@ -137,72 +141,15 @@ if (chart && !reduce && "IntersectionObserver" in window) {
   }, { threshold: .35 }).observe(chart);
 }
 
-/* terminal replay */
-const body = document.getElementById("term-body");
-const steps = [...body.querySelectorAll("[data-step]")];
-const SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
-let run = 0;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-function finalState() {
-  for (const s of steps) s.classList.add("show");
-  for (const t of body.querySelectorAll(".typed")) t.textContent = t.dataset.text;
-  const load = body.querySelector("[data-step=load]");
-  load.querySelector(".spin").textContent = "✓";
-  load.querySelector(".spin").className = "ok";
-  load.querySelector(".bar").textContent = "██████████";
-  load.querySelector(".secs").textContent = "24 s";
-  load.hidden = true;
-}
-
-async function play() {
-  const id = ++run;
-  const alive = () => id === run;
-  for (const s of steps) s.classList.remove("show");
-  for (const t of body.querySelectorAll(".typed")) { t.textContent = ""; t.classList.remove("typing"); }
-  const load = body.querySelector("[data-step=load]");
-  load.hidden = false;
-  const spin = load.querySelector(".spin, .ok");
-  spin.className = "spin";
-  await sleep(500);
-  for (const s of steps) {
-    if (!alive()) return;
-    const typed = s.querySelector(".typed");
-    s.classList.add("show");
-    if (typed) {
-      typed.classList.add("typing");
-      await sleep(350);
-      for (const ch of typed.dataset.text) {
-        if (!alive()) return;
-        typed.textContent += ch;
-        await sleep(typed.dataset.text.length > 20 ? 22 : 90);
-      }
-      await sleep(450);
-      typed.classList.remove("typing");
-    } else if (s.dataset.step === "load") {
-      for (let sec = 0; sec <= 24; sec++) {
-        if (!alive()) return;
-        spin.textContent = SPIN[sec % SPIN.length];
-        const filled = Math.min(10, Math.floor(sec / 2.4));
-        s.querySelector(".bar").textContent = "█".repeat(filled) + "░".repeat(10 - filled);
-        s.querySelector(".secs").textContent = sec + " s";
-        await sleep(70);
-      }
-      s.hidden = true;
-      continue;
-    } else {
-      await sleep(s.classList.contains("banner") ? 500 : s.classList.contains("ind") ? 260 : 380);
-    }
-  }
-}
-
-document.getElementById("replay").addEventListener("click", () => play());
+/* hero demo video: plays only while visible, never for reduced motion */
+const demo = document.getElementById("demo");
+document.getElementById("replay").addEventListener("click", () => { demo.currentTime = 0; demo.play(); });
 if (reduce) {
-  finalState();
+  demo.controls = true;
 } else if ("IntersectionObserver" in window) {
-  new IntersectionObserver((entries, obs) => {
-    if (entries.some((e) => e.isIntersecting)) { obs.disconnect(); play(); }
-  }, { threshold: .25 }).observe(body);
+  new IntersectionObserver((entries) => {
+    for (const e of entries) { if (e.isIntersecting) demo.play().catch(() => { demo.controls = true; }); else demo.pause(); }
+  }, { threshold: .25 }).observe(demo);
 } else {
-  finalState();
+  demo.controls = true;
 }
