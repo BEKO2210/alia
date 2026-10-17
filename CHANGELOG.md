@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `alia --sandbox` runs tool commands in Qwen Code's bubblewrap sandbox (project writes only, no tool network), checks for `bwrap` and conflicting MCP servers before startup, stores uncommitted tracked changes in `refs/alia/pre-session`, and `alia doctor` shows a `Sandbox` row; `alia web --sandbox` is rejected.
+- Prompt-injection gate tasks `bench/live_tasks/inject_readme`, `inject_tool_output`, and `inject_comment`.
+- `SECURITY.md` documents what the sandbox protects and what it does not.
 - `bench/agent_bench.py --mcp browser,search` and gate tasks in `bench/live_tasks/` (browser page that needs JavaScript, key-less search, `CLAUDE.md` context).
 - Project context discovery reports `QWEN.md`, `AGENTS.md`, and `CLAUDE.md` with estimated token sizes in `alia doctor`, and warns at startup when they consume more than 25% of the profile's auto-compaction budget.
 - Opt-in MCP servers for a headless browser (`@playwright/mcp` 0.0.83) and key-less DuckDuckGo web search (`duckduckgo-mcp-server` 0.7.0), managed with `alia mcp [list]`, `alia mcp enable NAME`, and `alia mcp disable NAME`.

@@ -90,6 +90,7 @@ alia --fast                       # Denken für einfache, schnelle Aufgabe aus
 alia --wait-gpu 60                # auf optionale gemeinsame GPU-Sperre warten
 alia --auto-edit                  # Dateiänderungen automatisch erlauben
 alia --yolo                       # alle Tools erlauben; rote Warnung
+alia --sandbox                    # Tool-Befehle einsperren: nur Projekt schreibbar, kein Tool-Netz (braucht bwrap)
 alia -- -p "Erkläre main.py"      # Argumente unverändert an qwen geben
 alia web                          # Web Shell auf 127.0.0.1:4170
 alia web --port 4317 --no-open --workspace "$PWD"
@@ -133,6 +134,10 @@ Qwen Code hat keinen eigenen Browser, und die eingebaute Websuche braucht einen 
 - `search` — Websuche und Seitenabruf über DuckDuckGo ([duckduckgo-mcp-server](https://pypi.org/project/duckduckgo-mcp-server/) 0.7.0), ohne API-Schlüssel. Benötigt `uvx` (uv). Die Suche liest html.duckduckgo.com aus und kann daher brechen oder blockiert werden; Alia begrenzt sie auf 10 Suchen und 10 Seitenabrufe pro Minute.
 
 Jeder MCP-Tool-Aufruf läuft durch die normale Bestätigung; `--yolo` genehmigt sie ohne Nachfrage. Die erste Sitzung lädt die fest versionierten Pakete herunter. `alia mcp test [NAME]` startet die aktiven Server (oder nur NAME) genau wie eine Sitzung und listet ihre Tools; für einen ersten Download wartet es bis zu 90 s. Alia lädt die MCP-Tool-Schemas vorab (`alwaysLoadTools`), damit das Modell sie ohne Umweg über `tool_search` aufrufen kann.
+
+### Sandbox (opt-in)
+
+`alia --sandbox` sperrt die Befehle des Agenten mit bubblewrap ein: Sie dürfen nur im Projekt schreiben und haben kein Netzwerk; das Modell selbst spricht weiter mit dem lokalen Server. Host-Dateien wie `~/.ssh` bleiben lesbar, und Tools, die Netz brauchen (etwa `pip install`), scheitern. Installiere `bwrap` (Paket `bubblewrap`); `alia doctor` zeigt, ob es verfügbar ist. Qwen Code 0.25.1 unterstützt die Sandbox weder mit MCP-Servern noch in `alia web`, daher bricht Alia in beiden Fällen mit einer Fehlermeldung ab. Weil `/rewind` in der Sandbox keine Dateien wiederherstellen kann, speichert Alia offene Änderungen an versionierten Dateien vor der Sitzung in `refs/alia/pre-session` (nicht versionierte Dateien sind nicht enthalten) und zeigt den Befehl zum Wiederherstellen. Details: [SECURITY.md](SECURITY.md).
 
 ## Mitgelieferte Profile
 
