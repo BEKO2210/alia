@@ -1424,6 +1424,10 @@ def qwen_environment(paths: dict[str, Path]) -> dict[str, str]:
 def run_qwen(command: list[str], paths: dict[str, Path]) -> int:
     if not Path(command[0]).exists() and shutil.which(command[0]) is None:
         raise RuntimeError(tr("error.qwen_missing"))
+    # Status lines are block-buffered when stdout is a file or pipe; flush them so they
+    # precede Qwen Code's output (e.g. a headless `alia -- -p ...` answer).
+    sys.stdout.flush()
+    sys.stderr.flush()
     return subprocess.run(command, env=qwen_environment(paths), check=False).returncode
 
 

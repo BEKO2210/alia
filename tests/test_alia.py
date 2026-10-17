@@ -570,6 +570,38 @@ class ArgumentTests(unittest.TestCase):
         )
 
 
+class RunQwenOutputOrderTests(unittest.TestCase):
+    def test_status_lines_precede_qwen_output_when_stdout_is_a_pipe(self):
+        script = (
+            "import importlib.machinery, importlib.util, sys\n"
+            "from pathlib import Path\n"
+            f"loader = importlib.machinery.SourceFileLoader('alia_child', {str(ROOT / 'alia')!r})\n"
+            "spec = importlib.util.spec_from_loader(loader.name, loader)\n"
+            "alia = importlib.util.module_from_spec(spec)\n"
+            "loader.exec_module(alia)\n"
+            "print('status line')\n"
+            "code = alia.run_qwen([sys.executable, '-c', 'print(\"answer\")'], {'qwen_home': Path(sys.argv[1])})\n"
+            "sys.exit(code)\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                [os.environ.get("PYTHON", "python3"), "-c", script, directory],
+                capture_output=True, text=True, timeout=30, check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ["status line", "answer"])
+
+    def test_run_qwen_flushes_before_launch(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(alia.sys.stdout, "flush", side_effect=lambda: calls.append("flush")), \
+                mock.patch.object(alia.subprocess, "run",
+                                  side_effect=lambda *a, **k: calls.append("run") or mock.Mock(returncode=3)):
+            code = alia.run_qwen([os.environ.get("PYTHON", "python3")], {"qwen_home": Path(directory)})
+        self.assertEqual(code, 3)
+        self.assertEqual(calls[:2], ["flush", "run"])
+
+
 class LogoValidationTests(unittest.TestCase):
     def test_banner_logo_uses_display_columns(self):
         with tempfile.TemporaryDirectory() as directory:

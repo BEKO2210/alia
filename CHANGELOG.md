@@ -49,6 +49,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Alia's status lines no longer appear after Qwen Code's output when stdout is a file or pipe; a headless `alia -- -p "..."` answer now comes last instead of being hidden above them.
 - Ollama unloading now retries models reloaded by other clients during the bounded wait.
 - The 9B fast profile now launches with a 65,536-token context instead of
   33,408. Qwen Code 0.25.1 keeps 20,000 tokens for compaction summaries, so the
@@ -68,6 +69,7 @@ All notable changes to this project are documented here. The format follows
   full-speed runs); `alia doctor` shows the available RAM.
 - `bench/agent_bench.py`: eight repository tasks solved headless by Qwen Code
   with Alia's settings and scored by hidden tests.
+
 
 ## [0.1.0] - 2026-10-15
 
