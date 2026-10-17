@@ -64,6 +64,24 @@ def stop(proc: subprocess.Popen) -> None:
             proc.wait()
 
 
+def server_metrics() -> dict[str, float]:
+    """Prometheus counters of the bench server; prompt_tokens_total counts only tokens it had to evaluate."""
+    request = urllib.request.Request(f"http://127.0.0.1:{PORT}/metrics",
+                                     headers={"Authorization": f"Bearer {alia.API_KEY}"})
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            text = response.read().decode()
+    except OSError:
+        return {}
+    return {m.group(1): float(m.group(2)) for m in re.finditer(r"^llamacpp:(\w+) ([0-9.eE+-]+)$", text, re.M)}
+
+
+def metrics_delta(before: dict[str, float], after: dict[str, float]) -> dict:
+    keys = {"prompt_tokens_total": "evaluated_prompt_tokens", "prompt_seconds_total": "prompt_eval_s",
+            "tokens_predicted_total": "generated_tokens", "tokens_predicted_seconds_total": "generation_s"}
+    return {name: round(after[key] - before.get(key, 0), 1) for key, name in keys.items() if key in after}
+
+
 def run_tests(workdir: Path) -> tuple[int, int, str]:
     result = subprocess.run(["python3", "-m", "unittest", "-v", "hidden_test"], cwd=workdir,
                             capture_output=True, text=True, timeout=120)
@@ -84,7 +102,18 @@ def qwen_stats(stdout: str) -> dict:
     tools = stats.get("tools", {})
     return {"turns": result.get("num_turns"), "output_tokens": tokens.get("candidates"),
             "thought_tokens": tokens.get("thoughts"), "tool_calls": tools.get("totalCalls"),
-            "tool_fails": tools.get("totalFail"), "qwen_error": result.get("is_error")}
+            "tool_fails": tools.get("totalFail"), "qwen_error": result.get("is_error"),
+            "prompt_tokens": tokens.get("prompt")}
+
+
+def probe(qenv: dict[str, str], wall: int) -> dict:
+    """One trivial request in an empty directory: start-up overhead and first-prompt size."""
+    with tempfile.TemporaryDirectory() as work:
+        start = time.time()
+        run = subprocess.run([*alia.build_qwen_command(["Reply with the single word OK.", "--yolo",
+                                                        "--max-wall-time", f"{wall}s", "-o", "json"])],
+                             cwd=work, env=qenv, capture_output=True, text=True, timeout=wall + 60)
+        return {"seconds": round(time.time() - start, 1), "exit": run.returncode, **qwen_stats(run.stdout)}
 
 
 def _terminate(signum, frame):
@@ -100,13 +129,17 @@ def main() -> None:
     ap.add_argument("--profile", default="rtx8gb-16gb-qwen36-35b")
     ap.add_argument("--tasks", default=None, help="comma list; default all")
     ap.add_argument("--wall", type=int, default=600, help="Qwen Code --max-wall-time per task, seconds")
+    ap.add_argument("--server-arg", action="append", default=[],
+                    help="extra llama-server argument for A/B runs, e.g. --server-arg=--no-reasoning-preserve")
+    ap.add_argument("--probe", action="store_true", help="time a cold and a warm one-word reply first")
     a = ap.parse_args()
 
     profile = next(p for p in alia.load_profiles() if p["id"] == a.profile)
     binary, env_extra = alia.find_llama_server()
     args = [str(binary), "-m", str(Path(a.gguf).expanduser()), "-c", str(profile["ctx"]),
             *map(str, profile["server_args"]), "--no-webui", "--api-key", alia.API_KEY,
-            "--host", "127.0.0.1", "--port", str(PORT), "--alias", profile["id"]]
+            "--host", "127.0.0.1", "--port", str(PORT), "--alias", profile["id"], "--metrics"]
+    args += a.server_arg
     if a.template:
         args += ["--chat-template-file", str(Path(a.template).expanduser())]
     tasks = a.tasks.split(",") if a.tasks else sorted(p.name for p in TASKS.iterdir() if (p / "prompt.txt").exists())
@@ -135,9 +168,16 @@ def main() -> None:
                 f.write(json.dumps({"mode": "env", "name": a.name, "gguf": Path(a.gguf).name,
                                     "template": Path(a.template).name if a.template else None,
                                     "profile": profile["id"], "ctx": profile["ctx"],
-                                    "server_args": profile["server_args"], "load_s": round(load_s, 1),
+                                    "server_args": profile["server_args"] + a.server_arg, "load_s": round(load_s, 1),
                                     "mem_available_gb": round(free, 1) if free else None,
                                     "wall_limit_s": a.wall, "ts": time.time()}) + "\n")
+                for label in ("cold", "warm") if a.probe else ():
+                    before = server_metrics()
+                    row = {"mode": "probe", "name": a.name, "task": f"probe-{label}", **probe(qenv, 120)}
+                    row.update(metrics_delta(before, server_metrics()))
+                    f.write(json.dumps(row) + "\n")
+                    print(f"{a.name:14} {row['task']:10} {row['seconds']:5.1f} s  "
+                          f"prompt {row.get('prompt_tokens')} tokens", flush=True)
                 for task in tasks:
                     source = TASKS / task
                     with tempfile.TemporaryDirectory() as work:
@@ -149,6 +189,7 @@ def main() -> None:
                         subprocess.run(["git", "-c", "user.name=bench", "-c", "user.email=bench@localhost",
                                         "commit", "-qm", "start"], cwd=workdir, check=True)
                         prompt = (source / "prompt.txt").read_text().strip()
+                        before = server_metrics()
                         start = time.time()
                         try:
                             run = subprocess.run(
@@ -160,6 +201,7 @@ def main() -> None:
                             raw = exc.stdout or ""
                             code, stdout = "timeout", raw.decode(errors="replace") if isinstance(raw, bytes) else raw
                         seconds = time.time() - start
+                        served = metrics_delta(before, server_metrics())
                         subprocess.run(["git", "add", "-A"], cwd=workdir)
                         diff = subprocess.run(["git", "diff", "--cached", "HEAD"], cwd=workdir,
                                               capture_output=True, text=True).stdout
@@ -175,6 +217,7 @@ def main() -> None:
                            "tests_passed": passed, "tests_total": total, "seconds": round(seconds, 1),
                            "exit": code, "ts": time.time()}
                     row.update(qwen_stats(stdout))
+                    row.update(served)
                     f.write(json.dumps(row) + "\n")
                     f.flush()
                     print(f"{a.name:14} {task:10} {'PASS' if row['pass'] else 'fail'} "
