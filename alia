@@ -1030,9 +1030,11 @@ def mcp_probe(
             stderr=stderr, env={**base_env, **entry.get("env", {})},
             text=True, encoding="utf-8", errors="replace", start_new_session=True,
         )
-    except FileNotFoundError:
+    except OSError as exc:
         stderr.close()
-        raise RuntimeError(tr("mcp.test_command_missing", command=entry["command"])) from None
+        if isinstance(exc, FileNotFoundError):
+            raise RuntimeError(tr("mcp.test_command_missing", command=entry["command"])) from None
+        raise RuntimeError(tr("mcp.test_start_failed", command=entry["command"], error=exc.strerror or exc)) from None
 
     def last_stderr_line() -> str:
         stderr.seek(0)

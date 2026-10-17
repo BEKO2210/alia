@@ -1356,6 +1356,30 @@ class McpTestCommandTests(unittest.TestCase):
             os.kill(pid, 0)
 
 
+    def test_start_error_is_reported_and_stderr_file_closed(self):
+        script = self.root / "not-executable"
+        script.write_text("#!/bin/sh\n", encoding="utf-8")
+        script.chmod(0o644)
+        entry = self._entry("ok") | {"command": str(script)}
+        opened = []
+        real_temporary_file = alia.tempfile.TemporaryFile
+
+        def tracking_temporary_file(*args, **kwargs):
+            opened.append(real_temporary_file(*args, **kwargs))
+            return opened[-1]
+
+        with mock.patch.object(alia.tempfile, "TemporaryFile", side_effect=tracking_temporary_file), \
+                self.assertRaisesRegex(RuntimeError, r"^cannot start .*not-executable: Permission denied$"):
+            alia.mcp_probe(entry, dict(os.environ), timeout=5)
+        with mock.patch.object(alia.tempfile, "TemporaryFile", side_effect=tracking_temporary_file), \
+                self.assertRaisesRegex(RuntimeError, r"^command not found: alia-missing-command$"):
+            alia.mcp_probe(entry | {"command": "alia-missing-command"}, dict(os.environ), timeout=5)
+        self.assertEqual(len(opened), 2)
+        self.assertTrue(all(handle.closed for handle in opened))
+        code, output, _ = self._main(["--lang", "de", "mcp", "test", "browser"], {"browser": entry})
+        self.assertEqual(code, 1)
+        self.assertIn("lässt sich nicht starten: Permission denied", output)
+
     def test_detached_grandchild_holding_stdout_does_not_block_timeout(self):
         started = alia.time.monotonic()
         try:
