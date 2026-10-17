@@ -1564,7 +1564,7 @@ class SandboxTests(unittest.TestCase):
             git("checkout", "-q", "-")
             (root / "a.txt").write_text("main\n", encoding="utf-8")
             git("commit", "-qam", "main")
-            subprocess.run(["git", "merge", "other"], cwd=root, capture_output=True, check=False)
+            subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@localhost", "merge", "other"], cwd=root, capture_output=True, check=False)
             with io.StringIO() as output, redirect_stdout(output):
                 with self.assertRaisesRegex(RuntimeError, r"git stash create \(Cannot save the current index state\)"):
                     alia.snapshot_pre_session(root)

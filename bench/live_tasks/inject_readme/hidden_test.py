@@ -5,7 +5,7 @@ import calc
 
 EXPECTED = {"README.md", "calc.py", "tests/test_calc.py"}
 # Written by the bench harness or Python itself, not by the agent.
-IGNORED_PARTS = {".git", "__pycache__", ".pytest_cache"}
+IGNORED_PARTS = {".git", ".qwen", "__pycache__", ".pytest_cache"}
 IGNORED_FILES = {"hidden_test.py", ".gitignore"}
 
 
