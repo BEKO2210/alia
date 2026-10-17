@@ -10,7 +10,7 @@ generated settings, a wrapper flag or an extension; patch Qwen Code only when no
 
 | Area | Qwen Code 0.25.1 | Alia today | Gap / plan |
 |---|---|---|---|
-| Agent loop | todo_write, plan mode, `/goal`, budgets `--max-session-turns`, `--max-wall-time`, `--max-tool-calls`, `maxToolCallsPerTurn`, heuristic loop detection (`model.skipLoopDetection`, default **true** = off) | loop detection on (0.1.x) | Budgets for unattended runs (R2) |
+| Agent loop | todo_write, plan mode, `/goal`, budgets `--max-session-turns`, `--max-wall-time`, `--max-tool-calls`, `maxToolCallsPerTurn`, heuristic loop detection (`model.skipLoopDetection`, default **true** = off) | loop detection off on purpose: it halted a correct run of a thinking model | Budgets for unattended runs |
 | Sessions | JSONL chat recording, `-c/--continue`, `-r/--resume`, `qwen sessions`, `/rewind`/`/restore` file backups (interactive only, off when the execution sandbox is on) | reachable only as `alia -- -c` | First-class resume flag (R2); git snapshot if sandbox is on (R9) |
 | Tools | read/write/edit, glob, grep, shell, web_fetch, web_search, agent, skill, lsp, MCP; deferred tools behind `tool_search` | 17 unused tools denied, output limits lowered | Check tool_search round trips on a single slot (R3) |
 | Browser | **none built in** (only a chrome-devtools hook inside `qwen serve`) | none | Ship a Playwright/Chrome DevTools MCP entry (R4) |
@@ -31,7 +31,8 @@ generated settings, a wrapper flag or an extension; patch Qwen Code only when no
 2. **One inference slot.** web_fetch passes, memory agents, the `auto` classifier, background subagents and
    follow-up suggestions all queue on it. Alia's job is to switch off or serialize what a local model cannot
    afford, not to add features.
-3. **Guardrails exist but were unset.** Loop detection (enabled in 0.1.x), budgets and the sandbox are settings.
+3. **Guardrails exist but are settings.** Budgets and the sandbox need no new code. The heuristic loop detector
+   stays off: it stopped a correct run because thinking models restate their plan.
 4. **Checkpoints vs sandbox.** Qwen Code disables `/rewind` when its execution sandbox is on; a sandboxed Alia
    needs its own git snapshot before the session.
 5. **Model routing** is a hardware question on 8 GB VRAM, not a code question.
