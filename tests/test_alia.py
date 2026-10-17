@@ -727,6 +727,57 @@ class PidTests(unittest.TestCase):
                     alia.wait_for_health(4242, paths, timeout=30, process=process)
             process.wait.assert_called_once()
 
+    def test_wait_for_health_scales_bar_and_records_load_time(self):
+        class TtyBuffer(io.StringIO):
+            def isatty(self):
+                return True
+
+        with tempfile.TemporaryDirectory() as directory:
+            paths = self._paths(directory)
+            paths["state"].mkdir(parents=True, exist_ok=True)
+            load_file = paths["state"] / "last-load.json"
+            load_file.write_text(json.dumps({"profile": "p", "seconds": 20}), encoding="utf-8")
+            output = TtyBuffer()
+            with mock.patch.object(alia, "health_ok", side_effect=[False, True]), \
+                    mock.patch.object(alia, "process_start_ticks", return_value="1"), \
+                    mock.patch.object(alia.time, "sleep"), redirect_stdout(output):
+                alia.wait_for_health(4242, paths, timeout=30, profile_id="p")
+            self.assertIn("~20", output.getvalue())
+            self.assertEqual(json.loads(load_file.read_text(encoding="utf-8"))["profile"], "p")
+            # A failed write of the load record must not abort a healthy start.
+            with mock.patch.object(alia, "health_ok", return_value=True), \
+                    mock.patch.object(alia, "write_private_text", side_effect=OSError("disk full")), \
+                    redirect_stdout(io.StringIO()):
+                alia.wait_for_health(4242, paths, timeout=30, profile_id="p")
+
+    def test_main_status_dispatch(self):
+        with mock.patch.object(alia, "cmd_status", return_value=3) as status, \
+                redirect_stdout(io.StringIO()):
+            self.assertEqual(alia.main(["status"]), 3)
+        status.assert_called_once()
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(alia.main(["status", "extra"]), 1)
+        alia.set_language("en")  # main() picks the host locale
+
+    def test_doctor_shows_llama_build_and_ram_warning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = alia.user_paths(Path(directory))
+            profiles = alia.load_profiles(ROOT / "profiles.json")
+            hw = {"gpu_name": "NVIDIA GeForce RTX 3070", "vram_gb": 8.0, "ram_gb": 15.5,
+                  "cpu_name": "CPU", "cpu_count": 16, "gpu_index": 0}
+            with mock.patch.object(alia, "find_llama_server", return_value=(Path("/x/llama-server"), {"LD_LIBRARY_PATH": "/x"})), \
+                    mock.patch.object(alia, "_version", return_value="version: test (build 1)") as version, \
+                    mock.patch.object(alia, "mem_available_gb", return_value=1.0), \
+                    mock.patch.object(alia, "ollama_loaded_models", return_value=None), \
+                    mock.patch.object(alia, "port_open", return_value=False), \
+                    mock.patch.object(alia, "health_ok", return_value=False), \
+                    io.StringIO() as output, redirect_stdout(output):
+                alia.cmd_doctor(profiles, hw, paths)
+                text = output.getvalue()
+            self.assertIn("version: test (build 1)", text)
+            self.assertIn("⚠", text)
+            self.assertEqual(version.call_args_list[0].args[1]["LD_LIBRARY_PATH"], "/x")
+
     def test_status_stopped_and_healthy(self):
         with tempfile.TemporaryDirectory() as directory:
             paths = self._paths(directory)
