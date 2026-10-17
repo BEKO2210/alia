@@ -174,6 +174,8 @@
   "mcp.test_failed": "{name}: failed: {error}",
   "mcp.test_timeout": "no answer within {seconds} s",
   "mcp.test_exited": "the server exited before answering",
+  "mcp.test_no_tools": "the server listed no allowed tools",
+  "mcp.test_command_missing": "command not found: {command}",
   "mcp.test_rpc_error": "{method} returned an error: {error}",
   "mcp.test_none": "No MCP server is enabled. Enable one with: alia mcp enable <name>",
   "mcp.test_hint": "check: alia mcp test",

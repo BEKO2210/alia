@@ -1,8 +1,10 @@
 import importlib.machinery
 import importlib.util
+import contextlib
 import io
 import json
 import os
+import signal
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -1199,11 +1201,20 @@ class McpTests(unittest.TestCase):
 FAKE_MCP_SERVER = r"""
 import json, os, sys, time
 log = open(os.environ["FAKE_LOG"], "a", encoding="utf-8")
-log.write(json.dumps({"argv": sys.argv[1:], "pid": os.getpid(), "env": os.environ.get("FAKE_ENV")}) + "\n")
+log.write(json.dumps({"argv": sys.argv[1:], "pid": os.getpid(), "env": os.environ.get("FAKE_ENV"),
+                     "qwen_home": os.environ.get("QWEN_HOME")}) + "\n")
 log.flush()
 mode = os.environ["FAKE_MODE"]
 if mode == "exit":
+    sys.stderr.write("first line\n" + "x" * 300 + "\n   \n")
     sys.exit(3)
+if mode == "orphan":
+    import subprocess
+    # A detached grandchild keeps stdout open after the server's process group is killed.
+    grandchild = subprocess.Popen(["setsid", "sleep", "30"])
+    log.write(json.dumps({"grandchild": grandchild.pid}) + "\n")
+    log.flush()
+    mode = "hang"
 for line in sys.stdin:
     message = json.loads(line)
     log.write(line)
@@ -1221,6 +1232,8 @@ for line in sys.stdin:
         sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": 99, "result": {}}) + "\n")
         reply({"result": {"protocolVersion": "2025-06-18", "capabilities": {}, "serverInfo": {"name": "fake"}}})
     else:
+        # A server-to-client request reusing our id must not count as the response.
+        sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": message["id"], "method": "roots/list"}) + "\n")
         reply({"result": {"tools": [{"name": "alpha"}, {"name": "beta"}, {"name": "hidden"}, "junk"]}})
 """
 
@@ -1269,9 +1282,12 @@ class McpTestCommandTests(unittest.TestCase):
                 "args": [str(self.script), "--output-dir=" + str(self.root / ".cache/alia/playwright")],
                 "env": self._entry("ok")["env"],
             }
-        self.assertEqual(alia.mcp_probe(entry, timeout=30), ["alpha", "beta", "hidden"])
+        paths = alia.user_paths(self.root)
+        with mock.patch.dict(alia.os.environ, {"QWEN_HOME": "/elsewhere"}):
+            self.assertEqual(alia.mcp_probe(entry, alia.qwen_environment(paths), timeout=30), ["alpha", "beta", "hidden"])
         started, initialize, initialized, tools_list = self._log()
         self.assertEqual(started["env"], "set")
+        self.assertEqual(started["qwen_home"], str(paths["qwen_home"]))
         self.assertEqual(initialize["method"], "initialize")
         self.assertEqual(initialize["params"]["protocolVersion"], "2025-06-18")
         self.assertEqual(initialize["params"]["clientInfo"]["name"], "alia")
@@ -1287,6 +1303,16 @@ class McpTestCommandTests(unittest.TestCase):
         self.assertRegex(output, r"search: OK, 3 tools in [0-9.]+ s: alpha, beta, hidden\n")
         outdir = str(self.root / ".cache" / "alia" / "playwright")
         self.assertEqual([item["argv"] for item in self._log() if "argv" in item], [[f"--output-dir={outdir}"]] * 2)
+        qwen_home = str(alia.user_paths(self.root)["qwen_home"])
+        self.assertEqual([item["qwen_home"] for item in self._log() if "argv" in item], [qwen_home] * 2)
+
+    def test_server_without_allowed_tools_fails(self):
+        code, output, _ = self._main(["mcp", "test", "browser"], {"browser": self._entry("ok", include=["gamma"])})
+        self.assertEqual(code, 1)
+        self.assertIn("browser: failed: the server listed no allowed tools", output)
+        code, output, _ = self._main(["--lang", "de", "mcp", "test", "browser"], {"browser": self._entry("ok", include=[])})
+        self.assertEqual(code, 1)
+        self.assertIn("der Server hat keine erlaubten Tools gemeldet", output)
 
     def test_named_server_and_failures_exit_1(self):
         catalog = {"browser": self._entry("ok"), "search": self._entry("error")}
@@ -1297,11 +1323,15 @@ class McpTestCommandTests(unittest.TestCase):
         self.assertNotIn("browser", output)
         code, output, _ = self._main(["mcp", "test", "browser"], {"browser": self._entry("exit")})
         self.assertEqual(code, 1)
-        self.assertIn("browser: failed: the server exited before answering", output)
-        missing = self._entry("ok") | {"command": str(self.root / "missing-command")}
+        self.assertIn("browser: failed: the server exited before answering: " + "x" * 200 + "\n", output)
+        self.assertNotIn("first line", output)
+        missing = self._entry("ok") | {"command": "alia-missing-command"}
         code, output, _ = self._main(["mcp", "test", "browser"], {"browser": missing})
         self.assertEqual(code, 1)
-        self.assertIn("browser: failed:", output)
+        self.assertIn("browser: failed: command not found: alia-missing-command\n", output)
+        self.assertNotIn("Errno", output)
+        code, output, _ = self._main(["--lang", "de", "mcp", "test", "browser"], {"browser": missing})
+        self.assertIn("Befehl nicht gefunden: alia-missing-command", output)
 
     def test_no_enabled_server(self):
         code, output, _ = self._main(["mcp", "test"], {})
@@ -1319,11 +1349,26 @@ class McpTestCommandTests(unittest.TestCase):
     def test_timeout_terminates_child(self):
         started = alia.time.monotonic()
         with self.assertRaisesRegex(RuntimeError, r"no answer within 0.5 s"):
-            alia.mcp_probe(self._entry("hang"), timeout=0.5)
+            alia.mcp_probe(self._entry("hang"), dict(os.environ), timeout=0.5)
         self.assertLess(alia.time.monotonic() - started, 10)
         pid = self._log()[0]["pid"]
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
+
+
+    def test_detached_grandchild_holding_stdout_does_not_block_timeout(self):
+        started = alia.time.monotonic()
+        try:
+            with self.assertRaisesRegex(RuntimeError, r"no answer within 2 s"):
+                alia.mcp_probe(self._entry("orphan"), dict(os.environ), timeout=2)
+            elapsed = alia.time.monotonic() - started
+        finally:
+            for item in self._log():
+                if "grandchild" in item:
+                    with contextlib.suppress(ProcessLookupError):
+                        os.kill(item["grandchild"], signal.SIGKILL)
+        self.assertLess(elapsed, 5)
+        self.assertTrue(any("grandchild" in item for item in self._log()))
 
 
 if __name__ == "__main__":

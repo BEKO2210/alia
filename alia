@@ -17,6 +17,7 @@ import signal
 import stat
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import unicodedata
@@ -1013,57 +1014,81 @@ def mcp_servers(names: Any) -> dict[str, dict[str, Any]]:
 MCP_TEST_TIMEOUT = 90.0  # the first run may download the server package
 
 
-def mcp_probe(entry: dict[str, Any], timeout: float = MCP_TEST_TIMEOUT) -> list[str]:
+def mcp_probe(
+    entry: dict[str, Any], base_env: dict[str, str], timeout: float = MCP_TEST_TIMEOUT,
+) -> list[str]:
     """Start one MCP server over stdio like Qwen Code and return the tool names it lists."""
     deadline = time.monotonic() + timeout
     lines: queue.Queue[str | None] = queue.Queue()
-    with subprocess.Popen(
-        [entry["command"], *entry["args"]], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, env={**os.environ, **entry.get("env", {})},
-        text=True, encoding="utf-8", errors="replace", start_new_session=True,
-    ) as process:
+    # No `with Popen`: its __exit__ closes stdout while the pump thread may still block on a
+    # read held open by a detached grandchild, which would hang past the timeout.
+    # A temporary file never fills up like a pipe, so a chatty server cannot block on stderr.
+    stderr = tempfile.TemporaryFile()
+    try:
+        process = subprocess.Popen(
+            [entry["command"], *entry["args"]], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=stderr, env={**base_env, **entry.get("env", {})},
+            text=True, encoding="utf-8", errors="replace", start_new_session=True,
+        )
+    except FileNotFoundError:
+        stderr.close()
+        raise RuntimeError(tr("mcp.test_command_missing", command=entry["command"])) from None
 
-        def pump() -> None:
+    def last_stderr_line() -> str:
+        stderr.seek(0)
+        text = stderr.read().decode("utf-8", errors="replace")
+        last = next((line.strip() for line in reversed(text.splitlines()) if line.strip()), "")
+        return f": {last[:200]}" if last else ""
+
+    def pump() -> None:
+        # Only this thread touches stdout; it closes it once every writer has gone.
+        with process.stdout:
             for line in process.stdout:
                 lines.put(line)
-            lines.put(None)
+        lines.put(None)
 
-        def send(message: dict[str, Any]) -> None:
-            process.stdin.write(json.dumps({"jsonrpc": "2.0", **message}) + "\n")
-            process.stdin.flush()
+    def send(message: dict[str, Any]) -> None:
+        process.stdin.write(json.dumps({"jsonrpc": "2.0", **message}) + "\n")
+        process.stdin.flush()
 
-        def request(message_id: int, method: str, params: dict[str, Any]) -> dict[str, Any]:
-            send({"id": message_id, "method": method, "params": params})
-            while True:
-                try:
-                    line = lines.get(timeout=max(0.0, deadline - time.monotonic()))
-                except queue.Empty:
-                    raise RuntimeError(tr("mcp.test_timeout", seconds=f"{timeout:g}")) from None
-                if line is None:
-                    raise RuntimeError(tr("mcp.test_exited"))
-                try:
-                    message = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(message, dict) or message.get("id") != message_id:
-                    continue
-                if "error" in message:
-                    raise RuntimeError(tr("mcp.test_rpc_error", method=method, error=message["error"]))
-                return message.get("result") or {}
+    def request(message_id: int, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        send({"id": message_id, "method": method, "params": params})
+        while True:
+            try:
+                line = lines.get(timeout=max(0.0, deadline - time.monotonic()))
+            except queue.Empty:
+                raise RuntimeError(tr("mcp.test_timeout", seconds=f"{timeout:g}")) from None
+            if line is None:
+                raise RuntimeError(tr("mcp.test_exited") + last_stderr_line())
+            try:
+                message = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            # Same id plus "method" is a server-to-client request, not our response.
+            if not isinstance(message, dict) or message.get("id") != message_id or "method" in message:
+                continue
+            if "error" in message:
+                raise RuntimeError(tr("mcp.test_rpc_error", method=method, error=message["error"]))
+            return message.get("result") or {}
 
-        threading.Thread(target=pump, daemon=True).start()
-        try:
-            request(1, "initialize", {
-                "protocolVersion": "2025-06-18", "capabilities": {},
-                "clientInfo": {"name": "alia", "version": VERSION},
-            })
-            send({"method": "notifications/initialized"})
-            tools = request(2, "tools/list", {}).get("tools", [])
-            return [tool["name"] for tool in tools if isinstance(tool, dict) and "name" in tool]
-        finally:
-            # npx/uvx start the real server as a child; end the whole process group.
-            with contextlib.suppress(ProcessLookupError):
-                os.killpg(process.pid, signal.SIGKILL)
+    threading.Thread(target=pump, daemon=True).start()
+    try:
+        request(1, "initialize", {
+            "protocolVersion": "2025-06-18", "capabilities": {},
+            "clientInfo": {"name": "alia", "version": VERSION},
+        })
+        send({"method": "notifications/initialized"})
+        tools = request(2, "tools/list", {}).get("tools", [])
+        return [tool["name"] for tool in tools if isinstance(tool, dict) and "name" in tool]
+    finally:
+        # npx/uvx start the real server as a child; end the whole process group.
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGKILL)
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            process.wait(timeout=5)
+        with contextlib.suppress(OSError):
+            process.stdin.close()
+        stderr.close()
 
 
 def generate_settings(
@@ -1573,7 +1598,7 @@ def cmd_mcp(args: list[str], paths: dict[str, Path]) -> int:
         ], rows))
         return 0
     if args[:1] == ["test"] and len(args) <= 2:
-        return cmd_mcp_test(args[1:], enabled)
+        return cmd_mcp_test(args[1:], enabled, paths)
     if len(args) != 2 or args[0] not in ("enable", "disable"):
         raise RuntimeError(tr("args.mcp_usage"))
     name = args[1]
@@ -1593,7 +1618,7 @@ def cmd_mcp(args: list[str], paths: dict[str, Path]) -> int:
     return 0
 
 
-def cmd_mcp_test(args: list[str], enabled: list[str]) -> int:
+def cmd_mcp_test(args: list[str], enabled: list[str], paths: dict[str, Path]) -> int:
     if args and args[0] not in MCP_CATALOG:
         raise RuntimeError(tr("mcp.unknown", name=args[0], names=", ".join(MCP_CATALOG)))
     names = args or enabled
@@ -1604,12 +1629,16 @@ def cmd_mcp_test(args: list[str], enabled: list[str]) -> int:
     for name, entry in mcp_servers(names).items():
         started = time.monotonic()
         try:
-            tools = mcp_probe(entry)
+            tools = mcp_probe(entry, qwen_environment(paths))
         except (RuntimeError, OSError) as exc:
             passed = False
             print(f"{color('31', '✗')} {tr('mcp.test_failed', name=name, error=exc)}")
             continue
         allowed = [tool for tool in tools if tool in entry.get("includeTools", tools)]
+        if not allowed:
+            passed = False
+            print(f"{color('31', '✗')} {tr('mcp.test_failed', name=name, error=tr('mcp.test_no_tools'))}")
+            continue
         seconds = f"{time.monotonic() - started:.1f}"
         print(f"{color('32', '✓')} {tr('mcp.test_ok', name=name, count=len(allowed), seconds=seconds, tools=', '.join(allowed))}")
     return 0 if passed else 1
