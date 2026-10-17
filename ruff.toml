@@ -1,7 +1,7 @@
 target-version = "py312"
 line-length = 120
 # Agent task fixtures: starting repos are buggy on purpose and tests are written compactly.
-extend-exclude = ["bench/agent_tasks"]
+extend-exclude = ["bench/agent_tasks", "bench/live_tasks"]
 
 [lint]
 select = ["E", "F", "W", "B", "UP"]

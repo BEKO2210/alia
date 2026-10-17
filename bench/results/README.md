@@ -63,6 +63,9 @@ For measurement caveats and an independent recount, see
   Use `--probe` for cold/warm one-word startup probes. Extra llama.cpp arguments use
   `--server-arg`, for example `--server-arg=-cms --server-arg=1024`; llama.cpp arguments
   passed there cannot use `--flag=value`.
+  `--mcp browser,search` enables Alia's MCP servers; tasks not found in `agent_tasks/` are
+  taken from `../live_tasks/` (gate tasks: `browser` serves `web/` on 127.0.0.1:8766,
+  `search` needs internet, `ctxfile` checks that `CLAUDE.md` is in the context).
   Task rows include `evaluated_prompt_tokens`, `prompt_eval_s`, `generated_tokens`, and
   `generation_s` server metrics; the final summary row totals passes, time, and tokens.
   - `agent-20261017-011504` (smoke), `-011929`, `-020336` … `-021111`: Qwen3.6-35B
@@ -103,3 +106,23 @@ For measurement caveats and an independent recount, see
     wrote it in 14 s without opening the file, so `context.fileName` loads `CLAUDE.md`.
     The frozen tasks in this file crashed on a stale task link (harness error, rerun below).
   - `-130307`: round 5 frozen tasks: all passed, 45 / 35 / 54 s.
+  - `-131250` (round 7 live gate, MCP with `alwaysLoadTools`): browser / search passed in
+    26 / 24 s (round 4: 35 / 31 s) with direct tool calls and no refused `tool_call`;
+    first prompt 13.8K tokens with both servers enabled; perf, rename, vat passed.
+  - Round 6 server-flag A/B on the 35B profile (perf, rename, vat; prompt and generation
+    rates from the server metrics; baseline across rounds 1–5 ≈ 850 prompt tok/s,
+    56 generation tok/s). None beat the profile, so its flags stay unchanged:
+
+    | run | change | prompt tok/s | gen tok/s | tasks |
+    |---|---|---|---|---|
+    | `-125318` | `--spec-draft-n-max 3` (profile: 2) | 792 | 56.4 | 3/3 |
+    | `-125812` | `-b 4096 -ub 4096` (profile: 2048) | 420 | 47.2 | 3/3 |
+    | `-130837` | `--poll 0` | 855 | 55.8 | 2/3 (rename 3/4, model noise) |
+    | `-131756` | `-t 7` (default 8) | 838 | 55.5 | 3/3 |
+
+    Also tested and rejected: a headless warm-up request right after server start. The
+    first interactive turn still re-evaluated all 13.3K tokens, because interactive Qwen
+    Code sends a different and larger first prompt (13.3K vs 8.0K tokens, default approval
+    mode) than headless mode, so the two share no reusable prefix.
+  - `-133101`: harness check of `--mcp browser,search` with the three live tasks (main
+    before round 7, so MCP schemas still deferred): all passed, 55 / 36 / 15 s.

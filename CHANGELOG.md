@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `bench/agent_bench.py --mcp browser,search` and gate tasks in `bench/live_tasks/` (browser page that needs JavaScript, key-less search, `CLAUDE.md` context).
 - Project context discovery reports `QWEN.md`, `AGENTS.md`, and `CLAUDE.md` with estimated token sizes in `alia doctor`, and warns at startup when they consume more than 25% of the profile's auto-compaction budget.
 - Opt-in MCP servers for a headless browser (`@playwright/mcp` 0.0.83) and key-less DuckDuckGo web search (`duckduckgo-mcp-server` 0.7.0), managed with `alia mcp [list]`, `alia mcp enable NAME`, and `alia mcp disable NAME`.
 - `alia doctor` shows the enabled MCP servers and marks a missing `npx` or `uvx`.
