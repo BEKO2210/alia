@@ -549,6 +549,7 @@ class SettingsTests(unittest.TestCase):
             output = alia.generate_settings(profile, hw, target, ROOT / "branding")
             settings = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(settings["model"]["name"], profile["id"])
+            self.assertNotIn("mcpServers", settings)
             self.assertEqual(settings["security"]["auth"]["selectedType"], "openai")
             self.assertEqual(settings["tools"]["approvalMode"], "default")
             self.assertEqual(settings["tools"]["truncateToolOutputThreshold"], 12000)
@@ -932,6 +933,203 @@ class FirstRunTests(unittest.TestCase):
             alia.write_config(path, "test")
             self.assertEqual(path.parent.stat().st_mode & 0o777, 0o700)
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+
+class McpTests(unittest.TestCase):
+    WHICH = {"npx": "/usr/bin/npx", "uvx": "/usr/bin/uvx"}
+
+    def tearDown(self):
+        alia.set_language("en")
+
+    def _settings(self, directory, **kwargs):
+        profile = alia.load_profiles(ROOT / "profiles.json")[0]
+        output = alia.generate_settings(
+            profile, {"gpu_name": "Test GPU"}, Path(directory) / "qwen-home", ROOT / "branding", **kwargs
+        )
+        return output.read_text(encoding="utf-8")
+
+    def _main(self, directory, argv, which=None):
+        which = self.WHICH if which is None else which
+        with mock.patch.object(alia, "user_paths", return_value=alia.user_paths(Path(directory))), \
+                mock.patch.object(alia.shutil, "which", side_effect=which.get), \
+                mock.patch.dict(alia.os.environ, {"ALIA_LANG": "en"}), \
+                io.StringIO() as output, io.StringIO() as error, \
+                redirect_stdout(output), redirect_stderr(error):
+            code = alia.main(argv)
+            result = code, output.getvalue(), error.getvalue()
+        alia.set_language("en")
+        return result
+
+    def test_no_mcp_config_emits_no_mcp_servers(self):
+        for kwargs in ({}, {"mcp": None}, {"mcp": []}, {"mcp": ["unknown"]}, {"mcp": "browser"}):
+            with self.subTest(kwargs=kwargs), tempfile.TemporaryDirectory() as directory:
+                self.assertNotIn("mcpServers", json.loads(self._settings(directory, **kwargs)))
+
+    def test_browser_and_search_are_emitted(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(alia.Path, "home", return_value=Path(directory)):
+            text = self._settings(directory, mcp=["search", "browser", "browser"])
+        servers = json.loads(text)["mcpServers"]
+        self.assertEqual(list(servers), ["browser", "search"])
+        self.assertNotIn("<OUTDIR>", text)
+        self.assertNotIn("requires", text)
+        browser, search = servers["browser"], servers["search"]
+        outdir = Path(directory) / ".cache" / "alia" / "playwright"
+        self.assertTrue(outdir.is_absolute())
+        self.assertIn(f"--output-dir={outdir}", browser["args"])
+        self.assertEqual(browser["command"], "npx")
+        self.assertIn("@playwright/mcp@0.0.83", browser["args"])
+        self.assertEqual((browser["timeout"], search["timeout"]), (90000, 60000))
+        self.assertIs(browser["trust"], False)
+        self.assertIs(search["trust"], False)
+        self.assertEqual(len(browser["includeTools"]), 12)
+        for unsafe in ("browser_evaluate", "browser_run_code_unsafe"):
+            self.assertNotIn(unsafe, browser["includeTools"])
+        self.assertEqual(search["command"], "uvx")
+        self.assertEqual(search["args"], ["--from", "duckduckgo-mcp-server[browser]==0.7.0", "duckduckgo-mcp-server"])
+        self.assertEqual(search["env"], {"DDG_SEARCH_RPM": "10", "DDG_FETCH_RPM": "10", "DDG_PARSE_MODE": "markdown"})
+        self.assertNotIn("includeTools", search)
+        # The catalog itself must stay untouched.
+        self.assertIn("--output-dir=<OUTDIR>", alia.MCP_CATALOG["browser"]["args"])
+        self.assertEqual(alia.MCP_CATALOG["browser"]["requires"], "npx")
+
+    def test_mcp_config_preserves_other_keys(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            alia.write_language_config(path, "de")
+            alia.write_config(path, "chosen")
+            alia.write_mcp_config(path, ["browser"])
+            self.assertEqual(alia.read_config(path), {"lang": "de", "profile": "chosen", "mcp": ["browser"]})
+            alia.write_mcp_config(path, [])
+            self.assertEqual(alia.read_config(path), {"lang": "de", "profile": "chosen"})
+
+    def test_prepare_runtime_passes_configured_mcp(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = alia.user_paths(Path(directory))
+            alia.write_mcp_config(paths["config"], ["browser"])
+            profiles = alia.load_profiles(ROOT / "profiles.json")
+            hw = {"gpu_name": "NVIDIA GeForce RTX 3070", "vram_gb": 8.0, "ram_gb": 15.5}
+            with mock.patch.object(alia, "ensure_model", return_value=Path("/m.gguf")), \
+                    mock.patch.object(alia, "start_server", return_value=(4242, True, None)), \
+                    mock.patch.object(alia, "generate_settings") as generate, \
+                    mock.patch.dict(alia.os.environ, {}, clear=True), \
+                    redirect_stdout(io.StringIO()):
+                self.assertIsNotNone(alia.prepare_runtime(profiles, hw, paths))
+        self.assertEqual(generate.call_args.kwargs["mcp"], ["browser"])
+
+    def test_enable_disable_round_trip(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = alia.user_paths(Path(directory))["config"]
+            alia.write_config(path, "x")
+            alia.write_language_config(path, "en")
+            original = alia.read_config(path)
+            code, output, _ = self._main(directory, ["mcp", "enable", "browser"])
+            self.assertEqual(code, 0)
+            self.assertIn("MCP server enabled: browser", output)
+            self.assertNotIn("Warning", output)
+            self.assertNotIn("duckduckgo", output)
+            self.assertEqual(self._main(directory, ["mcp", "enable", "browser"])[0], 0)
+            self.assertEqual(alia.read_config(path), {**original, "mcp": ["browser"]})
+            self.assertEqual(self._main(directory, ["mcp", "enable", "search"])[0], 0)
+            self.assertEqual(alia.read_config(path)["mcp"], ["browser", "search"])
+            code, output, _ = self._main(directory, ["mcp", "disable", "search"])
+            self.assertEqual(code, 0)
+            self.assertIn("MCP server disabled: search", output)
+            self.assertEqual(self._main(directory, ["mcp", "disable", "browser"])[0], 0)
+            self.assertEqual(alia.read_config(path), original)
+
+    def test_unknown_name_exits_1(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for action in ("enable", "disable"):
+                code, _, error = self._main(directory, ["mcp", action, "nope"])
+                self.assertEqual(code, 1)
+                self.assertIn("Unknown MCP server: nope (available: browser, search)", error)
+            self.assertFalse(alia.user_paths(Path(directory))["config"].exists())
+
+    def test_usage_errors_exit_1(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for argv in (["mcp", "enable"], ["mcp", "foo"], ["mcp", "list", "x"], ["mcp", "enable", "a", "b"]):
+                code, _, error = self._main(directory, argv)
+                self.assertEqual(code, 1, argv)
+                self.assertIn("Usage: alia mcp", error)
+
+    def test_missing_requirement_warns_but_enables(self):
+        with tempfile.TemporaryDirectory() as directory:
+            code, output, _ = self._main(directory, ["mcp", "enable", "browser"], which={})
+            self.assertEqual(code, 0)
+            self.assertIn("Warning: 'npx' was not found", output)
+            self.assertEqual(alia.read_config(alia.user_paths(Path(directory))["config"])["mcp"], ["browser"])
+
+    def test_enable_search_prints_duckduckgo_note(self):
+        with tempfile.TemporaryDirectory() as directory:
+            code, output, _ = self._main(directory, ["mcp", "enable", "search"])
+        self.assertEqual(code, 0)
+        self.assertIn("duckduckgo", output.lower())
+        self.assertIn("10 searches", output)
+
+    def test_list_mentions_both_servers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for argv in (["mcp"], ["mcp", "list"]):
+                code, output, _ = self._main(directory, argv, which={"npx": "/usr/bin/npx"})
+                self.assertEqual(code, 0)
+                self.assertIn("ENABLED", output)
+                self.assertIn("npx found", output)
+                self.assertIn("uvx missing", output)
+                self.assertRegex(output, r"browser\s+no")
+                self.assertRegex(output, r"search\s+no")
+            self._main(directory, ["mcp", "enable", "search"])
+            _, output, _ = self._main(directory, ["mcp", "list"])
+            self.assertRegex(output, r"search\s+yes")
+            self.assertRegex(output, r"browser\s+no")
+
+    def test_list_in_german(self):
+        with tempfile.TemporaryDirectory() as directory:
+            code, output, _ = self._main(directory, ["--lang", "de", "mcp", "list"], which={"npx": "/usr/bin/npx"})
+        self.assertEqual(code, 0)
+        for text in ("AKTIV", "npx gefunden", "uvx fehlt", "nein", "DuckDuckGo"):
+            self.assertIn(text, output)
+
+    def test_usage_mentions_mcp_in_both_languages(self):
+        for language in ("en", "de"):
+            self.assertIn("alia mcp enable <name>", alia.tr_for(language, "usage.text"))
+
+    def test_doctor_mcp_row(self):
+        profiles = alia.load_profiles(ROOT / "profiles.json")
+        hw = {"gpu_name": "NVIDIA GeForce RTX 3070", "vram_gb": 8.0, "ram_gb": 15.5,
+              "cpu_name": "CPU", "cpu_count": 16, "gpu_index": 0}
+
+        def doctor(paths, which, language="en"):
+            alia.set_language(language)
+            with mock.patch.object(alia, "find_llama_server", return_value=(Path("/x/llama-server"), {})), \
+                    mock.patch.object(alia, "_version", return_value="version: test (build 1)"), \
+                    mock.patch.object(alia, "mem_available_gb", return_value=None), \
+                    mock.patch.object(alia, "ollama_loaded_models", return_value=None), \
+                    mock.patch.object(alia, "port_open", return_value=False), \
+                    mock.patch.object(alia, "health_ok", return_value=False), \
+                    mock.patch.object(alia.shutil, "which", side_effect=which), \
+                    io.StringIO() as output, redirect_stdout(output):
+                code = alia.cmd_doctor(profiles, hw, paths)
+                line = next(row for row in output.getvalue().splitlines() if "MCP" in row)
+            return code, line
+
+        def all_found(name):
+            return f"/usr/bin/{name}"
+
+        def no_uvx(name):
+            return None if name == "uvx" else f"/usr/bin/{name}"
+
+        with tempfile.TemporaryDirectory() as directory:
+            paths = alia.user_paths(Path(directory))
+            code_none, line = doctor(paths, all_found)
+            self.assertRegex(line, r"MCP\S*\s+none$")
+            self.assertRegex(doctor(paths, all_found, "de")[1], r"MCP\S*\s+keine$")
+            alia.write_mcp_config(paths["config"], ["browser", "search"])
+            code_ok, line = doctor(paths, all_found)
+            self.assertTrue(line.endswith("browser, search"))
+            code_warn, line = doctor(paths, no_uvx)
+            self.assertTrue(line.endswith("browser, search ⚠"))
+        self.assertEqual(code_none, code_ok)
+        self.assertEqual(code_none, code_warn)
 
 
 if __name__ == "__main__":
