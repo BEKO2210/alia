@@ -84,6 +84,8 @@ Die tatsächliche Dauer hängt von Hugging Face und der Verbindung ab. Eine nach
 ```bash
 alia                              # Hardware erkennen, Server und Agent starten
 alia --lang de_DE.UTF-8           # Sprache für diesen Aufruf setzen
+alia --continue                   # neueste Qwen-Sitzung fortsetzen
+alia --resume [ID]                # Qwen-Sitzung optional per ID fortsetzen
 alia --fast                       # Denken für einfache, schnelle Aufgabe aus
 alia --wait-gpu 60                # auf optionale gemeinsame GPU-Sperre warten
 alia --auto-edit                  # Dateiänderungen automatisch erlauben
@@ -92,6 +94,7 @@ alia -- -p "Erkläre main.py"      # Argumente unverändert an qwen geben
 alia web                          # Web Shell auf 127.0.0.1:4170
 alia web --port 4317 --no-open --workspace "$PWD"
 alia doctor                       # prüft auch Modell, hf, Speicher und Port
+alia status                       # Server, Zustand, Laufzeit, Profil und Modell
 alia profiles
 alia use rtx8gb-qwen35-9b-fast
 alia use auto

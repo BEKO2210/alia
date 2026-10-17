@@ -134,7 +134,10 @@ def main() -> None:
     ap.add_argument("--server-arg", action="append", default=[],
                     help="extra llama-server argument for A/B runs, e.g. --server-arg=--no-reasoning-preserve")
     ap.add_argument("--probe", action="store_true", help="time a cold and a warm one-word reply first")
+    ap.add_argument("--repeat", type=int, default=1, metavar="N", help="run each task N times (noise check)")
     a = ap.parse_args()
+    if a.repeat < 1:
+        ap.error("--repeat must be at least 1")
 
     profile = next(p for p in alia.load_profiles() if p["id"] == a.profile)
     binary, env_extra = alia.find_llama_server()
@@ -183,49 +186,53 @@ def main() -> None:
                           f"prompt {row.get('prompt_tokens')} tokens", flush=True)
                 for task in tasks:
                     source = TASKS / task
-                    with tempfile.TemporaryDirectory() as work:
-                        workdir = Path(work) / task
-                        shutil.copytree(source / "repo", workdir)
-                        (workdir / ".gitignore").write_text("__pycache__/\n.pytest_cache/\n")
-                        subprocess.run(["git", "init", "-q"], cwd=workdir, check=True)
-                        subprocess.run(["git", "add", "-A"], cwd=workdir, check=True)
-                        subprocess.run(["git", "-c", "user.name=bench", "-c", "user.email=bench@localhost",
-                                        "commit", "-qm", "start"], cwd=workdir, check=True)
-                        prompt = (source / "prompt.txt").read_text().strip()
-                        before = server_metrics()
-                        start = time.time()
-                        try:
-                            run = subprocess.run(
-                                [*alia.build_qwen_command([prompt, "--yolo", "--max-wall-time", f"{a.wall}s",
-                                                           "-o", "json"])],
-                                cwd=workdir, env=qenv, capture_output=True, text=True, timeout=a.wall + 120)
-                            code, stdout = run.returncode, run.stdout
-                        except subprocess.TimeoutExpired as exc:
-                            raw = exc.stdout or ""
-                            code, stdout = "timeout", raw.decode(errors="replace") if isinstance(raw, bytes) else raw
-                        seconds = time.time() - start
-                        served = metrics_delta(before, server_metrics())
-                        subprocess.run(["git", "add", "-A"], cwd=workdir)
-                        diff = subprocess.run(["git", "diff", "--cached", "HEAD"], cwd=workdir,
-                                              capture_output=True, text=True).stdout
-                        (logs / f"{task}.diff").write_text(diff)
-                        (logs / f"{task}.qwen.json").write_text(stdout[-200000:])
-                        shutil.copy(source / "hidden_test.py", workdir / "hidden_test.py")
-                        try:
-                            passed, total, tail = run_tests(workdir)
-                        except subprocess.TimeoutExpired:
-                            passed, total, tail = 0, 0, "hidden tests timed out"
-                        (logs / f"{task}.tests.txt").write_text(tail)
-                    row = {"mode": "agent", "name": a.name, "task": task, "pass": total > 0 and passed == total,
-                           "tests_passed": passed, "tests_total": total, "seconds": round(seconds, 1),
-                           "exit": code, "ts": time.time()}
-                    row.update(qwen_stats(stdout))
-                    row.update(served)
-                    agent_rows.append(row)
-                    f.write(json.dumps(row) + "\n")
-                    f.flush()
-                    print(f"{a.name:14} {task:10} {'PASS' if row['pass'] else 'fail'} "
-                          f"{passed}/{total} tests  {seconds:5.0f} s  exit {code}", flush=True)
+                    for run_number in range(1, a.repeat + 1):
+                        with tempfile.TemporaryDirectory() as work:
+                            workdir = Path(work) / task
+                            shutil.copytree(source / "repo", workdir)
+                            (workdir / ".gitignore").write_text("__pycache__/\n.pytest_cache/\n")
+                            subprocess.run(["git", "init", "-q"], cwd=workdir, check=True)
+                            subprocess.run(["git", "add", "-A"], cwd=workdir, check=True)
+                            subprocess.run(["git", "-c", "user.name=bench", "-c", "user.email=bench@localhost",
+                                            "commit", "-qm", "start"], cwd=workdir, check=True)
+                            prompt = (source / "prompt.txt").read_text().strip()
+                            before = server_metrics()
+                            start = time.time()
+                            try:
+                                run = subprocess.run(
+                                    [*alia.build_qwen_command([prompt, "--yolo", "--max-wall-time", f"{a.wall}s",
+                                                               "-o", "json"])],
+                                    cwd=workdir, env=qenv, capture_output=True, text=True, timeout=a.wall + 120)
+                                code, stdout = run.returncode, run.stdout
+                            except subprocess.TimeoutExpired as exc:
+                                raw = exc.stdout or ""
+                                code, stdout = "timeout", raw.decode(errors="replace") if isinstance(raw, bytes) else raw
+                            seconds = time.time() - start
+                            served = metrics_delta(before, server_metrics())
+                            subprocess.run(["git", "add", "-A"], cwd=workdir)
+                            diff = subprocess.run(["git", "diff", "--cached", "HEAD"], cwd=workdir,
+                                                  capture_output=True, text=True).stdout
+                            log_name = f"{task}-run{run_number}" if a.repeat > 1 else task
+                            (logs / f"{log_name}.diff").write_text(diff)
+                            (logs / f"{log_name}.qwen.json").write_text(stdout[-200000:])
+                            shutil.copy(source / "hidden_test.py", workdir / "hidden_test.py")
+                            try:
+                                passed, total, tail = run_tests(workdir)
+                            except subprocess.TimeoutExpired:
+                                passed, total, tail = 0, 0, "hidden tests timed out"
+                            (logs / f"{log_name}.tests.txt").write_text(tail)
+                        row = {"mode": "agent", "name": a.name, "task": task, "run": run_number,
+                               "pass": total > 0 and passed == total, "tests_passed": passed,
+                               "tests_total": total, "seconds": round(seconds, 1), "exit": code,
+                               "ts": time.time()}
+                        row.update(qwen_stats(stdout))
+                        row.update(served)
+                        agent_rows.append(row)
+                        f.write(json.dumps(row) + "\n")
+                        f.flush()
+                        print(f"{a.name:14} {task:10} #{run_number} "
+                              f"{'PASS' if row['pass'] else 'fail'} {passed}/{total} tests  "
+                              f"{seconds:5.0f} s  exit {code}", flush=True)
                 summary = {
                     "mode": "summary", "passed": sum(row["pass"] for row in agent_rows),
                     "tasks": len(agent_rows), "seconds": round(sum(row["seconds"] for row in agent_rows), 1),

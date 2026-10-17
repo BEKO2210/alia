@@ -84,6 +84,8 @@ Actual time depends on Hugging Face and your connection. An interrupted undersiz
 ```bash
 alia                              # detect hardware, start server and agent
 alia --lang de_DE.UTF-8           # override language for this invocation
+alia --continue                   # continue the latest Qwen session
+alia --resume [ID]                # resume a Qwen session, optionally by ID
 alia --fast                       # disable thinking for a simple, faster task
 alia --wait-gpu 60                # wait for an optional shared GPU lock
 alia --auto-edit                  # automatically allow file edits
@@ -92,6 +94,7 @@ alia -- -p "Explain main.py"      # pass arguments to qwen unchanged
 alia web                          # Web Shell on 127.0.0.1:4170
 alia web --port 4317 --no-open --workspace "$PWD"
 alia doctor                       # includes model, hf, disk, and port checks
+alia status                       # server, health, uptime, profile, and model
 alia profiles
 alia use rtx8gb-qwen35-9b-fast
 alia use auto

@@ -215,7 +215,10 @@ def ram_warning(profile: dict[str, Any], available_gb: float | None) -> str | No
     needed = profile.get("ram_free_gb")
     if needed is None or available_gb is None or available_gb >= needed:
         return None
-    return tr("startup.ram_warning", available=f"{available_gb:.1f}", needed=f"{needed:g}")
+    warning = tr("startup.ram_warning", available=f"{available_gb:.1f}", needed=f"{needed:g}")
+    if profile.get("id") != "rtx8gb-qwen35-9b-fast":
+        warning += " " + tr("startup.ram_warning_lighter")
+    return warning
 
 
 def detect_hardware() -> dict[str, Any]:
@@ -792,11 +795,26 @@ class GpuStartLock:
             self.handle = None
 
 
+def load_bar(elapsed: float, expected: float | None = None) -> str:
+    seconds_per_cell = expected / 10 if expected and expected > 0 else 3
+    count = min(10, max(0, int(elapsed / seconds_per_cell)))
+    return "█" * count + "░" * (10 - count)
+
+
 def wait_for_health(
     pid: int, paths: dict[str, Path], timeout: float = 300.0,
     process: subprocess.Popen[bytes] | None = None,
+    profile_id: str | None = None,
 ) -> None:
     started = time.monotonic()
+    expected: float | None = None
+    load_path = paths["state"] / "last-load.json"
+    try:
+        previous = json.loads(load_path.read_text(encoding="utf-8"))
+        if previous.get("profile") == profile_id and float(previous.get("seconds", 0)) > 0:
+            expected = float(previous["seconds"])
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        pass
     frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
     index = 0
     interactive = sys.stdout.isatty()
@@ -809,6 +827,12 @@ def wait_for_health(
                 clear_server_files(paths, expected_pid=pid)
                 raise RuntimeError(tr("server.exited", log=paths["log"]))
             if health_ok():
+                measured = max(0.1, round(time.monotonic() - started, 1))
+                if profile_id:
+                    write_private_text(
+                        load_path,
+                        json.dumps({"profile": profile_id, "seconds": measured}) + "\n",
+                    )
                 if interactive:
                     print(f"\r{color('32', '✓')} {tr('server.ready_tty', seconds=elapsed)}" + " " * 15)
                 else:
@@ -820,9 +844,10 @@ def wait_for_health(
                 clear_server_files(paths, expected_pid=pid)
                 raise RuntimeError(tr("server.exited", log=paths["log"]))
             if interactive:
-                bar_count = min(10, elapsed // 3)
-                bar = "█" * bar_count + "░" * (10 - bar_count)
-                print(f"\r{frames[index % len(frames)]} {tr('server.loading', bar=bar, seconds=elapsed)}", end="", flush=True)
+                bar = load_bar(elapsed, expected)
+                key = "server.loading_expected" if expected is not None else "server.loading"
+                values = {"bar": bar, "seconds": elapsed, "expected": round(expected or 0)}
+                print(f"\r{frames[index % len(frames)]} {tr(key, **values)}", end="", flush=True)
                 index += 1
             elif elapsed and elapsed % 10 == 0 and elapsed != last_plain_second:
                 print(tr("server.loading_plain", seconds=elapsed))
@@ -905,6 +930,8 @@ def generate_settings(
         "general": {"language": language, "outputLanguage": "auto", "enableAutoUpdate": False},
         "env": {"ALIA_LOCAL_API_KEY": API_KEY},
         "security": {"auth": {"selectedType": "openai"}},
+        # All sub-agents share one server slot; parallel calls only queue and evict caches.
+        "agents": {"maxParallelAgents": 1},
         # Bound context use; Qwen saves complete tool output for later reads.
         "tools": {
             "approvalMode": approval_mode,
@@ -1000,6 +1027,8 @@ def qwen_environment(paths: dict[str, Path]) -> dict[str, str]:
         "QWEN_CODE_LANG": _LANGUAGE,
         "QWEN_USAGE_STATISTICS_ENABLED": "false",
         "QWEN_TELEMETRY_ENABLED": "false",
+        # Deep-context prompt evaluation and thinking can exceed the default 15 minutes.
+        "QWEN_STREAM_MAX_LIFETIME_MS": "1800000",
         # Keep optional title and tool-summary side requests off if a fast model is configured.
         "QWEN_DISABLE_AUTO_TITLE": "1",
         "QWEN_CODE_EMIT_TOOL_USE_SUMMARIES": "0",
@@ -1207,6 +1236,7 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
     pid = managed_pid(paths)
     state = read_server_state(paths) if pid else {}
     llama, _ = find_llama_server()
+    llama_version = _version([str(llama), "--version"]) if llama else None
     qwen = shutil.which("qwen") or str(Path.home() / ".npm-global/bin/qwen")
     qwen_version = _version([qwen, "--version"])
     model = find_model(profile, paths) if profile else None
@@ -1221,6 +1251,8 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
     available = mem_available_gb()
     if available is not None:
         ram_text += f" · {tr('doctor.ram_available', available=f'{available:.1f}')}"
+        if profile and ram_warning(profile, available):
+            ram_text += " ⚠"
     rows = [
         [tr("doctor.label.gpu"), gpu_text if hw["gpu_name"] else tr("doctor.no_gpu")],
         [tr("doctor.label.ram"), ram_text],
@@ -1232,7 +1264,7 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
         [tr("doctor.label.model"), str(model) if model else tr("doctor.model_missing")],
         [tr("doctor.label.compaction"), compaction_summary(profile["ctx"]) if profile else tr("doctor.none")],
         ["Qwen", f"{qwen_version} · {qwen}" + (f" · {tr('doctor.qwen_version_warning', expected='0.25.1')}" if qwen_version != tr("version.not_found") and not qwen_version_supported(qwen_version) else "")],
-        ["llama-server", str(llama) if llama else tr("version.not_found")],
+        ["llama-server", f"{llama} · {llama_version}" if llama else tr("version.not_found")],
         ["hf", hf or tr("version.not_found")],
         [tr("doctor.label.port"), tr("doctor.port_foreign") if foreign_port else tr("doctor.port_available")],
         [tr("doctor.label.disk"), f"{disk_free:.1f} GB"],
@@ -1259,6 +1291,23 @@ def cmd_logs(paths: dict[str, Path]) -> int:
         return subprocess.run(["tail", "-n", "80", "-f", str(log)], check=False).returncode
     except KeyboardInterrupt:
         return 130
+
+
+def cmd_status(paths: dict[str, Path]) -> int:
+    pid = managed_pid(paths)
+    if pid is None:
+        print(tr("status.stopped"))
+        return 3
+    state = read_server_state(paths)
+    ready = health_ok()
+    started = state.get("started_at")
+    uptime = max(0, int(time.time() - started)) if isinstance(started, (int, float)) else 0
+    print(tr(
+        "status.running", pid=pid, profile=state.get("profile", tr("doctor.none")),
+        port=state.get("port", PORT), health=tr("status.ready" if ready else "status.loading"),
+        uptime=uptime, model=state.get("model") or Path(str(state.get("model_path", ""))).name,
+    ))
+    return 0 if ready else 1
 
 
 def prepare_runtime(
@@ -1294,7 +1343,7 @@ def prepare_runtime(
             if reused:
                 print(f"{color('32', '✓')} {tr('startup.server_reused', pid=pid)}")
             else:
-                wait_for_health(pid, paths, process=process)
+                wait_for_health(pid, paths, process=process, profile_id=profile["id"])
     generate_settings(
         profile, hw, paths["qwen_home"], approval_mode=approval_mode,
         language=_LANGUAGE, fast=fast,
@@ -1316,6 +1365,7 @@ def parse_start_args(args: list[str]) -> tuple[str, list[str], bool, float]:
     approval_mode = "default"
     fast = False
     wait_gpu = 0.0
+    session_args: list[str] = []
     before, extra = args, []
     if "--" in args:
         split = args.index("--")
@@ -1330,6 +1380,13 @@ def parse_start_args(args: list[str]) -> tuple[str, list[str], bool, float]:
             approval_mode = requested
         elif option == "--fast":
             fast = True
+        elif option in {"-c", "--continue"}:
+            session_args.append("--continue")
+        elif option in {"-r", "--resume"}:
+            session_args.append("--resume")
+            if index + 1 < len(before) and not before[index + 1].startswith("-"):
+                index += 1
+                session_args.append(before[index])
         elif option == "--wait-gpu":
             if index + 1 >= len(before):
                 raise RuntimeError(tr("args.wait_gpu_number"))
@@ -1340,7 +1397,7 @@ def parse_start_args(args: list[str]) -> tuple[str, list[str], bool, float]:
         index += 1
     if any(item in {"--auto-edit", "--yolo"} for item in extra):
         raise RuntimeError(tr("args.alia_before_separator"))
-    return approval_mode, extra, fast, wait_gpu
+    return approval_mode, session_args + extra, fast, wait_gpu
 
 
 def parse_wait_gpu(value: str) -> float:
@@ -1449,6 +1506,10 @@ def main(argv: list[str] | None = None) -> int:
             if len(argv) != 1:
                 raise RuntimeError(tr("args.doctor_usage"))
             return cmd_doctor(profiles, detect_hardware(), paths)
+        if argv and argv[0] == "status":
+            if len(argv) != 1:
+                raise RuntimeError(tr("args.status_usage"))
+            return cmd_status(paths)
         if argv and argv[0] == "profiles":
             if len(argv) != 1:
                 raise RuntimeError(tr("args.profiles_usage"))
