@@ -286,6 +286,42 @@ class ArgumentTests(unittest.TestCase):
         self.assertIn("42536", alia.compaction_summary(65536))
         self.assertFalse(alia.compaction_summary(65536).endswith("⚠"))
 
+    def test_project_context_files_walk_to_git_root_and_estimate_tokens(self):
+        with tempfile.TemporaryDirectory() as directory:
+            outside = Path(directory)
+            repo = outside / "repo"
+            nested = repo / "src" / "package"
+            nested.mkdir(parents=True)
+            (repo / ".git").mkdir()
+            (outside / "CLAUDE.md").write_bytes(b"outside")
+            (repo / "QWEN.md").write_bytes(b"1234")
+            (repo / "src" / "AGENTS.md").write_bytes(b"12345")
+            (nested / "CLAUDE.md").write_bytes(b"123456789")
+
+            self.assertEqual(
+                alia.project_context_files(nested),
+                [
+                    (nested / "CLAUDE.md", 3),
+                    (repo / "src" / "AGENTS.md", 2),
+                    (repo / "QWEN.md", 1),
+                ],
+            )
+
+    def test_context_budget_warning_above_quarter_of_auto_compaction(self):
+        profile = {"ctx": 65536}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".git").mkdir()
+            context = root / "CLAUDE.md"
+            context.write_bytes(b"x" * 32536)  # 8,134 tokens: exactly below the warning.
+            self.assertIsNone(alia.context_budget_warning(profile, root))
+            context.write_bytes(b"x" * 32540)
+            warning = alia.context_budget_warning(profile, root)
+            self.assertIn(str(context), warning)
+            self.assertIn("8135", warning)
+            self.assertIn("resent with every request", warning)
+        self.assertEqual(alia.project_context_summary([]), "none")
+
     def test_ram_warning(self):
         profile = {"id": "large", "ram_free_gb": 11}
         self.assertIsNone(alia.ram_warning(profile, 12.0))
@@ -557,6 +593,10 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(settings["tools"]["toolOutputBatchBudget"], 40000)
             self.assertEqual(settings["agents"]["maxParallelAgents"], 1)
             self.assertEqual(settings["skills"]["disabledLevels"], ["user"])
+            self.assertEqual(
+                settings["context"]["fileName"],
+                ["QWEN.md", "AGENTS.md", "CLAUDE.md"],
+            )
             self.assertFalse(settings["general"]["enableAutoUpdate"])
             self.assertTrue(settings["model"]["skipLoopDetection"])
             self.assertFalse(settings["ui"]["enableFollowupSuggestions"])
@@ -835,6 +875,8 @@ class PidTests(unittest.TestCase):
     def test_doctor_shows_llama_build_and_ram_warning(self):
         with tempfile.TemporaryDirectory() as directory:
             paths = alia.user_paths(Path(directory))
+            context = Path(directory) / "QWEN.md"
+            context.write_bytes(b"12345")
             profiles = alia.load_profiles(ROOT / "profiles.json")
             hw = {"gpu_name": "NVIDIA GeForce RTX 3070", "vram_gb": 8.0, "ram_gb": 15.5,
                   "cpu_name": "CPU", "cpu_count": 16, "gpu_index": 0}
@@ -844,11 +886,13 @@ class PidTests(unittest.TestCase):
                     mock.patch.object(alia, "ollama_loaded_models", return_value=None), \
                     mock.patch.object(alia, "port_open", return_value=False), \
                     mock.patch.object(alia, "health_ok", return_value=False), \
+                    mock.patch.object(alia.Path, "cwd", return_value=Path(directory)), \
                     io.StringIO() as output, redirect_stdout(output):
                 alia.cmd_doctor(profiles, hw, paths)
                 text = output.getvalue()
             self.assertIn("version: test (build 1)", text)
             self.assertIn("⚠", text)
+            self.assertIn(f"{context} (~2 tokens)", text)
             self.assertEqual(version.call_args_list[0].args[1]["LD_LIBRARY_PATH"], "/x")
 
     def test_status_stopped_and_healthy(self):
@@ -1007,15 +1051,19 @@ class McpTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             paths = alia.user_paths(Path(directory))
             alia.write_mcp_config(paths["config"], ["browser"])
+            context = Path(directory) / "CLAUDE.md"
+            context.write_bytes(b"x" * 40000)
             profiles = alia.load_profiles(ROOT / "profiles.json")
             hw = {"gpu_name": "NVIDIA GeForce RTX 3070", "vram_gb": 8.0, "ram_gb": 15.5}
             with mock.patch.object(alia, "ensure_model", return_value=Path("/m.gguf")), \
                     mock.patch.object(alia, "start_server", return_value=(4242, True, None)), \
                     mock.patch.object(alia, "generate_settings") as generate, \
+                    mock.patch.object(alia.Path, "cwd", return_value=Path(directory)), \
                     mock.patch.dict(alia.os.environ, {}, clear=True), \
-                    redirect_stdout(io.StringIO()):
+                    redirect_stdout(io.StringIO()) as output:
                 self.assertIsNotNone(alia.prepare_runtime(profiles, hw, paths))
         self.assertEqual(generate.call_args.kwargs["mcp"], ["browser"])
+        self.assertIn("Large project context", output.getvalue())
 
     def test_enable_disable_round_trip(self):
         with tempfile.TemporaryDirectory() as directory:

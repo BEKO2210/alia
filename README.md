@@ -112,6 +112,8 @@ alia --version
 
 Language precedence is `--lang` → `ALIA_LANG` → configuration → `LC_ALL` → `LC_MESSAGES` → `LANG` → English. Model replies follow the input language unless explicitly requested otherwise.
 
+Alia reads project instructions from `QWEN.md`, `AGENTS.md`, and `CLAUDE.md`. Keep these files short: they are resent with every request, and `alia doctor` shows their estimated size.
+
 `--fast` writes `chat_template_kwargs.enable_thinking: false`; normal runs leave thinking enabled. The default approval mode asks before edits and commands. `--auto-edit` approves only edits. `--yolo` approves all tool calls and is only appropriate in a fully trusted workspace.
 
 To coordinate with other GPU jobs, set `gpu_lock` in `~/.config/alia/config.json` or `ALIA_GPU_LOCK` to a lock-file path. `--wait-gpu S` bounds how long Alia waits. Alia also always takes its own state lock across reuse checks, startup, and health readiness.

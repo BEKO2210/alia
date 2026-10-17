@@ -95,3 +95,11 @@ For measurement caveats and an independent recount, see
   - `-121618`: plus a `python → python3` link on Alia's own PATH when the host has no
     `python`: all three passed (85 / 43 / 62 s), 2 failed calls left, both real test failures
     the model then fixed; no more `python: command not found`.
+  - `-124330` (round 4 live gate, MCP browser + search enabled, ad-hoc tasks outside the
+    frozen set): browser (local page whose stock line only JavaScript renders) and search
+    (latest PyPI version with source) passed in 35 / 31 s via the MCP tools; perf, rename,
+    vat passed. First prompt 11.4K tokens with both servers enabled.
+  - `-125703` (round 5, ad-hoc task): a repo whose `CLAUDE.md` holds a codeword; the agent
+    wrote it in 14 s without opening the file, so `context.fileName` loads `CLAUDE.md`.
+    The frozen tasks in this file crashed on a stale task link (harness error, rerun below).
+  - `-130307`: round 5 frozen tasks: all passed, 45 / 35 / 54 s.
