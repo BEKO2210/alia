@@ -90,6 +90,7 @@ alia --fast                       # disable thinking for a simple, faster task
 alia --wait-gpu 60                # wait for an optional shared GPU lock
 alia --auto-edit                  # automatically allow file edits
 alia --yolo                       # allow all tools; prints a red warning
+alia --sandbox                    # confine tool commands: project writes only, no tool network (needs bwrap)
 alia -- -p "Explain main.py"      # pass arguments to qwen unchanged
 alia web                          # Web Shell on 127.0.0.1:4170
 alia web --port 4317 --no-open --workspace "$PWD"
@@ -133,6 +134,10 @@ Qwen Code has no browser of its own and its built-in web search needs a cloud ke
 - `search` — web search and page fetch via DuckDuckGo ([duckduckgo-mcp-server](https://pypi.org/project/duckduckgo-mcp-server/) 0.7.0), no API key. Requires `uvx` (uv). It scrapes html.duckduckgo.com, so results can break or be blocked; Alia limits it to 10 searches and 10 page fetches per minute.
 
 Every MCP tool call goes through the normal approval prompt; `--yolo` approves them without asking. The first session downloads the pinned packages. `alia mcp test [NAME]` starts the enabled servers (or just NAME) exactly as a session would and lists their tools, waiting up to 90 s for a first download. Alia loads MCP tool schemas upfront (`alwaysLoadTools`), so the model can call them without a `tool_search` round trip.
+
+### Sandbox (opt-in)
+
+`alia --sandbox` confines the commands the agent runs with bubblewrap: they may write only inside the project and get no network; the model itself keeps talking to the local server. Host files such as `~/.ssh` stay readable, and tools that need a network (for example `pip install`) fail. Install `bwrap` (package `bubblewrap`); `alia doctor` shows whether it is available. Qwen Code 0.25.1 does not support the sandbox with MCP servers or in `alia web`, so Alia stops with an error in both cases. Start it from a project directory below your home directory: Qwen Code refuses a workspace that is `$HOME` itself, lies above it, or overlaps Alia's Qwen state or the Qwen Code installation, and Alia checks this first. Because `/rewind` cannot restore files in the sandbox, Alia stores uncommitted tracked changes in `refs/alia/pre-session` before the session (untracked files are not included) and prints the restore command. Details: [SECURITY.md](SECURITY.md).
 
 ## Bundled profiles
 
