@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Alia writes detected shell constraints into a managed block in the isolated global `QWEN.md`.
+- `alia doctor` reports the `python3` path and whether a `python` command exists.
+- Host-wide user skills are disabled in Alia sessions; repository project skills remain available.
 - Background sub-agents are serialized to match llama-server's single request slot.
 - Slow deep-context streams may run for 30 minutes before Qwen Code aborts them.
 - `alia --continue` and `alia --resume [ID]` pass session selection to Qwen Code.

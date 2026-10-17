@@ -476,6 +476,58 @@ class LogoValidationTests(unittest.TestCase):
         )
 
 
+class EnvironmentContextTests(unittest.TestCase):
+    def test_create_environment_context(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = alia.write_environment_context(Path(directory))
+            text = path.read_text(encoding="utf-8")
+            self.assertTrue(text.startswith("# Alia environment\n\n"))
+            self.assertIn(alia.ENVIRONMENT_START, text)
+            self.assertIn(alia.ENVIRONMENT_END, text)
+            self.assertIn("Foreground shell commands time out after 120 s", text)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_replace_preserves_user_text_before_and_after_byte_for_byte(self):
+        with tempfile.TemporaryDirectory() as directory:
+            qwen_home = Path(directory)
+            path = qwen_home / "QWEN.md"
+            before = b"# User context\r\nkeep before\n"
+            after = b"\r\nkeep after\r\n"
+            path.write_bytes(
+                before + alia.ENVIRONMENT_START.encode() + b"\n- stale\n" +
+                alia.ENVIRONMENT_END.encode() + after
+            )
+            alia.write_environment_context(qwen_home)
+            updated = path.read_bytes()
+            self.assertTrue(updated.startswith(before + alia.ENVIRONMENT_START.encode()))
+            self.assertTrue(updated.endswith(alia.ENVIRONMENT_END.encode() + after))
+            self.assertNotIn(b"stale", updated)
+
+    def test_append_preserves_existing_user_content(self):
+        with tempfile.TemporaryDirectory() as directory:
+            qwen_home = Path(directory)
+            path = qwen_home / "QWEN.md"
+            original = b"# My notes\r\nDo not change this."
+            path.write_bytes(original)
+            alia.write_environment_context(qwen_home)
+            updated = path.read_bytes()
+            self.assertTrue(updated.startswith(original + b"\n\n"))
+            self.assertIn(alia.ENVIRONMENT_START.encode(), updated)
+
+    def test_python_and_pip_notes_when_only_python3_exists(self):
+        commands = {"python": None, "python3": "/usr/bin/python3", "pip": None}
+        with mock.patch.object(alia.shutil, "which", side_effect=commands.get):
+            notes = alia.environment_notes()
+        self.assertIn("Use `python3`; there is no `python` command.", notes)
+        self.assertIn("Use `python3 -m pip`, not `pip`.", notes)
+
+    def test_python_notes_are_omitted_when_python3_is_missing(self):
+        with mock.patch.object(alia.shutil, "which", return_value=None):
+            notes = alia.environment_notes()
+        self.assertNotIn("Use `python3`; there is no `python` command.", notes)
+        self.assertNotIn("Use `python3 -m pip`, not `pip`.", notes)
+
+
 class SettingsTests(unittest.TestCase):
     def test_qwen_environment_forces_resolved_ui_language(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -503,6 +555,7 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(settings["tools"]["truncateToolOutputLines"], 400)
             self.assertEqual(settings["tools"]["toolOutputBatchBudget"], 40000)
             self.assertEqual(settings["agents"]["maxParallelAgents"], 1)
+            self.assertEqual(settings["skills"]["disabledLevels"], ["user"])
             self.assertFalse(settings["general"]["enableAutoUpdate"])
             self.assertTrue(settings["model"]["skipLoopDetection"])
             self.assertFalse(settings["ui"]["enableFollowupSuggestions"])
@@ -528,6 +581,7 @@ class SettingsTests(unittest.TestCase):
             )
             self.assertTrue((target / "logo-large.txt").exists())
             self.assertTrue((target / "branding" / "logo-mark.svg").exists())
+            self.assertTrue((target / "QWEN.md").exists())
             self.assertEqual(target.stat().st_mode & 0o777, 0o700)
             self.assertEqual(output.stat().st_mode & 0o777, 0o600)
             self.assertFalse((ROOT / ".qwen").exists())
@@ -570,6 +624,24 @@ class SettingsTests(unittest.TestCase):
                 alia, "ollama_loaded_models", return_value=models
             ):
                 self.assertEqual(alia.doctor_ollama_status(), expected)
+
+    def test_python_shim_only_without_python(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory) / "qwen-home"
+            python3 = Path(directory) / "python3"
+            python3.write_text("")
+            which = {"python3": str(python3), "python": None}
+            with mock.patch.object(alia.shutil, "which", side_effect=lambda name: which.get(name)):
+                shim = alia.write_python_shim(home)
+                self.assertEqual(os.readlink(shim), str(python3))
+                self.assertEqual(alia.write_python_shim(home), shim)  # idempotent
+                env = alia.qwen_environment({"qwen_home": home})
+            self.assertTrue(env["PATH"].startswith(str(home / "bin")))
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory) / "qwen-home"
+            with mock.patch.object(alia.shutil, "which", return_value="/usr/bin/python"):
+                self.assertIsNone(alia.write_python_shim(home))
+            self.assertFalse((home / "bin").exists())
 
     def test_generated_language_settings_for_english_and_german(self):
         profile = alia.load_profiles(ROOT / "profiles.json")[0]

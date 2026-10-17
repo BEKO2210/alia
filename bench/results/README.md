@@ -89,3 +89,9 @@ For measurement caveats and an independent recount, see
     Loop detection is therefore left off (Qwen Code's default).
   - `-114452`: micro round 2 (sub-agents serialized, 30-min stream lifetime, resume flags,
     status, doctor rows): all three passed; perf / rename / vat 88 / 59 / 59 s.
+  - `-121153`: micro round 3 (environment notes in Qwen's global QWEN.md, host-wide user
+    skills off): first prompt 12.4K → 10.9K tokens, all three passed, 74 / 44 / 58 s; still
+    3 failed tool calls, 2 of them `python: command not found` — the model ignores the note.
+  - `-121618`: plus a `python → python3` link on Alia's own PATH when the host has no
+    `python`: all three passed (85 / 43 / 62 s), 2 failed calls left, both real test failures
+    the model then fixed; no more `python: command not found`.

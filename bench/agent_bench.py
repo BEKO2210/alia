@@ -240,14 +240,17 @@ def main() -> None:
                     "mode": "summary", "passed": sum(row["pass"] for row in agent_rows),
                     "tasks": len(agent_rows), "seconds": round(sum(row["seconds"] for row in agent_rows), 1),
                 }
-                for field in ("evaluated_prompt_tokens", "generated_tokens"):
-                    values = [row[field] for row in agent_rows if field in row]
+                for field in ("evaluated_prompt_tokens", "generated_tokens", "tool_calls", "tool_fails"):
+                    values = [row[field] for row in agent_rows
+                              if isinstance(row.get(field), (int, float))]
                     if values:
                         summary[field] = round(sum(values), 1)
                 f.write(json.dumps(summary) + "\n")
                 print(f"summary: {summary['passed']}/{summary['tasks']} PASS · {summary['seconds']:g} s · "
                       f"evaluated prompt {summary.get('evaluated_prompt_tokens', 0):g} tok · "
-                      f"generated {summary.get('generated_tokens', 0):g} tok", flush=True)
+                      f"generated {summary.get('generated_tokens', 0):g} tok · "
+                      f"tools {summary.get('tool_calls', 0):g} calls / "
+                      f"{summary.get('tool_fails', 0):g} failed", flush=True)
     finally:
         stop(proc)
     print(f"raw results: {out_path}")
