@@ -1093,10 +1093,53 @@ def mcp_probe(
         stderr.close()
 
 
+# Qwen Code's tools.executionSandbox: tool commands may write only inside the project and get
+# no network of their own (bwrap network namespace); model traffic stays on the host.
+# Landlock cannot enforce network "closed", so only bwrap counts as a backend.
+SANDBOX_POLICY = {"backend": "auto", "filesystem": "workspace-write", "network": "closed"}
+SNAPSHOT_REF = "refs/alia/pre-session"
+
+
+def require_sandbox(config: dict[str, Any]) -> None:
+    if shutil.which("bwrap") is None:
+        raise RuntimeError(tr("sandbox.no_backend"))
+    # Qwen Code 0.25.1 refuses to start a sandboxed session that has any MCP server.
+    names = enabled_mcp(config.get("mcp"))
+    if names:
+        raise RuntimeError(tr("sandbox.mcp_conflict", names=", ".join(names)))
+
+
+def git_run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=False)
+
+
+def snapshot_pre_session(cwd: Path) -> None:
+    """The sandbox turns off /rewind file restore; keep tracked changes in a ref instead.
+
+    Only objects and refs/alia/pre-session are written; the working tree and index stay as they are.
+    """
+    if shutil.which("git") is None or git_run(cwd, "rev-parse", "--verify", "-q", "HEAD").returncode != 0:
+        print(tr("sandbox.no_git"))
+        return
+    status = git_run(cwd, "--no-optional-locks", "status", "--porcelain").stdout.splitlines()
+    if any(line.startswith("??") for line in status):
+        print(color("33", tr("sandbox.untracked_warning")))
+    commit = git_run(cwd, "stash", "create", "alia pre-session snapshot").stdout.strip()
+    if not commit:
+        print(tr("sandbox.clean_tree"))
+        return
+    result = git_run(cwd, "update-ref", "-m", "alia pre-session snapshot", SNAPSHOT_REF, commit)
+    if result.returncode != 0:
+        raise RuntimeError(tr("sandbox.snapshot_failed", error=result.stderr.strip()))
+    print(f"{color('32', '✓')} {tr('sandbox.snapshot_saved', ref=SNAPSHOT_REF, commit=commit[:12])}")
+    print(tr("sandbox.restore_hint", ref=SNAPSHOT_REF))
+
+
 def generate_settings(
     profile: dict[str, Any], hw: dict[str, Any], target_dir: Path,
     branding_dir: Path = BRANDING_DIR, approval_mode: str = "default",
     language: str | None = None, fast: bool = False, mcp: list[str] | None = None,
+    sandbox: bool = False,
 ) -> Path:
     language = language or _LANGUAGE
     ensure_private_dir(target_dir)
@@ -1197,6 +1240,8 @@ def generate_settings(
     servers = mcp_servers(mcp)
     if servers:
         settings["mcpServers"] = servers
+    if sandbox:
+        settings["tools"]["executionSandbox"] = dict(SANDBOX_POLICY)
     output = target_dir / "settings.json"
     write_private_text(output, json.dumps(settings, indent=2, ensure_ascii=False) + "\n")
     write_environment_context(target_dir)
@@ -1530,6 +1575,7 @@ def cmd_doctor(profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[s
         [tr("doctor.label.cpu"), f"{hw['cpu_name']} · {hw['cpu_count']} {tr('doctor.threads')}"],
         [tr("doctor.label.python"), python_text],
         ["MCP", mcp_text],
+        [tr("doctor.label.sandbox"), "bwrap" if shutil.which("bwrap") else tr("doctor.sandbox_none")],
         [tr("doctor.label.profile"), profile["id"] if profile else tr("doctor.none")],
         [tr("doctor.label.selection"), reason + (" ⚠" if warning else "")],
         [tr("doctor.label.server"), f"PID {pid} · {tr('doctor.healthy') if health_ok() else tr('doctor.not_ready')} · Port {state.get('port', PORT)}" if pid else tr("doctor.stopped")],
@@ -1649,8 +1695,11 @@ def cmd_mcp_test(args: list[str], enabled: list[str], paths: dict[str, Path]) ->
 def prepare_runtime(
     profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[str, Path],
     approval_mode: str = "default", fast: bool = False, wait_gpu: float = 0,
+    sandbox: bool = False,
 ) -> dict[str, Any] | None:
     config = read_config(paths["config"])
+    if sandbox:
+        require_sandbox(config)
     profile, reason, warning = choose_profile(profiles, hw, config.get("profile"))
     gpu = f"{hw['gpu_name']} ({hw['vram_gb']:.1f} GB)" if hw["gpu_name"] else tr("startup.no_gpu")
     print(f"{color('32', '✓')} {tr('startup.hardware', gpu=gpu, ram=hw['ram_gb'])}")
@@ -1683,9 +1732,12 @@ def prepare_runtime(
                 print(f"{color('32', '✓')} {tr('startup.server_reused', pid=pid)}")
             else:
                 wait_for_health(pid, paths, process=process, profile_id=profile["id"])
+    if sandbox:
+        snapshot_pre_session(Path.cwd())
+        print(f"{color('32', '✓')} {tr('sandbox.active')}")
     generate_settings(
         profile, hw, paths["qwen_home"], approval_mode=approval_mode,
-        language=_LANGUAGE, fast=fast, mcp=config.get("mcp"),
+        language=_LANGUAGE, fast=fast, mcp=config.get("mcp"), sandbox=sandbox,
     )
     return profile
 
@@ -1734,9 +1786,18 @@ def parse_start_args(args: list[str]) -> tuple[str, list[str], bool, float]:
         else:
             raise RuntimeError(tr("args.qwen_after_separator"))
         index += 1
-    if any(item in {"--auto-edit", "--yolo"} for item in extra):
+    if any(item in {"--auto-edit", "--yolo", "--sandbox"} for item in extra):
         raise RuntimeError(tr("args.alia_before_separator"))
     return approval_mode, session_args + extra, fast, wait_gpu
+
+
+def extract_sandbox_flag(args: list[str]) -> tuple[bool, list[str]]:
+    """Remove the first --sandbox before any -- separator."""
+    before = args[:args.index("--")] if "--" in args else args
+    if "--sandbox" not in before:
+        return False, args
+    index = before.index("--sandbox")
+    return True, args[:index] + args[index + 1:]
 
 
 def parse_wait_gpu(value: str) -> float:
@@ -1752,10 +1813,10 @@ def parse_wait_gpu(value: str) -> float:
 def cmd_start(
     extra: list[str], profiles: list[dict[str, Any]], hw: dict[str, Any],
     paths: dict[str, Path], approval_mode: str = "default", fast: bool = False,
-    wait_gpu: float = 0,
+    wait_gpu: float = 0, sandbox: bool = False,
 ) -> int:
     warn_approval_mode(approval_mode)
-    profile = prepare_runtime(profiles, hw, paths, approval_mode, fast, wait_gpu)
+    profile = prepare_runtime(profiles, hw, paths, approval_mode, fast, wait_gpu, sandbox)
     if profile is None:
         return 1
     return launch_qwen(paths, extra)
@@ -1786,6 +1847,9 @@ def parse_web_args(args: list[str]) -> tuple[int, bool, Path | None, str, bool, 
             fast = True
             index += 1
             continue
+        if option == "--sandbox":
+            # Qwen Code 0.25.1 rejects tools.executionSandbox for `qwen serve`.
+            raise RuntimeError(tr("sandbox.web_unsupported"))
         if option not in {"--port", "--workspace", "--wait-gpu"} or index + 1 >= len(args):
             raise RuntimeError(tr("args.web_usage"))
         value = args[index + 1]
@@ -1902,10 +1966,11 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_logs(paths)
         if argv and argv[0] == "web":
             return cmd_web(argv[1:], profiles, detect_hardware(), paths)
+        sandbox, argv = extract_sandbox_flag(argv)
         approval_mode, extra, fast, wait_gpu = parse_start_args(argv)
         return cmd_start(
             extra, profiles, detect_hardware(), paths, approval_mode=approval_mode,
-            fast=fast, wait_gpu=wait_gpu,
+            fast=fast, wait_gpu=wait_gpu, sandbox=sandbox,
         )
     except (RuntimeError, ValueError, OSError) as exc:
         print(color("31", tr("error.prefix", error=exc)), file=sys.stderr)

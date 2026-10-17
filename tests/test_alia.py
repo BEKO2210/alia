@@ -5,6 +5,7 @@ import io
 import json
 import os
 import signal
+import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -1393,6 +1394,193 @@ class McpTestCommandTests(unittest.TestCase):
                         os.kill(item["grandchild"], signal.SIGKILL)
         self.assertLess(elapsed, 5)
         self.assertTrue(any("grandchild" in item for item in self._log()))
+
+
+class SandboxTests(unittest.TestCase):
+    PROFILES = alia.load_profiles(ROOT / "profiles.json")
+    HW = {"gpu_name": "NVIDIA GeForce RTX 3070", "vram_gb": 8.0, "ram_gb": 15.5,
+          "cpu_name": "CPU", "cpu_count": 16, "gpu_index": 0}
+
+    def tearDown(self):
+        alia.set_language("en")
+
+    @staticmethod
+    def _which(*present):
+        return lambda name: f"/usr/bin/{name}" if name in present else None
+
+    def _git_repo(self, root):
+        def git(*args):
+            return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@localhost", *args],
+                                  cwd=root, capture_output=True, text=True, check=True).stdout
+        git("init", "-q")
+        (root / "a.txt").write_text("one\n", encoding="utf-8")
+        git("add", "a.txt")
+        git("commit", "-qm", "start")
+        return git
+
+    def _snapshot(self, root):
+        with io.StringIO() as output, redirect_stdout(output):
+            alia.snapshot_pre_session(root)
+            return output.getvalue()
+
+    def test_settings_policy_only_with_sandbox(self):
+        profile = self.PROFILES[0]
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+            plain = json.loads(alia.generate_settings(profile, {"gpu_name": None}, target, ROOT / "branding")
+                               .read_text(encoding="utf-8"))
+            self.assertNotIn("executionSandbox", plain["tools"])
+            sandboxed = json.loads(alia.generate_settings(profile, {"gpu_name": None}, target, ROOT / "branding",
+                                                          sandbox=True).read_text(encoding="utf-8"))
+        policy = sandboxed["tools"]["executionSandbox"]
+        self.assertEqual(policy, {"backend": "auto", "filesystem": "workspace-write", "network": "closed"})
+        self.assertEqual(sandboxed["tools"]["approvalMode"], "default")
+        policy["network"] = "open"
+        self.assertEqual(alia.SANDBOX_POLICY["network"], "closed")
+
+    def test_require_sandbox_needs_bwrap_and_no_mcp(self):
+        with mock.patch.object(alia.shutil, "which", side_effect=self._which()):
+            with self.assertRaisesRegex(RuntimeError, "bubblewrap"):
+                alia.require_sandbox({})
+        with mock.patch.object(alia.shutil, "which", side_effect=self._which("bwrap")):
+            alia.require_sandbox({"mcp": ["unknown"]})
+            with self.assertRaisesRegex(RuntimeError, r"does not support MCP servers \(enabled: browser, search\)"):
+                alia.require_sandbox({"mcp": ["search", "browser"]})
+
+    def test_prepare_runtime_checks_before_server_start(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = alia.user_paths(Path(directory))
+            alia.write_mcp_config(paths["config"], ["browser"])
+            for which, message in ((self._which(), "bwrap"), (self._which("bwrap"), "MCP")):
+                with self.subTest(message=message), \
+                        mock.patch.object(alia.shutil, "which", side_effect=which), \
+                        mock.patch.object(alia, "ensure_model") as ensure, \
+                        mock.patch.object(alia, "start_server") as start, \
+                        redirect_stdout(io.StringIO()):
+                    with self.assertRaisesRegex(RuntimeError, message):
+                        alia.prepare_runtime(self.PROFILES, self.HW, paths, sandbox=True)
+                    ensure.assert_not_called()
+                    start.assert_not_called()
+
+    def test_prepare_runtime_snapshots_and_passes_sandbox(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = alia.user_paths(Path(directory))
+            with mock.patch.object(alia.shutil, "which", side_effect=self._which("bwrap")), \
+                    mock.patch.object(alia, "ensure_model", return_value=Path("/m.gguf")), \
+                    mock.patch.object(alia, "start_server", return_value=(4242, True, None)), \
+                    mock.patch.object(alia, "generate_settings") as generate, \
+                    mock.patch.object(alia, "snapshot_pre_session") as snapshot, \
+                    mock.patch.object(alia.Path, "cwd", return_value=Path(directory)), \
+                    mock.patch.dict(alia.os.environ, {}, clear=True), \
+                    redirect_stdout(io.StringIO()) as output:
+                self.assertIsNotNone(alia.prepare_runtime(self.PROFILES, self.HW, paths, sandbox=True))
+                self.assertIsNotNone(alia.prepare_runtime(self.PROFILES, self.HW, paths))
+        snapshot.assert_called_once_with(Path(directory))
+        self.assertEqual([call.kwargs["sandbox"] for call in generate.call_args_list], [True, False])
+        self.assertEqual(output.getvalue().count("Sandbox: bwrap"), 1)
+
+    def test_snapshot_non_repo_and_missing_git(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertIn("Not a git repository", self._snapshot(Path(directory)))
+            with mock.patch.object(alia.shutil, "which", return_value=None):
+                self.assertIn("Not a git repository", self._snapshot(Path(directory)))
+
+    def test_snapshot_clean_repo_writes_no_ref(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            git = self._git_repo(root)
+            output = self._snapshot(root)
+            self.assertIn("no pre-session snapshot needed", output)
+            self.assertNotIn("untracked", output)
+            self.assertEqual(git("for-each-ref", "refs/alia"), "")
+
+    def test_snapshot_dirty_repo_keeps_tree_and_index(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            git = self._git_repo(root)
+            (root / "a.txt").write_text("two\n", encoding="utf-8")
+            (root / "b.txt").write_text("staged\n", encoding="utf-8")
+            git("add", "b.txt")
+            (root / "new.txt").write_text("untracked\n", encoding="utf-8")
+            before = (git("status", "--porcelain"), git("diff"), git("diff", "--cached"), git("stash", "list"))
+            output = self._snapshot(root)
+            after = (git("status", "--porcelain"), git("diff"), git("diff", "--cached"), git("stash", "list"))
+            self.assertEqual(before, after)
+            self.assertEqual(after[3], "")
+            self.assertEqual((root / "a.txt").read_text(encoding="utf-8"), "two\n")
+            commit = git("rev-parse", "refs/alia/pre-session").strip()
+            self.assertIn(f"refs/alia/pre-session → {commit[:12]}", output)
+            self.assertIn("git stash apply refs/alia/pre-session", output)
+            self.assertIn("untracked files are not part", output)
+            self.assertEqual(git("show", f"{commit}:a.txt"), "two\n")
+            self.assertEqual(git("show", f"{commit}:b.txt"), "staged\n")
+            refs = git("for-each-ref", "--format=%(refname)").split()
+            self.assertEqual([ref for ref in refs if not ref.startswith("refs/heads/")], ["refs/alia/pre-session"])
+
+    def test_snapshot_untracked_only_warns_without_ref(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            git = self._git_repo(root)
+            (root / "new.txt").write_text("untracked\n", encoding="utf-8")
+            output = self._snapshot(root)
+            self.assertIn("Warning: untracked files", output)
+            self.assertIn("no pre-session snapshot needed", output)
+            self.assertEqual(git("for-each-ref", "refs/alia"), "")
+
+    def test_snapshot_ref_failure_is_an_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._git_repo(root)
+            (root / "a.txt").write_text("two\n", encoding="utf-8")
+            (root / ".git" / "refs" / "alia").write_text("not a directory\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "Cannot store the pre-session snapshot"):
+                self._snapshot(root)
+
+    def test_flag_parsing(self):
+        self.assertEqual(alia.extract_sandbox_flag(["--yolo", "--sandbox", "--", "-p"]), (True, ["--yolo", "--", "-p"]))
+        self.assertEqual(alia.extract_sandbox_flag(["--", "--sandbox"]), (False, ["--", "--sandbox"]))
+        self.assertEqual(alia.extract_sandbox_flag(["-c"]), (False, ["-c"]))
+        with self.assertRaisesRegex(RuntimeError, "before '--'"):
+            alia.parse_start_args(["--", "--sandbox"])
+        with self.assertRaisesRegex(RuntimeError, "alia web does not support --sandbox"):
+            alia.parse_web_args(["--no-open", "--sandbox"])
+
+    def test_main_passes_flag_and_web_errors(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(alia, "user_paths", return_value=alia.user_paths(Path(directory))), \
+                mock.patch.object(alia, "detect_hardware", return_value=self.HW), \
+                mock.patch.object(alia, "cmd_start", return_value=0) as start, \
+                io.StringIO() as error, redirect_stderr(error):
+            self.assertEqual(alia.main(["--lang", "en", "--sandbox", "--fast"]), 0)
+            self.assertEqual(alia.main(["--lang", "en", "--fast"]), 0)
+            self.assertEqual(alia.main(["--lang", "de", "web", "--sandbox"]), 1)
+            self.assertIn("alia web unterstützt --sandbox nicht", error.getvalue())
+        alia.set_language("en")
+        self.assertEqual([call.kwargs["sandbox"] for call in start.call_args_list], [True, False])
+        self.assertTrue(start.call_args_list[0].kwargs["fast"])
+
+    def test_cmd_start_passes_sandbox(self):
+        with mock.patch.object(alia, "prepare_runtime", return_value=None) as prepare:
+            self.assertEqual(alia.cmd_start([], self.PROFILES, self.HW, {}, sandbox=True), 1)
+        self.assertIs(prepare.call_args.args[-1], True)
+
+    def test_usage_and_doctor_row(self):
+        for language in ("en", "de"):
+            self.assertIn("--sandbox", alia.tr_for(language, "usage.text"))
+        for which, expected in ((self._which("bwrap", "npx", "uvx"), r"Sandbox\S*\s+bwrap$"),
+                                (self._which("npx", "uvx"), r"Sandbox\S*\s+none \(install bubblewrap")):
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as directory, \
+                    mock.patch.object(alia, "find_llama_server", return_value=(None, {})), \
+                    mock.patch.object(alia, "_version", return_value="test"), \
+                    mock.patch.object(alia, "mem_available_gb", return_value=None), \
+                    mock.patch.object(alia, "ollama_loaded_models", return_value=None), \
+                    mock.patch.object(alia, "port_open", return_value=False), \
+                    mock.patch.object(alia, "health_ok", return_value=False), \
+                    mock.patch.object(alia.shutil, "which", side_effect=which), \
+                    io.StringIO() as output, redirect_stdout(output):
+                alia.cmd_doctor(self.PROFILES, self.HW, alia.user_paths(Path(directory)))
+                line = next(row for row in output.getvalue().splitlines() if "Sandbox" in row)
+            self.assertRegex(line, expected)
 
 
 if __name__ == "__main__":
