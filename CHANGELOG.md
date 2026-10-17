@@ -11,7 +11,6 @@ All notable changes to this project are documented here. The format follows
 - Interactive sessions disable follow-up suggestions that would make an extra full-context request.
 - Qwen Code's pinned release no longer checks for updates or opens the feedback dialog.
 - Optional automatic-title and tool-summary model requests are disabled in the environment.
-- Heuristic repetition-loop detection is enabled for local models.
 - Tool output limits are reduced while full results remain available in Qwen Code's saved files.
 - Qwen Code starts lean: 17 tools a local single-slot agent does not use
   (cron, worktrees, goals, team messages, memory, image zoom, MCP resources)

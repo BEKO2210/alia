@@ -917,10 +917,11 @@ def generate_settings(
         "permissions": {"deny": list(DENIED_QWEN_TOOLS)},
         # Background memory extraction is an extra model call per session on the single server slot.
         "memory": {"enableManagedAutoMemory": False, "enableManagedAutoDream": False},
-        # Heuristic loop detection catches repetition without another model request.
+        # Qwen Code's heuristic loop detector stays off (its default): it halted a correct vat run
+        # after 18 s as "repetitive_thoughts", because thinking models restate their plan.
         "model": {
             "name": profile["id"], "baseUrl": f"http://{HOST}:{PORT}/v1",
-            "skipLoopDetection": False,
+            "skipLoopDetection": True,
         },
         "modelProviders": {"openai": [{
             "id": profile["id"],

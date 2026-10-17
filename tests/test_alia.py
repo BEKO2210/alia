@@ -473,7 +473,7 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(settings["tools"]["truncateToolOutputLines"], 400)
             self.assertEqual(settings["tools"]["toolOutputBatchBudget"], 40000)
             self.assertFalse(settings["general"]["enableAutoUpdate"])
-            self.assertFalse(settings["model"]["skipLoopDetection"])
+            self.assertTrue(settings["model"]["skipLoopDetection"])
             self.assertFalse(settings["ui"]["enableFollowupSuggestions"])
             self.assertFalse(settings["ui"]["enableUserFeedback"])
             self.assertIn("cron_create", settings["permissions"]["deny"])

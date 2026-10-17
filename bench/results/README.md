@@ -83,3 +83,6 @@ For measurement caveats and an independent recount, see
     228 s because the model benchmarked the old O(n²) code itself and hit the 120 s shell
     timeout (model time ~70 s). Cold probe 31.6 s: model pages were evicted by an
     earlier `--load-mode none` test that drove RAM critical (not kept).
+  - `-114111` (round 2 branch, still with loop detection on): vat failed after 18 s —
+    Qwen Code's heuristic loop detector halted a correct run as "repetitive_thoughts".
+    Loop detection is therefore left off (Qwen Code's default).
