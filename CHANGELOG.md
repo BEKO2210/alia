@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `bench/colab_t4_35b.ipynb` measures Qwen3.6-35B Q4 on a Colab T4 with live progress and disconnects the runtime after a result. The first run (a `--no-repack --no-host` variant of the 12–16 GB profile, because Colab's 12.7 GB RAM cannot hold the exact profile) generated 14.2 / 14.5 / 9.6 tok/s at 4K / 16K / 28K context.
+- `bench/bench_llamacpp.py --load-timeout` for slow disks.
+
 ## [0.2.0] - 2026-10-18
 
 ### Added
