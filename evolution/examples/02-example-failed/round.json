@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "round": 2,
+  "slug": "example-failed",
+  "title": {"en": "Artificial failed example", "de": "Künstliches fehlgeschlagenes Beispiel"},
+  "level": 2,
+  "status": "failed",
+  "task_sha256": "faf96b04afd79b79641d7233daca07da68a5d9db3e8ef99a03648e57c6b289f6",
+  "acceptance": {
+    "files": {"acceptance/test_example.py": "955fc4e51cab4898a5fe1f2f9c2aabd0db83035fc201250fd639b0f18ef38196"},
+    "frozen_commit": "5555555555555555555555555555555555555555"
+  },
+  "agent": {
+    "name": "Artificial Alia",
+    "alia_version": "example",
+    "launcher_commit": "6666666666666666666666666666666666666666",
+    "profile": "example-profile",
+    "model": "example-model",
+    "hardware": "example-hardware"
+  },
+  "start_commit": "7777777777777777777777777777777777777777",
+  "agent_commit": "8888888888888888888888888888888888888888",
+  "run": {
+    "started": "2000-01-02T00:00:00Z",
+    "wall_seconds": 18.0,
+    "wall_limit_seconds": 900,
+    "exit_code": 1,
+    "tool_calls": 3,
+    "transcript_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "result": {
+    "acceptance_passed": 0,
+    "acceptance_total": 1,
+    "site_checks": {"failures": 1, "known": 1, "fixed": 0},
+    "files_changed": ["site/example.html"],
+    "lines_added": 2,
+    "lines_removed": 1,
+    "out_of_scope_paths": []
+  },
+  "interventions": [{"by": "Example human", "commit": null, "what": "Stopped the artificial example."}],
+  "reviews": [{"by": "Example reviewer", "verdict": "failed", "file": "reviews/human.md"}],
+  "summary": {"en": "Artificial failed test data.", "de": "Künstliche fehlgeschlagene Testdaten."},
+  "merged_commit": null
+}

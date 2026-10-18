@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alia Self-Evolution</title>
+  <meta name="description" content="Public, test-backed rounds in which the local Alia agent improves its own website.">
+  <meta name="theme-color" content="#07080c">
+  <link rel="icon" href="../logo-mark.svg" type="image/svg+xml">
+  <link rel="preload" href="../fonts/Outfit.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="../fonts/Inter.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="../style.css?v=4">
+  <link rel="stylesheet" href="evolution.css">
+</head>
+<body>
+  <template id="round-i18n">
+    <span data-i18n="status.planned">planned</span><span data-i18n="status.running">running</span>
+    <span data-i18n="status.passed">passed</span><span data-i18n="status.failed">failed</span>
+    <span data-i18n="status.aborted">aborted</span><span data-i18n="status.invalid">invalid</span>
+    <span data-i18n="round.interventions">Interventions</span><span data-i18n="round.reviews">Reviews</span>
+    <span data-i18n="round.outOfScope">Out of scope</span><span data-i18n="round.breaches">Isolation breaches</span>
+    <span data-i18n="round.share">Alia's share: {alia} of {total} changed lines</span>
+    <span data-i18n="round.verified">verified</span><span data-i18n="round.notVerified">not verified</span>
+  </template>
+  <a class="skip" href="#main" data-i18n="skip">Skip to content</a>
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="../" aria-label="Alia home">
+        <img src="../logo-mark.svg" width="28" height="28" alt="">
+        <span>Alia</span>
+      </a>
+      <div class="nav-right">
+        <div class="lang" role="group" aria-label="Language">
+          <button type="button" data-lang="en" aria-pressed="true">EN</button>
+          <button type="button" data-lang="de" aria-pressed="false">DE</button>
+        </div>
+        <a class="btn btn-sm btn-glass" href="../" data-i18n="nav.back">Back to Alia</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="evo-hero wrap">
+      <p class="eyebrow" data-i18n="hero.eyebrow">Built in public</p>
+      <h1 data-i18n="hero.title">Alia Self-Evolution</h1>
+      <p class="lead" data-i18n="hero.lead">Alia, the local agent, improves this website itself in small, numbered rounds.</p>
+    </section>
+
+    <section class="sec wrap evo-section" aria-labelledby="rules-title">
+      <p class="eyebrow" data-i18n="rules.eyebrow">The rules</p>
+      <h2 id="rules-title" data-i18n="rules.title">Measured work, with human control.</h2>
+      <ul class="evo-rules">
+        <li data-i18n="rules.frozen">The task and acceptance tests are frozen before the run.</li>
+        <li data-i18n="rules.isolated">Alia works alone in an isolated copy.</li>
+        <li data-i18n="rules.failed">Failed rounds stay visible.</li>
+        <li data-i18n="rules.review">Every change is reviewed and merged by a human.</li>
+        <li data-i18n="rules.private">Full transcripts stay private; only public summaries are stored here.</li>
+      </ul>
+    </section>
+
+    <section class="sec wrap evo-section" aria-labelledby="rounds-title">
+      <p class="eyebrow" data-i18n="rounds.eyebrow">Round record</p>
+      <h2 id="rounds-title" data-i18n="rounds.title">Results</h2>
+      <div id="rounds" class="round-grid" aria-live="polite">
+        <p class="empty" data-i18n="rounds.empty">No round finished yet. Round 1 is next.</p>
+      </div>
+    </section>
+
+    <aside class="wrap evo-before">
+      <h2 data-i18n="before.title">Before Self-Evolution</h2>
+      <p><span data-i18n="before.text">Alia previously wrote an architecture showcase from human prompts.</span>
+        <a href="../showcase/architecture/" data-i18n="before.link">See the architecture page</a></p>
+    </aside>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot-in">
+      <span class="brand"><img src="../logo-mark.svg" width="20" height="20" alt=""> Alia · Apache-2.0</span>
+      <span class="mut" data-i18n="foot.note">Local agent. Public evidence. Human approval.</span>
+      <a href="../" data-i18n="foot.back">Main page</a>
+    </div>
+  </footer>
+  <script src="evolution.js" defer></script>
+</body>
+</html>
