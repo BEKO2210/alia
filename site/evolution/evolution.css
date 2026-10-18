@@ -8,7 +8,7 @@
 .round-card h3 { font-size: 21px; }
 .round-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--mut); margin: 14px 0; }
 .round-status { text-transform: capitalize; color: var(--green); }
-.round-status.failed, .round-status.aborted { color: var(--red); }
+.round-status.failed, .round-status.aborted, .round-status.invalid { color: var(--red); }
 .round-card a, .evo-before a { color: var(--blue); display: inline-flex; align-items: center; min-height: 24px; }
 .empty { color: var(--mut); }
 .evo-before { margin-top: 96px; }

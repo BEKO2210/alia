@@ -12,6 +12,18 @@ from tools.alia_round import final_status, hash_file, out_of_scope
 RUNNER = Path(__file__).parents[1] / "tools/alia_round.py"
 
 
+def bwrap_usable():
+    try:
+        return subprocess.run(["bwrap", "--unshare-all", "--die-with-parent", "--ro-bind", "/", "/", "true"],
+                              capture_output=True, timeout=10).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+# Without user namespaces (GitHub runners) the fake agent runs unjailed; the jail is covered where it works.
+JAIL = bwrap_usable()
+
+
 def run(args, cwd, check=True):
     return subprocess.run(args, cwd=cwd, check=check, capture_output=True, text=True)
 
@@ -82,6 +94,8 @@ class AliaRoundTests(unittest.TestCase):
         (folder / "round.json").write_text(json.dumps(data), encoding="utf-8")
         return repo, folder
 
+    steal_targets = ()
+
     def make_agent(self):
         agent = self.root / "fake_agent.py"
         agent.write_text(
@@ -90,13 +104,18 @@ class AliaRoundTests(unittest.TestCase):
             "if (root / 'evolution').exists(): raise SystemExit('evolution leaked')\n"
             "(root / 'site/agent.txt').write_text('agent change\\n')\n"
             "if sys.argv[1] == 'outside': (root / 'outside.txt').write_text('outside\\n')\n"
+            "if sys.argv[1] == 'peek': print(json.dumps({'type': 'tool_result', 'output': sys.argv[2]}))\n"
+            "if sys.argv[1] == 'steal':\n"
+            f"    for target in {list(self.steal_targets)!r}:\n"
+            "        try: (root / 'site' / ('stolen-' + pathlib.Path(target).name)).write_bytes(pathlib.Path(target).read_bytes())\n"
+            "        except OSError: pass\n"
             "print(json.dumps({'type': 'tool_call'}))\n"
             "print(json.dumps({'type': 'result', 'private_text': 'TRANSCRIPT_SECRET'}))\n",
             encoding="utf-8",
         )
         return agent
 
-    def invoke(self, repo, productive, mode="inside"):
+    def invoke(self, repo, productive, mode="inside", *extra):
         private = self.root / "private"
         return run(
             [
@@ -113,6 +132,8 @@ class AliaRoundTests(unittest.TestCase):
                 sys.executable,
                 str(self.make_agent()),
                 mode,
+                *extra,
+                *([] if JAIL else ["--no-jail"]),
             ],
             repo,
             check=False,
@@ -146,6 +167,51 @@ class AliaRoundTests(unittest.TestCase):
         data = json.loads((folder / "round.json").read_text(encoding="utf-8"))
         self.assertEqual(data["status"], "failed")
         self.assertEqual(data["result"]["out_of_scope_paths"], ["outside.txt"])
+
+    def test_private_copy_holds_only_the_start_commit(self):
+        repo, _ = self.make_repo()
+        completed = self.invoke(repo, self.make_productive())
+        self.assertEqual(completed.returncode, 0, completed.stderr + completed.stdout)
+        work = self.root / "private/01-example/work"
+        start = run(["git", "rev-parse", "HEAD"], repo).stdout.strip()
+        # Start commit plus Alia's own commit, nothing else; no shared object store with the repo.
+        self.assertEqual(run(["git", "rev-list", "--all", "--count"], work).stdout.strip(), "2")
+        self.assertEqual(run(["git", "rev-parse", "HEAD~1"], work).stdout.strip(), start)
+        self.assertFalse((work / ".git/objects/info/alternates").exists())
+        self.assertTrue((work / ".git").is_dir())
+
+    def test_refuses_start_commit_containing_the_round(self):
+        repo, folder = self.make_repo()
+        run(["git", "add", "."], repo)
+        run(["git", "commit", "-qm", "round data"], repo)
+        data = json.loads((folder / "round.json").read_text(encoding="utf-8"))
+        data["start_commit"] = run(["git", "rev-parse", "HEAD"], repo).stdout.strip()
+        (folder / "round.json").write_text(json.dumps(data), encoding="utf-8")
+        completed = self.invoke(repo, self.make_productive())
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("already contains", completed.stderr)
+
+    def test_transcript_touching_round_data_marks_round_invalid(self):
+        repo, folder = self.make_repo(acceptance_passes=True)
+        completed = self.invoke(repo, self.make_productive(), "peek", f"cat {repo.resolve()}/{folder.relative_to(repo)}/acceptance/test_acceptance.py")
+        self.assertEqual(completed.returncode, 0, completed.stderr + completed.stdout)
+        data = json.loads((folder / "round.json").read_text(encoding="utf-8"))
+        self.assertEqual(data["status"], "invalid")
+        self.assertEqual(data["result"]["isolation_breaches"], ["integration-checkout", "round-data"])
+        self.assertNotIn(str(repo.resolve()), json.dumps(data))
+
+    @unittest.skipUnless(JAIL, "bubblewrap needs unprivileged user namespaces")
+    def test_jail_hides_round_data_and_integration_checkout(self):
+        repo, folder = self.make_repo(acceptance_passes=True)
+        run(["git", "add", "."], repo)
+        run(["git", "commit", "-qm", "round data"], repo)
+        hidden = folder / "acceptance/test_acceptance.py"
+        # The targets are written into the agent's source: paths passed as arguments would be bound read-only.
+        self.steal_targets = (str(hidden), str(folder / "round.json"), str(repo / ".git/config"))
+        completed = self.invoke(repo, self.make_productive(), "steal")
+        self.assertEqual(completed.returncode, 0, completed.stderr + completed.stdout)
+        data = json.loads((folder / "round.json").read_text(encoding="utf-8"))
+        self.assertEqual(data["result"]["files_changed"], ["site/agent.txt"])
 
     def test_refuses_productive_repository(self):
         repo, _ = self.make_repo()

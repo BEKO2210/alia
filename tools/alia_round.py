@@ -17,6 +17,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import alia_jail  # noqa: E402
+
 
 class RoundError(RuntimeError):
     pass
@@ -130,20 +133,53 @@ def resolved_productive(value: Path | None) -> Path:
     return Path(launcher).resolve().parent
 
 
-def create_worktree(repo: Path, work: Path, start_commit: str) -> None:
+SPARSE_PATTERNS = "/*\n!/evolution/\n"
+
+
+def create_worktree(repo: Path, work: Path, start_commit: str, round_path: str) -> None:
+    """Give Alia a standalone repository holding only the start commit, without evolution/.
+
+    A `git worktree` would share the object store, so `git show` could reveal the frozen acceptance tests;
+    a depth-1 fetch of the start commit carries no other history. The start commit must not contain this
+    round's folder, so the tests are not even in that single commit.
+    """
     if work.exists():
         raise RoundError(f"private worktree already exists: {work}")
+    exists = subprocess.run(["git", "cat-file", "-e", f"{start_commit}:{round_path}"], cwd=repo, check=False,
+                            capture_output=True)
+    if exists.returncode == 0:
+        raise RoundError(f"start_commit already contains {round_path}; start from the commit before the round data")
     work.parent.mkdir(parents=True, exist_ok=True)
-    command(["git", "worktree", "add", "--detach", str(work), start_commit], repo, capture_output=True, text=True)
-    command(["git", "sparse-checkout", "init", "--no-cone"], work, capture_output=True, text=True)
-    command(
-        ["git", "sparse-checkout", "set", "--no-cone", "/*", "!/evolution/"],
-        work,
-        capture_output=True,
-        text=True,
-    )
+    command(["git", "init", "-q", str(work)], work.parent)
+    command(["git", "config", "core.sparseCheckout", "true"], work)
+    (work / ".git" / "info").mkdir(parents=True, exist_ok=True)
+    (work / ".git" / "info" / "sparse-checkout").write_text(SPARSE_PATTERNS, encoding="utf-8")
+    upload_pack = "git -c uploadpack.allowAnySHA1InWant=true upload-pack"
+    command(["git", "fetch", "-q", "--depth", "1", "--upload-pack", upload_pack, str(repo), start_commit], work,
+            capture_output=True, text=True)
+    command(["git", "checkout", "-q", "--detach", start_commit], work, capture_output=True, text=True)
     if (work / "evolution").exists():
         raise RoundError("sparse checkout exposed evolution data")
+    if git_text(work, "rev-list", "--all", "--count").strip() != "1":
+        raise RoundError("private repository holds more than the start commit")
+
+
+# Strings whose appearance in the transcript means Alia looked outside its copy. The labels are public;
+# the matched paths are not.
+def breach_markers(repo: Path, folder: Path, private_round: Path) -> dict[str, str]:
+    return {
+        "integration-checkout": str(repo.resolve()),
+        "round-data": f"evolution/rounds/{folder.name}",
+        "acceptance-run": str(private_round / "acceptance-run"),
+    }
+
+
+def isolation_breaches(transcript: Path, markers: dict[str, str]) -> list[str]:
+    try:
+        text = transcript.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    return sorted(label for label, marker in markers.items() if marker and marker in text)
 
 
 def wait_for_gpu_window() -> None:
@@ -169,6 +205,37 @@ def ensure_real_prerequisites() -> None:
         raise RoundError("refusing: MemAvailable is below 8 GiB")
 
 
+def prepare_launcher(productive: Path, private_round: Path, profile_id: str) -> tuple[Path, list[Path]]:
+    """Copy the installed launcher (committed files only, no .git) and list the read-only paths it needs."""
+    launcher = private_round / "launcher"
+    launcher.mkdir()
+    archive = command(["git", "archive", "HEAD", "alia", "profiles.json", "branding", "i18n"], productive,
+                      capture_output=True)
+    command(["tar", "-x", "-C", str(launcher)], launcher, input=archive.stdout)
+    profiles = json.loads((launcher / "profiles.json").read_text(encoding="utf-8"))
+    profile = next((item for item in profiles if item.get("id") == profile_id), None)
+    if profile is None:
+        raise RoundError(f"profile {profile_id} not in the installed launcher's profiles.json")
+    files = [Path(os.path.expanduser(candidate)) for value in profile.values() if isinstance(value, dict)
+             for candidate in value.get("local_candidates", [])]
+    files = [path for path in files if path.is_file()]
+    if not files:
+        raise RoundError(f"no local model file for profile {profile_id}")
+    config = private_round / "jail-config.json"
+    config.write_text(json.dumps({"profile": profile_id}) + "\n", encoding="utf-8")
+    return launcher, [launcher, *alia_jail.REAL_BINDS, *files]
+
+
+def agent_binds(argv: list[str]) -> list[Path]:
+    """Dry run: bind the fake agent's own files (absolute paths outside /usr) read-only into the jail."""
+    paths = []
+    for item in argv:
+        path = Path(item)
+        if path.is_absolute() and path.exists() and not inside(path, Path("/usr")):
+            paths.append(path)
+    return paths
+
+
 def run_agent(
     work: Path,
     folder: Path,
@@ -177,34 +244,54 @@ def run_agent(
     dry_run: bool,
     agent_cmd: list[str] | None,
     gpu_lock: Path,
+    productive: Path,
+    jail: bool = True,
 ) -> tuple[int, float, Path, Path]:
     transcript = private_round / "transcript.jsonl"
     stderr_path = private_round / "agent.stderr.log"
     limit = data.get("run", {}).get("wall_limit_seconds") or 900
     if not isinstance(limit, int) or limit <= 0:
         raise RoundError("run.wall_limit_seconds must be a positive integer or null")
+    home = Path.home()
     if dry_run:
         if not agent_cmd:
             raise RoundError("--agent-cmd is required with --dry-run")
-        args = agent_cmd
+        inner, binds, outer = agent_cmd, agent_binds(agent_cmd), []
     else:
+        if not jail:
+            raise RoundError("a real round always runs in the jail")
+        profile_id = data.get("agent", {}).get("profile")
+        if not isinstance(profile_id, str):
+            raise RoundError("agent.profile must name the frozen profile")
         wait_for_gpu_window()
         ensure_real_prerequisites()
+        launcher, binds = prepare_launcher(productive, private_round, profile_id)
+        config = private_round / "jail-config.json"
         prompt = (folder / "task.md").read_text(encoding="utf-8")
-        args = [
-            "flock", str(gpu_lock), "timeout", "--kill-after=30", str(limit + 60), "alia", "--yolo", "--sandbox",
-            "--", "-p", prompt, "--max-wall-time", f"{limit}s", "-o", "stream-json",
-        ]
+        inner = [str(launcher / "alia"), "--yolo", "--sandbox", "--", "-p", prompt, "--max-wall-time", f"{limit}s",
+                 "-o", "stream-json"]
+        outer = ["flock", str(gpu_lock), "timeout", "--kill-after=30", str(limit + 60)]
+    if jail:
+        prefix = alia_jail.jail_args(work, home, read_only=binds, gpu=not dry_run)
+        if not dry_run:
+            # Pin the frozen profile: the jail's home is empty, so this file is the whole launcher config.
+            index = prefix.index("--chdir")
+            target = str(home / ".config/alia/config.json")
+            prefix[index:index] = ["--ro-bind", str(config), target]
+        args = [*outer, *prefix, "--", *inner]
+    else:
+        args = [*outer, *inner]
     started = time.monotonic()
     with transcript.open("wb") as stdout, stderr_path.open("wb") as stderr:
         try:
-            completed = subprocess.run(args, cwd=work, stdout=stdout, stderr=stderr, check=False, timeout=limit + 90)
+            # The jail runs in its own PID namespace and dies with bwrap, so the llama-server it started
+            # ends with it; nothing is left on the host to stop.
+            completed = subprocess.run(args, cwd=work, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr,
+                                       check=False, timeout=limit + 90)
             exit_code = completed.returncode
         except subprocess.TimeoutExpired:
             exit_code = 124
     wall = round(time.monotonic() - started, 3)
-    if not dry_run:
-        subprocess.run(["alia", "stop"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return exit_code, wall, transcript, stderr_path
 
 
@@ -304,11 +391,9 @@ def run_tests(repo: Path, work: Path, folder: Path, private_round: Path) -> tupl
     return passed, total, site.returncode, combined
 
 
-def launcher_metadata(productive: Path) -> tuple[str | None, str | None]:
-    launcher = shutil.which("alia")
-    if not launcher:
-        return None, None
-    version = subprocess.run([launcher, "--version"], check=False, capture_output=True, text=True).stdout.strip() or None
+def launcher_metadata(productive: Path, launcher: Path) -> tuple[str | None, str | None]:
+    version = subprocess.run([sys.executable, str(launcher / "alia"), "--version"], check=False, capture_output=True,
+                             text=True).stdout.strip() or None
     try:
         commit = git_text(productive, "rev-parse", "HEAD")
     except RoundError:
@@ -347,10 +432,11 @@ def execute(args: argparse.Namespace) -> None:
         start = data.get("start_commit")
         if not isinstance(start, str):
             raise RoundError("round.json has no start_commit")
-        create_worktree(repo, work, start)
+        create_worktree(repo, work, start, folder.relative_to(repo).as_posix())
         started = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         exit_code, wall, transcript, _ = run_agent(
-            work, folder, private_round, data, args.dry_run, args.agent_cmd, args.gpu_lock.expanduser()
+            work, folder, private_round, data, args.dry_run, args.agent_cmd, args.gpu_lock.expanduser(), productive,
+            jail=not args.no_jail,
         )
         calls, _result_event = stream_counts(transcript)
         paths = changed_paths(work, start)
@@ -362,6 +448,9 @@ def execute(args: argparse.Namespace) -> None:
         agent_commit = commit_changes(work, args.number, paths)
         passed, total, site_code, _ = run_tests(repo, work, folder, private_round)
         status = final_status(data.get("status", "planned"), exit_code, paths, passed, total, site_code, outside)
+        breaches = isolation_breaches(transcript, breach_markers(repo, folder, private_round))
+        if breaches:
+            status = "invalid"
         data["status"] = status
         data["agent_commit"] = agent_commit
         run = data.setdefault("run", {})
@@ -381,9 +470,10 @@ def execute(args: argparse.Namespace) -> None:
             "lines_added": added,
             "lines_removed": removed,
             "out_of_scope_paths": outside,
+            "isolation_breaches": breaches,
         })
         if not args.dry_run:
-            version, launcher_commit = launcher_metadata(productive)
+            version, launcher_commit = launcher_metadata(productive, private_round / "launcher")
             data.setdefault("agent", {}).update({"alia_version": version, "launcher_commit": launcher_commit})
     after = productive_snapshot(productive)
     if before != after:
@@ -404,6 +494,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     run_parser.add_argument("--productive-checkout", type=Path)
     run_parser.add_argument("--gpu-lock", type=Path, default=Path("~/reel/gpu.lock"))
     run_parser.add_argument("--agent-cmd", nargs="+")
+    run_parser.add_argument("--no-jail", action="store_true",
+                            help="dry run only: run the fake agent without bubblewrap (CI without user namespaces)")
     return parser.parse_args(argv)
 
 

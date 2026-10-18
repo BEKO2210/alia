@@ -3,7 +3,8 @@
 `round.json` is a JSON object with these public fields. Unknown measurements use `null`, never zero.
 
 - `schema`: integer schema version; `round`: positive integer; `slug`: folder slug; `title`: `{en, de}` strings.
-- `level`: integer 1–5; `status`: `planned`, `running`, `passed`, `failed`, or `aborted`.
+- `level`: integer 1–5; `status`: `planned`, `running`, `passed`, `failed`, `aborted`, or `invalid` (the transcript shows access to round data or the integration
+  checkout; see `result.isolation_breaches`, which holds labels, never paths).
 - `task_sha256`: SHA-256 of `task.md`.
 - `acceptance`: `files` maps each `acceptance/...` path to its SHA-256; `frozen_commit` is a Git commit.
 - `agent`: `name`, `alia_version`, `launcher_commit`, `profile`, `model`, and `hardware`.

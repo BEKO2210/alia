@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 
-STATUSES = {"planned", "running", "passed", "failed", "aborted"}
+STATUSES = {"planned", "running", "passed", "failed", "aborted", "invalid"}
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
 EMAIL_RE = re.compile(r"(?<![\w.+-])[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}")
@@ -103,8 +103,10 @@ def validate_round(folder: Path) -> dict[str, Any]:
     if data["status"] == "passed":
         passed = data["result"]["acceptance_passed"]
         total = data["result"]["acceptance_total"]
-        if passed is None or total is None or passed < total:
-            raise ValidationError("passed round has failing or unknown acceptance tests")
+        if passed is None or total is None or total == 0 or passed < total:
+            raise ValidationError("passed round has failing, missing or unknown acceptance tests")
+        if data["result"]["out_of_scope_paths"] or data["result"].get("isolation_breaches"):
+            raise ValidationError("passed round has out-of-scope changes or isolation breaches")
     validate_records(data["interventions"], ("by", "commit", "what"), "interventions")
     for index, item in enumerate(data["interventions"]):
         check_sha(item["commit"], f"interventions[{index}].commit", git=True, nullable=True)
@@ -180,7 +182,9 @@ def validate_result(value: Any) -> None:
     site_checks = require(value["site_checks"], int | dict, "result.site_checks", nullable=True)
     if isinstance(site_checks, dict) and not all(isinstance(key, str) and isinstance(item, int) and not isinstance(item, bool) for key, item in site_checks.items()):
         raise ValidationError("result.site_checks must map strings to integers")
-    for key in ("files_changed", "out_of_scope_paths"):
+    for key in ("files_changed", "out_of_scope_paths", "isolation_breaches"):
+        if key not in value:
+            continue
         items = require(value[key], list, f"result.{key}", nullable=True)
         if items is not None and not all(isinstance(item, str) for item in items):
             raise ValidationError(f"result.{key} must contain strings")
@@ -210,6 +214,8 @@ def public_round(data: dict[str, Any]) -> dict[str, Any]:
     public["agent"] = {key: data["agent"][key] for key in ("name", "alia_version", "launcher_commit", "profile", "model", "hardware")}
     public["run"] = {key: data["run"][key] for key in ("started", "wall_seconds", "wall_limit_seconds", "exit_code", "tool_calls", "transcript_sha256")}
     public["result"] = {key: data["result"][key] for key in ("acceptance_passed", "acceptance_total", "site_checks", "files_changed", "lines_added", "lines_removed", "out_of_scope_paths")}
+    if "isolation_breaches" in data["result"]:
+        public["result"]["isolation_breaches"] = data["result"]["isolation_breaches"]
     public["interventions"] = [{key: item[key] for key in ("by", "commit", "what")} for item in data["interventions"]]
     public["reviews"] = [{key: item[key] for key in ("by", "verdict", "file")} for item in data["reviews"]]
     return public

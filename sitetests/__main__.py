@@ -15,6 +15,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--site", type=Path, default=Path("site"))
     parser.add_argument("--out", type=Path)
     parser.add_argument("--static-only", action="store_true")
+    parser.add_argument("--strict", action="store_true",
+                        help="also fail on known defects that no longer occur, so their entries get removed")
     return parser.parse_args()
 
 
@@ -48,7 +50,9 @@ def run(args: argparse.Namespace) -> int:
             location = "/".join(str(item[key]) for key in ("page", "viewport", "lang") if item.get(key))
             print(f"{label} {item['check']} {location}: {item['detail']}")
     print(f"report: {out / 'report.json'}")
-    return 1 if new else 0
+    if args.strict and fixed:
+        print("strict: remove the fixed entries from sitetests/known_defects.json")
+    return 1 if new or (args.strict and fixed) else 0
 
 
 def main() -> None:

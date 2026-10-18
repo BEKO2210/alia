@@ -98,7 +98,7 @@ jobs:
         env:
           SITE_TESTS_REQUIRE_BROWSER: "1"
         run: |
-          python -m sitetests --out site-report
+          python -m sitetests --strict --out site-report
           python -m unittest tests.test_evolution_page -v
       - name: Upload site report
         if: always()

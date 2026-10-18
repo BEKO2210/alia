@@ -84,6 +84,28 @@ class EvolutionDataTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "passed round"):
             validate_round(folder)
 
+    def test_passed_round_cannot_have_isolation_breaches_or_zero_tests(self):
+        folder, path, data = self.data(1)
+        self.assertEqual(data["status"], "passed")
+        data["result"]["isolation_breaches"] = ["round-data"]
+        self.write_data(path, data)
+        with self.assertRaisesRegex(ValidationError, "isolation breaches"):
+            validate_round(folder)
+        del data["result"]["isolation_breaches"]
+        data["result"]["acceptance_passed"] = data["result"]["acceptance_total"] = 0
+        self.write_data(path, data)
+        with self.assertRaisesRegex(ValidationError, "passed round"):
+            validate_round(folder)
+
+    def test_invalid_round_is_published_with_breach_labels(self):
+        folder, path, data = self.data(2)
+        data["status"] = "invalid"
+        data["result"]["isolation_breaches"] = ["round-data"]
+        self.write_data(path, data)
+        output = json.loads(generate(self.rounds))
+        self.assertEqual(output[1]["status"], "invalid")
+        self.assertEqual(output[1]["result"]["isolation_breaches"], ["round-data"])
+
     def test_check_detects_drift(self):
         output = self.root / "rounds.json"
         output.write_text("[]\n", encoding="utf-8")
