@@ -31,6 +31,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -69,7 +70,11 @@ def capabilities(model):
 
 
 def unload_all():
-    for m in api("/api/ps").get("models", []):
+    try:
+        models = api("/api/ps").get("models", [])
+    except urllib.error.URLError:  # no Ollama running (e.g. Colab): nothing holds VRAM
+        return
+    for m in models:
         api("/api/generate", {"model": m["name"], "keep_alive": 0})
     for _ in range(100):
         if not api("/api/ps").get("models"):

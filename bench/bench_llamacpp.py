@@ -108,8 +108,12 @@ def main():
     ap.add_argument("--extra", default="", help="extra llama-server args for every config, e.g. '-ncmoe 24'")
     ap.add_argument("--cache-test", action="store_true",
                     help="agent pattern: same long prefix twice with cache_prompt=true, second turn adds a short question")
+    ap.add_argument("--load-timeout", type=int, default=300,
+                    help="seconds to wait for /health; slow disks with --no-repack need longer")
     ap.add_argument("--list", action="store_true")
     a = ap.parse_args()
+    # Ollama's bundled build is the default for A/B against Ollama; profile numbers need LLAMA_SERVER=Alia's build.
+    print(f"llama-server: {BIN}", flush=True)
     if a.list:
         for k, v in CONFIGS.items():
             print(f"{k:9s} {' '.join(BASE)} {' '.join(v)}")
@@ -132,7 +136,7 @@ def main():
             log = open(OUT / f"llama-server-{name}-{cfg}.log", "w")
             proc = subprocess.Popen(args, env=ENV, stdout=log, stderr=subprocess.STDOUT)
             try:
-                load_s = wait_ready(proc)
+                load_s = wait_ready(proc, a.load_timeout)
                 ntok = len(post("/tokenize", {"content": filler(8000)})["tokens"])
                 cpt = 8000 / ntok
                 for d in depths:

@@ -20,16 +20,16 @@ Alia ist ein vollständig lokaler Coding-Agent-Starter ausschließlich für Linu
 
 > **Gemessen auf RTX 3070 8 GB, Ryzen 7 5800X, 16 GB RAM — Startkonfiguration**
 >
-> Qwen3.6 35B-A3B IQ3_XXS (Standard, Kontext 65.536): **47,0 / 36,4 / 31,7 Tok/s** Ausgabe und 1.331 / 1.315 / 1.257 Tok/s Prompt-Verarbeitung bei 4K / 32K / 60K (Lauf `llamacpp-20261017-212042`, exakte Profil-Flags). Das 4K-Tempo ist stabil (46,5–49,7 Tok/s über vier Läufe). Das Tempo bei langem Kontext hängt am freien RAM: Verdrängen andere Programme das 13-GB-Modell aus dem Page-Cache, wird es von der SSD gestreamt und fällt auf 24,6 Tok/s bei 32K und 9,7 bei 60K (Lauf `llamacpp-20261015-101143`). **Für lange Kontexte 32 GB RAM nutzen** oder den Browser schließen. Alia warnt beim Start, wenn weniger als 11 GB RAM verfügbar sind, und `alia doctor` zeigt den freien RAM.
+> Qwen3.6 35B-A3B IQ3_XXS (Standard, Kontext 65.536): **49,9 / 39,1 / 37,4 Tok/s** Ausgabe und 1.034 / 1.451 / 1.330 Tok/s Prompt-Verarbeitung bei 4K / 32K / 60K (Lauf `llamacpp-20261017-234751`, Alias llama.cpp-Build, exakte Profil-Flags). Das 4K-Tempo ist stabil (46,5–49,9 Tok/s über vier Läufe). Das Tempo bei langem Kontext hängt am freien RAM: Verdrängen andere Programme das 13-GB-Modell aus dem Page-Cache, wird es von der SSD gestreamt und fällt auf 24,6 Tok/s bei 32K und 9,7 bei 60K (Lauf `llamacpp-20261015-101143`). **Für lange Kontexte 32 GB RAM nutzen** oder den Browser schließen. Alia warnt beim Start, wenn weniger als 11 GB RAM verfügbar sind, und `alia doctor` zeigt den freien RAM.
 >
-> Qwen3.5 9B Q4_K_M (schnell, Kontext 65.536): **66,5 / 57,9 / 51,5 Tok/s** Ausgabe und 2.582 / 2.384 / 2.172 Tok/s Prompt-Verarbeitung bei 4K / 32K / 60K (Lauf `llamacpp-20261017-212832`).
+> Qwen3.5 9B Q4_K_M (schnell, Kontext 65.536): **66,2 / 57,8 / 51,4 Tok/s** Ausgabe und 2.964 / 2.695 / 2.424 Tok/s Prompt-Verarbeitung bei 4K / 32K / 60K (Lauf `llamacpp-20261017-235521`).
 
 TG ist die Token-Generierungsrate, PP die Prompt-Verarbeitungsrate. MTP bedeutet Multi-Token Prediction, also spekulative Decodierung über die MTP-Köpfe des Modells. Exakter Lauf und Kontext stehen für jede numerische Metrik direkt in `profiles.json`.
 Die Qualitätswerte (35B: Code 9/10, Tools 7/8, JSON 3/3 mit Schema und 3/3 nur per Prompt; 9B: Code 8/10, Tools 8/8) stammen aus separaten Qualitätsläufen ohne aufgezeichneten Serverkontext und ohne Serverargumente; der 9B-Qualitätslauf lief über Ollama.
 
 ## Unterstützte Plattform und Voraussetzungen
 
-Alia v0.1.0 unterstützt natives Linux mit NVIDIA-GPU. Es verwendet `/proc`, `flock` und den Linux-Prozessstartzeitpunkt; Windows, macOS, AMD-GPUs, reiner CPU-Betrieb und WSL2 werden nicht unterstützt. Python 3.12+ ist die unterstützte Laufzeit für das in diesem Release getestete Prozessmanagement.
+Alia v0.2.0 unterstützt natives Linux mit NVIDIA-GPU. Es verwendet `/proc`, `flock` und den Linux-Prozessstartzeitpunkt; Windows, macOS, AMD-GPUs, reiner CPU-Betrieb und WSL2 werden nicht unterstützt. Python 3.12+ ist die unterstützte Laufzeit für das in diesem Release getestete Prozessmanagement.
 
 Die exakte Qwen-Code-Version und das Hugging-Face-CLI installieren:
 
@@ -144,10 +144,10 @@ Jeder MCP-Tool-Aufruf läuft durch die normale Bestätigung; `--yolo` genehmigt 
 
 | Profil | Ziel | Modell/Download | TG 4K / 32K | PP 4K / 32K | Status |
 |---|---|---|---:|---:|---|
-| `rtx8gb-16gb-qwen36-35b` | 8 GB VRAM, 16 GB RAM | 35B IQ3_XXS, 14,07 GB | 47,0 / 36,4 | 1.331 / 1.315 | gemessen, Startkonfiguration; 32K braucht freien RAM |
+| `rtx8gb-16gb-qwen36-35b` | 8 GB VRAM, 16 GB RAM | 35B IQ3_XXS, 14,07 GB | 49,9 / 39,1 | 1.034 / 1.451 | gemessen, Startkonfiguration; 32K braucht freien RAM |
 | `rtx8gb-16gb-ornith15-35b-quality` | 8 GB VRAM, 16 GB RAM | Ornith-1.5 35B-A3B I-Mini, 14,37 GB + Template | — | — | Agent-Aufgaben 16/16, Mittel 248 s, 41,8 Gen.-Tok/s |
 | `rtx8gb-16gb-qwen36-35b-128k` | 8 GB VRAM, 16 GB RAM | dasselbe GGUF wie der Standard, ctx 131.072 | — | — | Agent-Aufgaben 3/3, 44,1 Gen.-Tok/s (≈20 % unter den 54,6 des Standards) |
-| `rtx8gb-qwen35-9b-fast` | 8 GB VRAM, 12 GB RAM | 9B Q4_K_M, 5,7 GB | 66,5 / 57,9 | 2.582 / 2.384 | gemessen, Startkonfiguration |
+| `rtx8gb-qwen35-9b-fast` | 8 GB VRAM, 12 GB RAM | 9B Q4_K_M, 5,7 GB | 66,2 / 57,8 | 2.964 / 2.695 | gemessen, Startkonfiguration |
 | `rtx12-16gb-qwen36-35b-q4` | 12–16 GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20,8 GB | — | — | unvermessen; nie auf Zielhardware gelaufen |
 | `rtx24gb-qwen36-35b-q4` | ab 20 GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20,8 GB | — | — | unvermessen; nie auf Zielhardware gelaufen |
 
@@ -160,6 +160,10 @@ Das standardmäßige Qwen3.6-Profil ist die schnelle Wahl: Es löste 13/16 einge
 Für große Aufgaben verdoppelt `alia use rtx8gb-16gb-qwen36-35b-128k` das Fenster: Qwen Code komprimiert dann erst bei etwa 98K statt 32,5K Tokens, bei rund 20 % weniger Tempo (llama.cpp lagert mehr Experten auf die CPU aus, damit der größere KV-Cache passt).
 
 Jedes mitgelieferte Profil begrenzt llama-servers Prompt-Cache im Host-RAM auf 2.048 MiB; das verhindert das Swap-Wachstum, das mit dem Standardwert von 8.192 MiB auf einem 16-GB-Rechner beobachtet wurde.
+
+### Mehr Kontext mit Subagenten
+
+Ein Subagent bekommt ein eigenes volles Fenster; eine große Aufgabe aufzuteilen ist darum oft besser als ein größerer Kontext. Einfach in Worten darum bitten, etwa „nutze einen Subagenten, der jeden Aufrufer von `parse_config` findet und Datei:Zeile meldet". Während der Subagent läuft, hält llama-server den Zustand des Hauptagenten im Prompt-Cache im Arbeitsspeicher statt auf der GPU. In einem gemessenen Lauf machte der Hauptagent nach einem Subagenten mit 10,8K Tokens mit 21 neu ausgewerteten Tokens (0,4 s) weiter, statt seinen 15K-Token-Verlauf neu zu lesen (Lauf `agent-20261017-211634`). Ein `fork`-Subagent (`subagent_type "fork"`) erbt den Verlauf des Hauptagenten und startet fast ohne Kosten; er passt, wenn der Subagent das bisherige Gespräch braucht.
 
 ## Profil hinzufügen
 

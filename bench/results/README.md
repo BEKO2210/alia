@@ -50,14 +50,15 @@ measurement values are unchanged.
 - `llamacpp-20261016-211736.jsonl` — 9B fast profile, exact launch configuration
   at the new ctx 65536, 4K/32K/60K, 5 reps. Source of the published 9B values;
   replaces `llamacpp-20261015-101002.jsonl`.
-- `llamacpp-20261017-212042.jsonl` — 35B default profile with exactly its `server_args`
-  (incl. `--jinja`, `--cache-ram 2048`), ctx 65536, 4K/32K/60K, 5 reps: 47.0 / 36.4 / 31.7
-  tok/s generation, 1,331 / 1,315 / 1,257 tok/s prompt, MTP acceptance 0.62, runner RSS
-  11.7–12.4 GB. Source of the published 35B speed values; replaces `-100648` and `-024711`
-  (the 60K value there, 38.2, was measured without `--jinja`).
-- `llamacpp-20261017-212832.jsonl` — 9B fast profile with exactly its `server_args`
-  (incl. `--cache-ram 2048`), ctx 65536, 4K/32K/60K, 5 reps: 66.5 / 57.9 / 51.5 tok/s
-  generation, 2,582 / 2,384 / 2,172 tok/s prompt. Source of the published 9B values;
+- `llamacpp-20261017-234751.jsonl` — 35B default profile, Alia's llama.cpp build (a0e6dc7) with
+  exactly its `server_args` (incl. `--jinja`, `--cache-ram 2048`), ctx 65536, 4K/32K/60K, 5 reps:
+  49.9 / 39.1 / 37.4 tok/s generation, 1,034 / 1,451 / 1,330 tok/s prompt, MTP acceptance 0.65,
+  runner RSS 11.6–12.3 GB. Source of the published 35B speed values; replaces `-100648` and
+  `-024711`. (Runs `-212042` / `-212832` from earlier the same evening used Ollama's bundled
+  llama-server by mistake and were removed.)
+- `llamacpp-20261017-235521.jsonl` — 9B fast profile, Alia's build, exactly its `server_args`
+  (incl. `--cache-ram 2048`), ctx 65536, 4K/32K/60K, 5 reps: 66.2 / 57.8 / 51.4 tok/s
+  generation, 2,964 / 2,695 / 2,424 tok/s prompt. Source of the published 9B values;
   replaces `-211736`.
 
 For measurement caveats and an independent recount, see
