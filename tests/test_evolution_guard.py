@@ -3,7 +3,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
-from tools.evolution_guard import blocked, is_round_branch, main, protected_paths
+from tools.evolution_guard import blocked, is_round_branch, main, protected_paths, split_paths
 
 
 class EvolutionGuardTests(unittest.TestCase):
@@ -19,7 +19,9 @@ class EvolutionGuardTests(unittest.TestCase):
         self.assertTrue(is_round_branch("evolution/round-12-copy-button"))
         self.assertFalse(is_round_branch("evolution/round-0"))
         self.assertFalse(is_round_branch("evolution/plan"))
-        self.assertFalse(is_round_branch("evolution/round-x"))
+        self.assertTrue(is_round_branch("evolution/round-x"))
+        self.assertTrue(is_round_branch("evolution/round-1.0"))
+        self.assertTrue(is_round_branch("evolution/round-00"))
 
     def test_round_branch_uses_allowlist(self):
         paths = ["site/style.css", "evolution/rounds/01-copy/round.json", "sitetests/known_defects.json",
@@ -39,6 +41,13 @@ class EvolutionGuardTests(unittest.TestCase):
         self.assertEqual(blocked(engine, "feature/x", "unrelated"), [])
         # The empty-folder placeholder is infrastructure, not round data.
         self.assertEqual(blocked(["evolution/rounds/.gitkeep", "tools/alia_round.py"], "evolution/round-0"), [])
+
+    def test_quoted_and_nul_separated_paths(self):
+        quoted = '"i18n/caf\\303\\251s.json"'
+        self.assertEqual(blocked([quoted], "evolution/plan"), [quoted])
+        self.assertEqual(blocked([quoted], "evolution/round-1"), [quoted])
+        self.assertEqual(split_paths("site/a b.css\0i18n/café.json\0"), ["site/a b.css", "i18n/café.json", ""])
+        self.assertEqual(blocked(split_paths("site/a b.css\0i18n/café.json\0"), "evolution/plan"), ["i18n/café.json"])
 
     def test_main_exit_codes(self):
         for text, branch, code in (("site/a.css\n", "evolution/round-2", 0), ("ci.yml\n", "evolution/round-2", 1)):

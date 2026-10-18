@@ -8,7 +8,10 @@ import difflib
 import hashlib
 import ipaddress
 import json
+import os
 import re
+import shutil
+import tempfile
 import subprocess
 import sys
 import unicodedata
@@ -25,6 +28,9 @@ IP_RE = re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])")
 IPV6_RE = re.compile(r"(?<![\w:])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}(?![\w:])", re.IGNORECASE)
 PATH_RE = re.compile(r"(?<![\w.-])(?:/home|/Users|/root|/tmp|[A-Za-z]:\\Users)(?=[/\\]|\b)", re.IGNORECASE)
 ABSOLUTE_PATH_RE = re.compile(r"(?:^|[\s=(\"'])/(?!/)\S+|(?:^|[\s=(\"'])[A-Za-z]:[/\\]\S+")
+# A home directory anywhere in a path (cache/home/<user>/...), and other temporary roots.
+HOME_SEGMENT_RE = re.compile(r"(?:^|[/\\\s])(?:home|Users)[/\\][^/\\\s]+[/\\]|/var/tmp\b|/private/(?:tmp|var)\b",
+                             re.IGNORECASE)
 HOME_TILDE_RE = re.compile(r"(?<![\w.-])~[\w.-]*/")
 TOKEN_RE = re.compile(
     r"(?:sk-|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|hf_|xox[abpr]-|AKIA[0-9A-Z]{12,}|Bearer )"
@@ -136,8 +142,9 @@ def validate_round(folder: Path) -> dict[str, Any]:
     if data["status"] not in {"planned", "running"}:
         # Recompute the scope from the changed files instead of trusting the stored list.
         allowed = data.get("allowed_paths", ["site/"])
-        if not isinstance(allowed, list) or not all(isinstance(item, str) and item for item in allowed):
-            raise ValidationError("allowed_paths must be a list of path prefixes")
+        if not isinstance(allowed, list) or not allowed or not all(
+                isinstance(item, str) and (item.rstrip("/") + "/").startswith("site/") for item in allowed):
+            raise ValidationError("allowed_paths must be a non-empty list of prefixes inside site/")
         prefixes = tuple(item.rstrip("/") + "/" for item in allowed)
         changed = data["result"]["files_changed"] or []
         outside = sorted(path for path in changed if ".." in path.split("/") or not path.startswith(prefixes))
@@ -275,6 +282,7 @@ PUBLIC_KEYS = (
 def public_round(data: dict[str, Any]) -> dict[str, Any]:
     nested = {"acceptance", "agent", "run", "result", "interventions", "reviews", "attribution"}
     public = {key: data[key] for key in PUBLIC_KEYS if key not in nested}
+    public["allowed_paths"] = data.get("allowed_paths", ["site/"])
     public["acceptance"] = {
         "files": data["acceptance"]["files"],
         "frozen_commit": data["acceptance"]["frozen_commit"],
@@ -303,7 +311,12 @@ def public_round(data: dict[str, Any]) -> dict[str, Any]:
 
 def privacy_text(text: str) -> str:
     """Normalise before matching: percent-decoding, NFKC, every slash-like code point to "/", no format chars."""
-    normalized = unicodedata.normalize("NFKC", urllib.parse.unquote(text))
+    for _ in range(3):  # also double-encoded input (%252F)
+        decoded = urllib.parse.unquote(text)
+        if decoded == text:
+            break
+        text = decoded
+    normalized = unicodedata.normalize("NFKC", text)
     out = []
     for character in normalized:
         if unicodedata.category(character) == "Cf":
@@ -328,10 +341,10 @@ def published_strings(value: Any):
 
 def privacy_check(text: str) -> None:
     text = privacy_text(text)
-    if PATH_RE.search(text) or HOME_TILDE_RE.search(text):
+    if PATH_RE.search(text) or HOME_TILDE_RE.search(text) or HOME_SEGMENT_RE.search(text):
         raise ValidationError("privacy gate: home or temporary path")
-    if "-----BEGIN " in text and "PRIVATE KEY" in text:
-        raise ValidationError("privacy gate: private key")
+    if "-----BEGIN " in text:
+        raise ValidationError("privacy gate: key or certificate block")
     if TOKEN_RE.search(text):
         raise ValidationError("privacy gate: token")
     for address in EMAIL_RE.findall(text):
@@ -433,7 +446,48 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--out", type=Path, default=Path("site/evolution/data/rounds.json"))
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--base", help="git ref whose failed/aborted/invalid rounds must keep their status")
+    parser.add_argument("--rerun-acceptance", action="store_true",
+                        help="re-run every finished round's frozen acceptance tests on Alia's commit")
     return parser.parse_args(argv)
+
+
+def rerun_acceptance(repo: Path, rounds_dir: Path) -> list[str]:
+    """Run each finished round's frozen acceptance tests against the site as Alia's commit left it.
+
+    The published acceptance counts must equal what anyone can reproduce from the repository. Returns
+    problems; an empty list means every stored count was reproduced.
+    """
+    problems = []
+    for folder in sorted(path for path in rounds_dir.iterdir() if (path / "round.json").is_file()):
+        data = validate_round(folder)
+        if data["status"] in {"planned", "running"} or not data["agent_commit"]:
+            continue
+        with tempfile.TemporaryDirectory(prefix="evolution-acceptance-") as scratch:
+            tree = Path(scratch) / "tree"
+            tree.mkdir()
+            archive = subprocess.run(["git", "archive", "--format=tar", data["agent_commit"], "site"], cwd=repo,
+                                     capture_output=True, check=False)
+            if archive.returncode:
+                problems.append(f"{folder.name}: agent_commit {data['agent_commit']} is not in the history")
+                continue
+            subprocess.run(["tar", "-x", "-C", str(tree)], input=archive.stdout, check=True)
+            tests = Path(scratch) / "acceptance"
+            shutil.copytree(folder / "acceptance", tests)
+            run = subprocess.run(
+                [sys.executable, "-I", "-m", "unittest", "discover", "-s", str(tests), "-t", str(tests)],
+                cwd=tests, capture_output=True, text=True, check=False,
+                env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "SITE_ROOT": str(tree / "site"),
+                     "LC_ALL": "C.UTF-8", **({"HOME": os.environ["HOME"]} if "HOME" in os.environ else {})},
+            )
+            output = run.stdout + run.stderr
+            match = re.search(r"Ran (\d+) tests?", output)
+            total = int(match.group(1)) if match else None
+            failed = sum(int(value) for value in re.findall(r"(?:failures|errors|skipped)=(\d+)", output))
+            passed = None if total is None else max(0, total - failed)
+            stored = (data["result"]["acceptance_passed"], data["result"]["acceptance_total"])
+            if (passed, total) != stored:
+                problems.append(f"{folder.name}: acceptance reproduced {passed}/{total}, stored {stored[0]}/{stored[1]}")
+    return problems
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -446,6 +500,12 @@ def main(argv: list[str] | None = None) -> int:
             ).stdout.strip()
             repo = Path(root).resolve()
         rounds = args.rounds or repo / "evolution/rounds"
+        if args.rerun_acceptance:
+            problems = rerun_acceptance(repo or Path.cwd(), rounds)
+            for problem in problems:
+                print(f"error: {problem}", file=sys.stderr)
+            print("acceptance counts reproduced" if not problems else "acceptance counts NOT reproduced")
+            return 1 if problems else 0
         content = generate(rounds, repo=repo, base=args.base if repo else None)
         if args.check:
             existing = args.out.read_bytes() if args.out.exists() else b""
