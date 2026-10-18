@@ -548,10 +548,13 @@ def run_tests(
 ) -> tuple[int | None, int | None, dict[str, int] | None, str]:
     acceptance_run = private_round / "acceptance-run"
     shutil.copytree(folder / "acceptance", acceptance_run)
-    # -I: no current directory or PYTHON* variables on the path, so nothing the agent wrote can shadow a module.
-    env = {"PATH": alia_jail.PATH, "LC_ALL": "C.UTF-8", "SITE_ROOT": str(work / "site")}
+    # -E -P: no PYTHON* variables and no current directory on the path, so nothing the agent wrote can shadow a
+    # module. Unlike -I, the user site stays, where a local Playwright for browser acceptance tests lives; the
+    # agent never had write access there (jail). HOME is the runner's, for Playwright's browser cache.
+    env = {"PATH": alia_jail.PATH, "LC_ALL": "C.UTF-8", "SITE_ROOT": str(work / "site"),
+           **({"HOME": os.environ["HOME"]} if "HOME" in os.environ else {})}
     unit = subprocess.run(
-        [sys.executable, "-I", "-m", "unittest", "discover", "-s", str(acceptance_run), "-t", str(acceptance_run),
+        [sys.executable, "-E", "-P", "-m", "unittest", "discover", "-s", str(acceptance_run), "-t", str(acceptance_run),
          "-v"],
         cwd=acceptance_run,
         env=env,

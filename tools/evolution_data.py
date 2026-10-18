@@ -474,7 +474,7 @@ def rerun_acceptance(repo: Path, rounds_dir: Path) -> list[str]:
             tests = Path(scratch) / "acceptance"
             shutil.copytree(folder / "acceptance", tests)
             run = subprocess.run(
-                [sys.executable, "-I", "-m", "unittest", "discover", "-s", str(tests), "-t", str(tests)],
+                [sys.executable, "-E", "-P", "-m", "unittest", "discover", "-s", str(tests), "-t", str(tests)],
                 cwd=tests, capture_output=True, text=True, check=False,
                 env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "SITE_ROOT": str(tree / "site"),
                      "LC_ALL": "C.UTF-8", **({"HOME": os.environ["HOME"]} if "HOME" in os.environ else {})},

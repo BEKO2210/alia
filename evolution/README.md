@@ -36,7 +36,7 @@ that Alia made a change. A passed round is publishable only when all attribution
   private round folder and every other repository do not exist inside. The environment is cleared; PID, IPC,
   network and other namespaces are new (loopback only); only stdin (`/dev/null`), stdout and stderr are passed.
   `python3 tools/alia_jail.py probe --tools --gpu` checks this with a fake agent and no model.
-- The acceptance tests are copied in only after the run, outside the work copy, and run with `python3 -I`
+- The acceptance tests are copied in only after the run, outside the work copy, and run with `python3 -E -P` (no PYTHON* variables, no current directory on the path)
   against a copy of the agent's files.
 - After the run no git command runs in the agent's repository: its `.git` (hooks, config, attributes are all
   agent-controlled) is renamed to `agent-git.untrusted`. Links that point out of the work copy are not copied
