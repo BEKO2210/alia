@@ -1,0 +1,600 @@
+[
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "div.legend > span:nth-child(1) > em:nth-child(2)",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "div.legend > span:nth-child(1) > em:nth-child(2)",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "div.legend > span:nth-child(2) > em:nth-child(2)",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "div.legend > span:nth-child(2) > em:nth-child(2)",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "div.pr > span:nth-child(1)",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "div.pr > span:nth-child(1)",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "p.fine",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "p.fine",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "p.meta",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "p.meta",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "span.ameta",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "span.ameta",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "div.legend > span:nth-child(1) > em:nth-child(2)",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "div.legend > span:nth-child(1) > em:nth-child(2)",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "div.legend > span:nth-child(2) > em:nth-child(2)",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "div.legend > span:nth-child(2) > em:nth-child(2)",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "div.pr > span:nth-child(1)",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "div.pr > span:nth-child(1)",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "p.fine",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "p.fine",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "p.meta",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "p.meta",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "span.ameta",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "span.ameta",
+    "detail": "--mut2 text is below WCAG AA contrast"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "#demo-caption",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "#demo-caption",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "p.fine > code:nth-child(1)",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "p.fine > code:nth-child(1)",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "p.fine > code:nth-child(2)",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "p.fine > code:nth-child(2)",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "p.fine > code:nth-child(3)",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "p.fine > code:nth-child(3)",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "#demo-caption",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "#demo-caption",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "p.fine > code:nth-child(1)",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "p.fine > code:nth-child(1)",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "p.fine > code:nth-child(2)",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "p.fine > code:nth-child(2)",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "p.fine > code:nth-child(3)",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "contrast",
+    "page": "index",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "p.fine > code:nth-child(3)",
+    "detail": "contrast 4.26:1, needs 4.5:1"
+  },
+  {
+    "check": "control-covers-text",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "button.copy",
+    "detail": "copy controls cover horizontally scrolled code text"
+  },
+  {
+    "check": "control-covers-text",
+    "page": "index",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "button.copy",
+    "detail": "copy controls cover horizontally scrolled code text"
+  },
+  {
+    "check": "control-covers-text",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "button.copy",
+    "detail": "copy controls cover horizontally scrolled code text"
+  },
+  {
+    "check": "control-covers-text",
+    "page": "index",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "button.copy",
+    "detail": "copy controls cover horizontally scrolled code text"
+  },
+  {
+    "check": "h1-count",
+    "page": "showcase-architecture",
+    "detail": "architecture showcase contains two h1 elements"
+  },
+  {
+    "check": "i18n-english-conflict",
+    "page": "index",
+    "key": "q.json",
+    "detail": "one key is used for two different English labels"
+  },
+  {
+    "check": "i18n-unused-de",
+    "page": "index",
+    "key": "chip.unmeasured",
+    "detail": "German dictionary key has no matching English element"
+  },
+  {
+    "check": "meta-description",
+    "page": "showcase-architecture",
+    "detail": "architecture showcase has no meta description"
+  },
+  {
+    "check": "tap-target",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "#replay",
+    "detail": "Replay button is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "#replay",
+    "detail": "Replay button is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "nav.nav-links > a:nth-child(1)",
+    "detail": "navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "nav.nav-links > a:nth-child(2)",
+    "detail": "navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "nav.nav-links > a:nth-child(3)",
+    "detail": "navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "nav.nav-links > a:nth-child(1)",
+    "detail": "navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "nav.nav-links > a:nth-child(2)",
+    "detail": "navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "nav.nav-links > a:nth-child(3)",
+    "detail": "navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "nav.header-nav > a:nth-child(1)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "nav.header-nav > a:nth-child(1)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "nav.header-nav > a:nth-child(2)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "nav.header-nav > a:nth-child(2)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "nav.header-nav > a:nth-child(3)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "nav.header-nav > a:nth-child(3)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "nav.header-nav > a:nth-child(4)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "nav.header-nav > a:nth-child(4)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "nav.header-nav > a:nth-child(1)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "nav.header-nav > a:nth-child(1)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "nav.header-nav > a:nth-child(2)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "nav.header-nav > a:nth-child(2)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "nav.header-nav > a:nth-child(3)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "nav.header-nav > a:nth-child(3)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "nav.header-nav > a:nth-child(4)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "showcase-architecture",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "nav.header-nav > a:nth-child(4)",
+    "detail": "showcase navigation link is under 24 CSS px high"
+  },
+  {
+    "check": "tap-target",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "en",
+    "selector": "div.wrap.foot-in > a:nth-child(3)",
+    "detail": "target is 54.0x22.4 CSS px"
+  },
+  {
+    "check": "tap-target",
+    "page": "index",
+    "viewport": "390",
+    "lang": "en",
+    "selector": "div.wrap.foot-in > a:nth-child(3)",
+    "detail": "target is 54.0x22.4 CSS px"
+  },
+  {
+    "check": "tap-target",
+    "page": "index",
+    "viewport": "1280",
+    "lang": "de",
+    "selector": "div.wrap.foot-in > a:nth-child(3)",
+    "detail": "target is 65.0x22.4 CSS px"
+  },
+  {
+    "check": "tap-target",
+    "page": "index",
+    "viewport": "390",
+    "lang": "de",
+    "selector": "div.wrap.foot-in > a:nth-child(3)",
+    "detail": "target is 65.0x22.4 CSS px"
+  }
+]

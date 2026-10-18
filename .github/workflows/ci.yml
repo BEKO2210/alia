@@ -52,7 +52,9 @@ jobs:
       - name: Ruff
         run: |
           python -m pip install ruff
-          ruff check --output-format=github alia bench tools tests
+          ruff check --output-format=github alia bench tools tests sitetests
+      - name: Evolution data is current
+        run: python tools/evolution_data.py --check
       - name: Shellcheck
         run: shellcheck install.sh tools/*.sh bench/*.sh
       - name: Validate JSON
@@ -79,3 +81,39 @@ jobs:
               raise SystemExit(f"i18n key mismatch: {missing}")
           print(f"{len(en)} keys, EN == DE")
           PY
+
+  site:
+    name: Site checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install browser
+        run: |
+          python -m pip install playwright==1.60.0
+          python -m playwright install --with-deps chromium
+      - name: Check site
+        env:
+          SITE_TESTS_REQUIRE_BROWSER: "1"
+        run: |
+          python -m sitetests --out site-report
+          python -m unittest tests.test_evolution_page -v
+      - name: Upload site report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-report
+          path: site-report
+
+  evolution-path-guard:
+    name: Self-evolution path guard
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'evolution/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check changed paths
+        run: git diff --no-renames --name-only "origin/${{ github.base_ref }}...HEAD" | python3 tools/evolution_guard.py

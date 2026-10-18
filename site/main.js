@@ -91,6 +91,8 @@ const DE = {
   "final.sub": "Kostenlos, Open Source und läuft auf der Hardware, die du schon hast.",
   "final.cta": "Auf GitHub folgen",
   "final.contrib": "Dein GPU-Profil beitragen",
+  "evolution.title": "Alia Self-Evolution",
+  "evolution.sub": "Sieh zu, wie Alia diese Website verbessert",
   "foot.credit": "Gebaut auf llama.cpp, Qwen Code und Qwen3.6.",
   "foot.security": "Sicherheit",
 };

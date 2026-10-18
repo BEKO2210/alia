@@ -222,6 +222,10 @@ h2 { font-size: clamp(30px, 4.4vw, 50px); line-height: 1.08; font-weight: 600; l
 .final img { border-radius: 16px; box-shadow: 0 10px 50px -8px rgba(92, 157, 255, .6); margin-bottom: 26px; }
 .final h2 { max-width: none; }
 .final p { color: var(--mut); font-size: 17px; margin: 14px 0 0; }
+.evolution-link { margin-top: 32px; }
+.evolution-link a { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 26px; border: 1px solid var(--line2); border-radius: var(--r); background: var(--card); text-decoration: none; }
+.evolution-link strong { font: 600 20px var(--head); }
+.evolution-link span { color: var(--blue); }
 
 .foot { margin-top: 96px; border-top: 1px solid var(--line); padding: 28px 0 40px; font-size: 14px; }
 .foot-in { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }

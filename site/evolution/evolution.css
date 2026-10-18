@@ -1,0 +1,22 @@
+.evo-hero { padding-top: 112px; }
+.evo-hero h1 { max-width: none; }
+.evo-section { padding-top: 92px; }
+.evo-rules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 0; list-style: none; }
+.evo-rules li, .round-card, .evo-before { border: 1px solid var(--line); border-radius: var(--r); background: var(--card); padding: 22px; }
+.evo-rules li::before { content: "✓"; color: var(--green); margin-right: 10px; }
+.round-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 28px; }
+.round-card h3 { font-size: 21px; }
+.round-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--mut); margin: 14px 0; }
+.round-status { text-transform: capitalize; color: var(--green); }
+.round-status.failed, .round-status.aborted { color: var(--red); }
+.round-card a, .evo-before a { color: var(--blue); display: inline-flex; align-items: center; min-height: 24px; }
+.empty { color: var(--mut); }
+.evo-before { margin-top: 96px; }
+.evo-before h2 { font-size: 25px; }
+.evo-before p { color: var(--mut); margin-bottom: 0; }
+.foot a { display: inline-flex; align-items: center; min-height: 24px; }
+@media (max-width: 720px) {
+  .evo-rules, .round-grid { grid-template-columns: 1fr; }
+  .evo-hero { padding-top: 72px; }
+  .foot-in .mut { flex-basis: 100%; order: 3; }
+}

@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "round": 1,
+  "slug": "example-passed",
+  "title": {"en": "Artificial passed example", "de": "Künstliches bestandenes Beispiel"},
+  "level": 1,
+  "status": "passed",
+  "task_sha256": "c74e21fe4da5eb8b01105016bb2d00f5a13ddb2ac8023822125def96301c0e21",
+  "acceptance": {
+    "files": {"acceptance/test_example.py": "955fc4e51cab4898a5fe1f2f9c2aabd0db83035fc201250fd639b0f18ef38196"},
+    "frozen_commit": "1111111111111111111111111111111111111111"
+  },
+  "agent": {
+    "name": "Artificial Alia",
+    "alia_version": "example",
+    "launcher_commit": "2222222222222222222222222222222222222222",
+    "profile": "example-profile",
+    "model": "example-model",
+    "hardware": "example-hardware"
+  },
+  "start_commit": "3333333333333333333333333333333333333333",
+  "agent_commit": "4444444444444444444444444444444444444444",
+  "run": {
+    "started": "2000-01-01T00:00:00Z",
+    "wall_seconds": 12.5,
+    "wall_limit_seconds": 900,
+    "exit_code": 0,
+    "tool_calls": 2,
+    "transcript_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "result": {
+    "acceptance_passed": 1,
+    "acceptance_total": 1,
+    "site_checks": {"failures": 0, "known": 1},
+    "files_changed": ["site/example.html"],
+    "lines_added": 1,
+    "lines_removed": 0,
+    "out_of_scope_paths": []
+  },
+  "interventions": [],
+  "reviews": [],
+  "summary": {"en": "Artificial test data; never run.", "de": "Künstliche Testdaten; nie ausgeführt."},
+  "merged_commit": null
+}
