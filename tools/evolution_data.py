@@ -9,7 +9,9 @@ import hashlib
 import ipaddress
 import json
 import re
+import subprocess
 import sys
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -17,9 +19,13 @@ from typing import Any
 STATUSES = {"planned", "running", "passed", "failed", "aborted", "invalid"}
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
-EMAIL_RE = re.compile(r"(?<![\w.+-])[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}")
+EMAIL_RE = re.compile(r"(?<![\w.+-])[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", re.IGNORECASE)
 IP_RE = re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])")
-FORBIDDEN_TEXT = ("/home/", "/Users/", "/root/", "/tmp/", "C:\\Users", "sk-", "ghp_", "github_pat_", "Bearer ")
+IPV6_RE = re.compile(r"(?<![\w:])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}(?![\w:])", re.IGNORECASE)
+PATH_RE = re.compile(r"(?<![\w.-])(?:/home|/Users|/root|/tmp|[A-Za-z]:\\Users)(?=[/\\]|\b)", re.IGNORECASE)
+TOKEN_RE = re.compile(
+    r"(?:sk-|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|hf_|xox[abpr]-|AKIA[0-9A-Z]{12,}|Bearer )"
+)
 
 
 class ValidationError(ValueError):
@@ -101,11 +107,20 @@ def validate_round(folder: Path) -> dict[str, Any]:
     validate_run(data["run"])
     validate_result(data["result"])
     if data["status"] == "passed":
+        if data["run"]["exit_code"] != 0:
+            raise ValidationError("passed round has a non-zero or unknown exit code")
         passed = data["result"]["acceptance_passed"]
         total = data["result"]["acceptance_total"]
-        if passed is None or total is None or total == 0 or passed < total:
+        if passed is None or total is None or total == 0 or passed != total:
             raise ValidationError("passed round has failing, missing or unknown acceptance tests")
-        if data["result"]["out_of_scope_paths"] or data["result"].get("isolation_breaches"):
+        site_checks = data["result"]["site_checks"]
+        if site_checks is None or site_checks["failures"] != 0:
+            raise ValidationError("passed round has failing, missing or unknown site checks")
+        if not data["result"]["files_changed"]:
+            raise ValidationError("passed round has no changed files")
+        if data["result"]["out_of_scope_paths"] != []:
+            raise ValidationError("passed round has out-of-scope changes or isolation breaches")
+        if "isolation_breaches" in data["result"] and data["result"]["isolation_breaches"] != []:
             raise ValidationError("passed round has out-of-scope changes or isolation breaches")
     validate_records(data["interventions"], ("by", "commit", "what"), "interventions")
     for index, item in enumerate(data["interventions"]):
@@ -128,6 +143,8 @@ def validate_round(folder: Path) -> dict[str, Any]:
 def bilingual(value: Any, field: str) -> None:
     require(value, dict, field)
     require_keys(value, ("en", "de"), field)
+    if set(value) != {"en", "de"}:
+        raise ValidationError(f"{field} must contain exactly en and de")
     require(value["en"], str, f"{field}.en")
     require(value["de"], str, f"{field}.de")
 
@@ -179,9 +196,12 @@ def validate_result(value: Any) -> None:
     passed, total = value["acceptance_passed"], value["acceptance_total"]
     if passed is not None and total is not None and passed > total:
         raise ValidationError("result.acceptance_passed exceeds acceptance_total")
-    site_checks = require(value["site_checks"], int | dict, "result.site_checks", nullable=True)
-    if isinstance(site_checks, dict) and not all(isinstance(key, str) and isinstance(item, int) and not isinstance(item, bool) for key, item in site_checks.items()):
-        raise ValidationError("result.site_checks must map strings to integers")
+    site_checks = require(value["site_checks"], dict, "result.site_checks", nullable=True)
+    if site_checks is not None:
+        if set(site_checks) != {"failures", "known", "fixed"}:
+            raise ValidationError("result.site_checks must contain failures, known and fixed")
+        if not all(isinstance(item, int) and not isinstance(item, bool) and item >= 0 for item in site_checks.values()):
+            raise ValidationError("result.site_checks values must be non-negative integers")
     for key in ("files_changed", "out_of_scope_paths", "isolation_breaches"):
         if key not in value:
             continue
@@ -221,37 +241,92 @@ def public_round(data: dict[str, Any]) -> dict[str, Any]:
     return public
 
 
+def privacy_text(text: str) -> str:
+    normalized = unicodedata.normalize("NFKC", text).replace("∕", "/").replace("⁄", "/")
+    return "".join(character for character in normalized if unicodedata.category(character) != "Cf")
+
+
+def published_strings(value: Any):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield from published_strings(key)
+            yield from published_strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from published_strings(item)
+
+
 def privacy_check(text: str) -> None:
-    for marker in FORBIDDEN_TEXT:
-        if marker.lower() in text.lower():
-            raise ValidationError(f"privacy gate: forbidden string {marker!r}")
+    text = privacy_text(text)
+    if PATH_RE.search(text):
+        raise ValidationError("privacy gate: home or temporary path")
+    if TOKEN_RE.search(text):
+        raise ValidationError("privacy gate: token")
     for address in EMAIL_RE.findall(text):
-        _local, domain = address.rsplit("@", 1)
-        if domain != "users.noreply.github.com" and not domain.endswith(".invalid"):
+        local, domain = address.lower().rsplit("@", 1)
+        if address.lower() != "alia@alia.invalid" and not (local and domain == "users.noreply.github.com"):
             raise ValidationError("privacy gate: e-mail address")
     for raw in IP_RE.findall(text):
+        try:
+            octets = [int(part, 10) for part in raw.split(".")]
+            if any(part > 255 for part in octets):
+                continue
+            address = ipaddress.ip_address(".".join(map(str, octets)))
+        except (ValueError, IndexError):
+            continue
+        if address.is_private or address in ipaddress.ip_network("100.64.0.0/10"):
+            raise ValidationError("privacy gate: private or tailnet IP")
+    for raw in IPV6_RE.findall(text):
         try:
             address = ipaddress.ip_address(raw)
         except ValueError:
             continue
-        if address.is_private or address in ipaddress.ip_network("100.64.0.0/10"):
-            raise ValidationError("privacy gate: private or tailnet IP")
+        if address in ipaddress.ip_network("fc00::/7") or address.is_link_local:
+            raise ValidationError("privacy gate: private or link-local IP")
 
 
-def generate(rounds_dir: Path) -> bytes:
-    rounds = [validate_round(folder) for folder in rounds_dir.iterdir() if folder.is_dir() and (folder / "round.json").is_file()]
+def verify_git_freeze(repo: Path, folder: Path, data: dict[str, Any]) -> None:
+    commit = data["acceptance"]["frozen_commit"]
+    exists = subprocess.run(
+        ["git", "cat-file", "-e", f"{commit}^{{commit}}"], cwd=repo, capture_output=True, check=False
+    )
+    if exists.returncode:
+        raise ValidationError(f"acceptance.frozen_commit does not exist: {commit}")
+    expected = {"task.md": data["task_sha256"], **data["acceptance"]["files"]}
+    for relative, digest in expected.items():
+        path = folder / relative
+        repo_relative = path.relative_to(repo).as_posix()
+        shown = subprocess.run(
+            ["git", "show", f"{commit}:{repo_relative}"], cwd=repo, capture_output=True, check=False
+        )
+        if shown.returncode or hashlib.sha256(shown.stdout).hexdigest() != digest or shown.stdout != path.read_bytes():
+            raise ValidationError(f"frozen git bytes differ: {repo_relative}")
+
+
+def generate(rounds_dir: Path, repo: Path | None = None) -> bytes:
+    folders = [folder for folder in rounds_dir.iterdir() if folder.is_dir() and (folder / "round.json").is_file()]
+    rounds = [validate_round(folder) for folder in folders]
+    if repo is not None:
+        repo = repo.resolve()
+        for folder, data in zip(folders, rounds, strict=True):
+            if data["status"] != "planned":
+                verify_git_freeze(repo, folder.resolve(), data)
     rounds.sort(key=lambda item: item["round"])
     numbers = [item["round"] for item in rounds]
     if len(numbers) != len(set(numbers)):
         raise ValidationError("duplicate round number")
-    text = json.dumps([public_round(item) for item in rounds], indent=2, sort_keys=True, ensure_ascii=False) + "\n"
-    privacy_check(text)
+    public = [public_round(item) for item in rounds]
+    for item in published_strings(public):
+        privacy_check(item)
+    text = json.dumps(public, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
     return text.encode()
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--rounds", type=Path, default=Path("evolution/rounds"))
+    parser.add_argument("--rounds", type=Path)
     parser.add_argument("--out", type=Path, default=Path("site/evolution/data/rounds.json"))
     parser.add_argument("--check", action="store_true")
     return parser.parse_args(argv)
@@ -260,7 +335,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        content = generate(args.rounds)
+        repo = None
+        if args.rounds is None:
+            root = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"], check=True, capture_output=True, text=True
+            ).stdout.strip()
+            repo = Path(root).resolve()
+        rounds = args.rounds or repo / "evolution/rounds"
+        content = generate(rounds, repo=repo)
         if args.check:
             existing = args.out.read_bytes() if args.out.exists() else b""
             if existing != content:
@@ -273,7 +355,7 @@ def main(argv: list[str] | None = None) -> int:
         args.out.write_bytes(content)
         print(f"wrote {len(json.loads(content))} round(s) to {args.out}")
         return 0
-    except (OSError, ValidationError) as exc:
+    except (OSError, subprocess.CalledProcessError, ValidationError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

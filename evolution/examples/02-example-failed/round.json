@@ -31,7 +31,7 @@
   "result": {
     "acceptance_passed": 0,
     "acceptance_total": 1,
-    "site_checks": {"failures": 1, "known": 1},
+    "site_checks": {"failures": 1, "known": 1, "fixed": 0},
     "files_changed": ["site/example.html"],
     "lines_added": 2,
     "lines_removed": 1,

@@ -116,4 +116,12 @@ jobs:
         with:
           fetch-depth: 0
       - name: Check changed paths
-        run: git diff --no-renames --name-only "origin/${{ github.base_ref }}...HEAD" | python3 tools/evolution_guard.py
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          # Run the guard as it is on the base branch, so a PR cannot weaken it. Bootstrap: the PR that
+          # introduces the guard falls back to its own copy.
+          git show "origin/$BASE_REF:tools/evolution_guard.py" > "$RUNNER_TEMP/guard.py" 2>/dev/null \
+            || cp tools/evolution_guard.py "$RUNNER_TEMP/guard.py"
+          git diff --no-renames --name-only "origin/$BASE_REF...HEAD" | python3 "$RUNNER_TEMP/guard.py" --branch "$HEAD_REF"

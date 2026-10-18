@@ -1,12 +1,23 @@
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from tools.alia_round import final_status, hash_file, out_of_scope
+from tools.alia_round import (
+    final_status,
+    gpu_window_fits,
+    hash_file,
+    out_of_scope,
+    parse_unittest,
+    site_report_counts,
+    stop_process_group,
+    stream_counts,
+    write_round,
+)
 
 
 RUNNER = Path(__file__).parents[1] / "tools/alia_round.py"
@@ -59,7 +70,11 @@ class AliaRoundTests(unittest.TestCase):
         package.mkdir()
         (package / "__init__.py").write_text("", encoding="utf-8")
         (package / "__main__.py").write_text(
-            "import argparse\np=argparse.ArgumentParser(); p.add_argument('--site'); p.add_argument('--out'); p.parse_args(); print('site checks: 0 failure(s)')\n",
+            "import argparse, json\nfrom pathlib import Path\n"
+            "p=argparse.ArgumentParser(); p.add_argument('--site'); p.add_argument('--out'); a=p.parse_args(); "
+            "o=Path(a.out); o.mkdir(parents=True); "
+            "(o/'report.json').write_text(json.dumps({'counts': {'failures': 0, 'known': 2, 'fixed': 1}})); "
+            "print('site checks: 0 failure(s)')\n",
             encoding="utf-8",
         )
         run(["git", "add", "."], repo)
@@ -78,13 +93,16 @@ class AliaRoundTests(unittest.TestCase):
             f"        {assertion}\n",
             encoding="utf-8",
         )
+        run(["git", "add", "evolution/rounds/01-example/task.md", "evolution/rounds/01-example/acceptance"], repo)
+        run(["git", "commit", "-qm", "freeze round inputs"], repo)
+        frozen = run(["git", "rev-parse", "HEAD"], repo).stdout.strip()
         data = {
             "round": 1,
             "slug": "example",
             "status": initial_status,
             "start_commit": start,
             "task_sha256": hash_file(folder / "task.md"),
-            "acceptance": {"files": {"acceptance/test_acceptance.py": hash_file(acceptance / "test_acceptance.py")}, "frozen_commit": start},
+            "acceptance": {"files": {"acceptance/test_acceptance.py": hash_file(acceptance / "test_acceptance.py")}, "frozen_commit": frozen},
             "allowed_paths": ["site/"],
             "run": {"wall_limit_seconds": 30},
             "result": {},
@@ -155,6 +173,7 @@ class AliaRoundTests(unittest.TestCase):
         data = json.loads((folder / "round.json").read_text(encoding="utf-8"))
         self.assertEqual(data["status"], "passed")
         self.assertEqual(data["result"]["acceptance_passed"], 1)
+        self.assertEqual(data["result"]["site_checks"], {"failures": 0, "known": 2, "fixed": 1})
         self.assertNotIn("TRANSCRIPT_SECRET", json.dumps(data))
         work = self.root / "private/01-example/work"
         self.assertFalse((work / "evolution").exists())
@@ -173,7 +192,7 @@ class AliaRoundTests(unittest.TestCase):
         completed = self.invoke(repo, self.make_productive())
         self.assertEqual(completed.returncode, 0, completed.stderr + completed.stdout)
         work = self.root / "private/01-example/work"
-        start = run(["git", "rev-parse", "HEAD"], repo).stdout.strip()
+        start = json.loads((repo / "evolution/rounds/01-example/round.json").read_text(encoding="utf-8"))["start_commit"]
         # Start commit plus Alia's own commit, nothing else; no shared object store with the repo.
         self.assertEqual(run(["git", "rev-list", "--all", "--count"], work).stdout.strip(), "2")
         self.assertEqual(run(["git", "rev-parse", "HEAD~1"], work).stdout.strip(), start)
@@ -227,8 +246,82 @@ class AliaRoundTests(unittest.TestCase):
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("sha256 differs", completed.stderr)
 
+    def test_refuses_frozen_commit_that_lacks_frozen_files(self):
+        repo, folder = self.make_repo()
+        data = json.loads((folder / "round.json").read_text(encoding="utf-8"))
+        data["acceptance"]["frozen_commit"] = data["start_commit"]
+        (folder / "round.json").write_text(json.dumps(data), encoding="utf-8")
+        completed = self.invoke(repo, self.make_productive())
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("frozen git bytes differ", completed.stderr)
+
     def test_failed_status_never_becomes_passed(self):
-        self.assertEqual(final_status("failed", 0, ["site/a"], 1, 1, 0, []), "failed")
+        checks = {"failures": 0, "known": 0, "fixed": 0}
+        self.assertEqual(final_status("failed", 0, ["site/a"], 1, 1, checks, []), "failed")
+
+    def test_no_change_never_passes_and_qwen_timeout_aborts(self):
+        checks = {"failures": 0, "known": 0, "fixed": 0}
+        self.assertEqual(final_status("planned", 0, [], 1, 1, checks, []), "failed")
+        self.assertEqual(final_status("planned", 55, [], 1, 1, checks, []), "aborted")
+        self.assertEqual(final_status("planned", 55, ["site/a"], 1, 1, checks, []), "failed")
+
+    def test_stream_counts_nested_tool_use_and_unknown_stream(self):
+        stream = self.root / "stream.jsonl"
+        stream.write_text(
+            '{"type":"assistant","message":{"content":[{"type":"tool_use"},{"type":"text"}]}}\n'
+            '{"type":"result"}\n', encoding="utf-8"
+        )
+        self.assertEqual(stream_counts(stream)[0], 1)
+        stream.write_text("not json\n", encoding="utf-8")
+        self.assertEqual(stream_counts(stream), (None, None))
+
+    def test_stream_result_stats_override_nested_count(self):
+        stream = self.root / "stream.jsonl"
+        stream.write_text(
+            '{"type":"assistant","message":{"content":[{"type":"tool_use"}]}}\n'
+            '{"type":"result","stats":{"tools":{"totalCalls":7}}}\n', encoding="utf-8"
+        )
+        self.assertEqual(stream_counts(stream)[0], 7)
+
+    def test_unittest_and_site_unknowns_stay_unknown(self):
+        self.assertEqual(parse_unittest("test process crashed"), (None, None))
+        self.assertIsNone(site_report_counts(self.root / "missing-report.json"))
+
+    def test_gpu_window_math(self):
+        self.assertTrue(gpu_window_fits(6, 0, 900))
+        self.assertTrue(gpu_window_fits(15, 0, 900))
+        self.assertFalse(gpu_window_fits(15, 1, 900))
+        self.assertFalse(gpu_window_fits(5, 59, 900))
+
+    def test_clean_removes_only_private_round_folder(self):
+        repo, folder = self.make_repo()
+        private = self.root / "private"
+        target = private / folder.name
+        target.mkdir(parents=True)
+        (target / "kept-until-clean.txt").write_text("x", encoding="utf-8")
+        completed = run(
+            [sys.executable, str(RUNNER), "run", "1", "--private-root", str(private), "--clean"],
+            repo, check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertFalse(target.exists())
+        self.assertTrue(private.exists())
+
+    def test_round_json_write_is_atomic(self):
+        folder = self.root / "atomic"
+        folder.mkdir()
+        write_round(folder, {"status": "failed"})
+        self.assertEqual(json.loads((folder / "round.json").read_text(encoding="utf-8")), {"status": "failed"})
+        self.assertFalse((folder / ".round.json.tmp").exists())
+
+    def test_stop_process_group_terminates_session(self):
+        process = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(60)"], start_new_session=True
+        )
+        stop_process_group(process)
+        self.assertIsNotNone(process.returncode)
+        with self.assertRaises(ProcessLookupError):
+            os.kill(process.pid, 0)
 
     def test_scope_matching_uses_path_boundaries(self):
         self.assertEqual(out_of_scope(["site/a", "site-other/a"], ["site/"]), ["site-other/a"])

@@ -16,6 +16,16 @@ const DE = {
   "rounds.eyebrow": "Rundenprotokoll",
   "rounds.title": "Ergebnisse",
   "rounds.empty": "Noch keine Runde abgeschlossen. Runde 1 kommt als Nächstes.",
+  "status.planned": "geplant",
+  "status.running": "läuft",
+  "status.passed": "bestanden",
+  "status.failed": "fehlgeschlagen",
+  "status.aborted": "abgebrochen",
+  "status.invalid": "ungültig",
+  "round.interventions": "Eingriffe",
+  "round.reviews": "Prüfungen",
+  "round.outOfScope": "Außerhalb des Umfangs",
+  "round.breaches": "Isolationsverstöße",
   "before.title": "Vor der Self-Evolution",
   "before.text": "Zuvor schrieb Alia anhand menschlicher Prompts eine Architektur-Übersicht.",
   "before.link": "Architektur-Seite ansehen",
@@ -25,6 +35,12 @@ const DE = {
 
 const nodes = [...document.querySelectorAll("[data-i18n]")];
 const EN = Object.fromEntries(nodes.map((node) => [node.dataset.i18n, node.innerHTML]));
+Object.assign(EN, {
+  "status.planned": "planned", "status.running": "running", "status.passed": "passed",
+  "status.failed": "failed", "status.aborted": "aborted", "status.invalid": "invalid",
+  "round.interventions": "Interventions", "round.reviews": "Reviews",
+  "round.outOfScope": "Out of scope", "round.breaches": "Isolation breaches"
+});
 let language = "en";
 let roundData = [];
 
@@ -54,6 +70,23 @@ function addText(parent, tag, text, className) {
   return element;
 }
 
+function label(key) { return (language === "de" ? DE : EN)[key] ?? EN[key] ?? key; }
+
+function addList(card, title, items, render) {
+  if (!items?.length) return;
+  const section = document.createElement("div");
+  section.className = "round-detail";
+  addText(section, "strong", title);
+  const list = document.createElement("ul");
+  for (const item of items) {
+    const row = document.createElement("li");
+    render(row, item);
+    list.append(row);
+  }
+  section.append(list);
+  card.append(section);
+}
+
 function renderRounds() {
   const root = document.getElementById("rounds");
   if (!roundData.length) return;
@@ -65,13 +98,27 @@ function renderRounds() {
     const meta = document.createElement("div");
     meta.className = "round-meta";
     addText(meta, "span", `${language === "de" ? "Stufe" : "Level"} ${round.level}`);
-    addText(meta, "span", round.status, `round-status ${round.status}`);
+    addText(meta, "span", label(`status.${round.status}`), `round-status ${round.status}`);
     const result = round.result || {};
     const acceptance = result.acceptance_passed == null || result.acceptance_total == null
       ? "—" : `${result.acceptance_passed}/${result.acceptance_total}`;
     addText(meta, "span", `${language === "de" ? "Abnahme" : "Acceptance"} ${acceptance}`);
     if (round.run?.wall_seconds != null) addText(meta, "span", `${round.run.wall_seconds} s`);
     card.append(meta);
+    if (value(round.summary)) addText(card, "p", value(round.summary), "round-summary");
+    addList(card, label("round.interventions"), round.interventions, (row, item) => {
+      row.append(document.createTextNode(`${item.by}: ${item.what}`));
+      if (item.commit) {
+        const link = addText(row, "a", " ↗");
+        link.href = `https://github.com/BEKO2210/alia/commit/${item.commit}`;
+        link.setAttribute("aria-label", language === "de" ? "Eingriffs-Commit" : "Intervention commit");
+      }
+    });
+    addList(card, label("round.reviews"), round.reviews, (row, item) => {
+      row.textContent = `${item.by}: ${item.verdict}`;
+    });
+    addList(card, label("round.outOfScope"), result.out_of_scope_paths, (row, item) => { row.textContent = item; });
+    addList(card, label("round.breaches"), result.isolation_breaches, (row, item) => { row.textContent = item; });
     if (round.agent_commit) {
       const link = addText(card, "a", language === "de" ? "Commit ansehen" : "View commit");
       link.href = `https://github.com/BEKO2210/alia/commit/${round.agent_commit}`;

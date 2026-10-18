@@ -23,6 +23,21 @@ ROOT = Path(__file__).parents[1]
 REQUIRE_BROWSER = os.environ.get("SITE_TESTS_REQUIRE_BROWSER") == "1"
 
 
+class EvolutionPageSourceTests(unittest.TestCase):
+    def test_round_cards_render_public_details_and_translated_statuses(self):
+        script = (ROOT / "site/evolution/evolution.js").read_text(encoding="utf-8")
+        for marker in ("round.summary", "round.interventions", "round.reviews", "out_of_scope_paths",
+                       "isolation_breaches", "status.passed", '"status.passed": "bestanden"'):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, script)
+
+    def test_status_colors_are_semantic(self):
+        css = (ROOT / "site/evolution/evolution.css").read_text(encoding="utf-8")
+        self.assertIn(".round-status { text-transform: capitalize; color: var(--mut); }", css)
+        self.assertIn(".round-status.passed { color: var(--green); }", css)
+        self.assertIn(".round-status.failed, .round-status.aborted, .round-status.invalid { color: var(--red); }", css)
+
+
 @unittest.skipUnless(async_playwright or REQUIRE_BROWSER, "playwright is only installed in the site CI job")
 class EvolutionPageBrowserTests(unittest.TestCase):
     def test_example_failed_round_renders_as_failed(self):
@@ -39,7 +54,7 @@ class EvolutionPageBrowserTests(unittest.TestCase):
                     if REQUIRE_BROWSER:
                         raise
                     self.skipTest(f"Chromium cannot launch: {exc}")
-                page = await browser.new_page(viewport={"width": 390, "height": 844})
+                page = await browser.new_page(viewport={"width": 390, "height": 844}, locale="en-US")
 
                 async def route_request(route, request):
                     parsed = urlsplit(request.url)
@@ -54,6 +69,7 @@ class EvolutionPageBrowserTests(unittest.TestCase):
                     )
 
                 await page.route("**/*", route_request)
+                await page.add_init_script("localStorage.setItem('alia-lang', 'en')")
                 await page.goto("https://site.test/alia/evolution/", wait_until="networkidle")
                 failed = page.locator(".round-status.failed")
                 self.assertEqual(await failed.count(), 1)

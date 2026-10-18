@@ -24,5 +24,11 @@ published. Failed and aborted rounds remain part of the public record.
   network and other namespaces are new (loopback only); only stdin (`/dev/null`), stdout and stderr are passed.
   `python3 tools/alia_jail.py probe --tools --gpu` checks this with a fake agent and no model.
 - The acceptance tests are copied in only after the run, outside the work copy.
+- Before and after the agent runs, the runner verifies the task and acceptance bytes against both their recorded
+  SHA-256 values and `acceptance.frozen_commit` in Git.
 - In addition, a transcript that mentions the integration checkout or the round data marks the round `invalid`.
   This is a second line of defence, not the isolation itself.
+
+The real runner acquires `~/reel/gpu.lock` itself and starts only when the configured wall-time fits in the GPU
+window. It keeps failed private copies for inspection; `python3 tools/alia_round.py run NN --clean` removes only
+that round's folder below the private root before a retry.

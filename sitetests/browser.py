@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import mimetypes
 from pathlib import Path
@@ -15,13 +16,16 @@ CHECK_SCRIPT = r"""
     const s = getComputedStyle(el), r = el.getBoundingClientRect();
     return s.display !== "none" && s.visibility !== "hidden" && Number(s.opacity) > 0 && r.width > 0 && r.height > 0;
   };
+  // Unique and stable: the nearest id, then tag:nth-of-type steps (with up to two classes for readability).
   const selector = (el) => {
     if (el.id) return `#${CSS.escape(el.id)}`;
-    const cls = [...el.classList].slice(0, 2).map(x => `.${CSS.escape(x)}`).join("");
-    if (cls) return `${el.tagName.toLowerCase()}${cls}`;
     const parent = el.parentElement;
-    if (!parent) return el.tagName.toLowerCase();
-    return `${selector(parent)} > ${el.tagName.toLowerCase()}:nth-child(${[...parent.children].indexOf(el) + 1})`;
+    const tag = el.tagName.toLowerCase();
+    if (!parent || tag === "body") return tag;
+    const cls = [...el.classList].slice(0, 2).map(x => `.${CSS.escape(x)}`).join("");
+    const same = [...parent.children].filter(x => x.tagName === el.tagName);
+    const step = `${tag}${cls}` + (same.length > 1 ? `:nth-of-type(${same.indexOf(el) + 1})` : "");
+    return `${selector(parent)} > ${step}`;
   };
   const rgb = (value) => {
     const m = value.match(/rgba?\(([^)]+)\)/);
@@ -102,6 +106,8 @@ CHECK_SCRIPT = r"""
 
 async def check_page(browser: object, site: Path, out: Path, html: Path, width: int, height: int, lang: str,
                      data_override: Path | None) -> list[dict[str, object]]:
+    from playwright.async_api import TimeoutError as PlaywrightTimeout
+
     name = page_name(html, site)
     relative = html.relative_to(site).as_posix()
     context = await browser.new_context(viewport={"width": width, "height": height})  # type: ignore[attr-defined]
@@ -154,8 +160,12 @@ async def check_page(browser: object, site: Path, out: Path, html: Path, width: 
 
     await page.route("**/*", route_request)
     await page.add_init_script(f"localStorage.setItem('alia-lang', {json.dumps(lang)})")
-    await page.goto(f"https://site.test/alia/{relative}", wait_until="networkidle")
+    # "load", not "networkidle": a video keeps a range request open and networkidle may never come.
+    await page.goto(f"https://site.test/alia/{relative}", wait_until="load")
     await page.evaluate("document.fonts.ready")
+    # Let fetch-driven content (e.g. evolution round data) settle; media may stay pending, that is fine.
+    with contextlib.suppress(PlaywrightTimeout):
+        await page.wait_for_load_state("networkidle", timeout=5000)
     runtime.extend(await page.evaluate(CHECK_SCRIPT))
     await page.screenshot(path=out / f"{name}-{width}-{lang}.png", full_page=True)
     await context.close()
@@ -165,6 +175,7 @@ async def check_page(browser: object, site: Path, out: Path, html: Path, width: 
 
 async def browser_checks(site: Path, out: Path, data_override: Path | None = None) -> list[dict[str, object]]:
     try:
+        from playwright.async_api import Error as PlaywrightError
         from playwright.async_api import async_playwright
     except ImportError as exc:
         raise RuntimeError("browser checks require playwright==1.60.0") from exc
@@ -176,7 +187,13 @@ async def browser_checks(site: Path, out: Path, data_override: Path | None = Non
             for html in sorted(site.rglob("*.html")):
                 for width, height in VIEWPORTS:
                     for lang in LANGUAGES:
-                        results.extend(await check_page(browser, site, out, html, width, height, lang, data_override))
+                        try:
+                            results.extend(await check_page(browser, site, out, html, width, height, lang,
+                                                            data_override))
+                        except PlaywrightError as exc:
+                            # One broken page is a finding, not a lost run.
+                            results.append(failure("page-load", page_name(html, site), str(exc).splitlines()[0],
+                                                   viewport=str(width), lang=lang, selector="document"))
         finally:
             await browser.close()
     return results
