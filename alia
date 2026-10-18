@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import queue
@@ -940,10 +941,18 @@ DENIED_QWEN_TOOLS = (
     "zoom_image", "read_mcp_resource", "search_memory", "manage_memory",
 )
 
+# Code map: graphify (Graphify Labs, Apache-2.0; Alia is not affiliated) indexes code locally with
+# tree-sitter, without an LLM, network access or telemetry; its query log is switched off.
+GRAPHIFY_SPEC = "graphifyy[mcp]==0.9.92"
+GRAPHIFY_ENV = {"GRAPHIFY_BACKEND": "none", "GRAPHIFY_QUERY_LOG_DISABLE": "1"}
+GRAPH_BUILD_TIMEOUT = 300.0
+
 # Opt-in MCP servers for Qwen Code settings.json "mcpServers". "requires" is Alia-only
 # and stripped on write; "<OUTDIR>" is resolved to an absolute path at generation time.
 # Browser: text snapshots only (local models may be text-only); browser_evaluate and
 # browser_run_code_unsafe are excluded because they run arbitrary JS.
+# Graph: only the small, targeted lookups; query_graph ignores its token budget (8.7K tokens for one
+# question on Alia's own repo) and the PR tools call GitHub through gh.
 # trust=False keeps every MCP tool call behind Qwen's normal approval prompt.
 # alwaysLoadTools: Qwen Code 0.25.1 otherwise defers MCP schemas behind tool_search; in the
 # live gate the model called the deferred tool directly and wasted its first round trip.
@@ -972,6 +981,16 @@ MCP_CATALOG: dict[str, dict[str, Any]] = {
         "timeout": 60000,
         "trust": False,
         "alwaysLoadTools": True,
+        "requires": "uvx",
+    },
+    "graph": {
+        "command": "uvx",
+        "args": ["--from", GRAPHIFY_SPEC, "graphify-mcp", "<GRAPH>"],
+        "env": dict(GRAPHIFY_ENV),
+        "timeout": 60000,
+        "trust": False,
+        "alwaysLoadTools": True,
+        "includeTools": ["get_node", "get_neighbors", "shortest_path", "god_nodes", "graph_stats"],
         "requires": "uvx",
     },
 }
@@ -1046,15 +1065,67 @@ def mcp_requirement_found(name: str) -> bool:
     return shutil.which(MCP_CATALOG[name]["requires"]) is not None
 
 
-def mcp_servers(names: Any) -> dict[str, dict[str, Any]]:
+def mcp_servers(names: Any, graph: Path | None = None) -> dict[str, dict[str, Any]]:
+    """Qwen Code server entries; the code map is left out when there is no graph for the project."""
     outdir = str(Path.home() / ".cache" / "alia" / "playwright")
     servers = {}
     for name in enabled_mcp(names):
+        if name == "graph" and graph is None:
+            continue
         entry = json.loads(json.dumps(MCP_CATALOG[name]))
         entry.pop("requires")
-        entry["args"] = [arg.replace("<OUTDIR>", outdir) for arg in entry["args"]]
+        entry["args"] = [arg.replace("<OUTDIR>", outdir).replace("<GRAPH>", str(graph)) for arg in entry["args"]]
         servers[name] = entry
     return servers
+
+
+def graph_dir(paths: dict[str, Path], project: Path) -> Path:
+    """Per-project code-map directory under Alia's state, so nothing is written into the project."""
+    key = hashlib.sha256(os.path.realpath(project).encode()).hexdigest()[:16]
+    return paths["state"] / "graphs" / key
+
+
+def build_code_graph(project: Path, paths: dict[str, Path]) -> tuple[Path | None, str]:
+    """Build or update the project's code map; return (graph.json, summary) or (None, reason)."""
+    project = Path(os.path.realpath(project))
+    if project in (Path(os.path.realpath(Path.home())), Path("/")):
+        return None, tr("graph.not_a_project", path=project)
+    if shutil.which("uvx") is None:
+        return None, tr("mcp.requirement_missing", command="uvx")
+    out = graph_dir(paths, project)
+    ensure_private_dir(out)
+    started = time.monotonic()
+    try:
+        result = subprocess.run(
+            ["uvx", "--from", GRAPHIFY_SPEC, "graphify", "extract", str(project), "--code-only"],
+            env={**os.environ, **GRAPHIFY_ENV, "GRAPHIFY_OUT": str(out)},
+            capture_output=True, text=True, timeout=GRAPH_BUILD_TIMEOUT, check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return None, tr("graph.timeout", seconds=int(GRAPH_BUILD_TIMEOUT))
+    graph = out / "graph.json"
+    if result.returncode != 0 or not graph.is_file():
+        lines = (result.stderr or result.stdout).strip().splitlines()
+        return None, lines[-1][:200] if lines else f"exit {result.returncode}"
+    try:
+        data = json.loads(graph.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return None, str(exc)
+    links = data.get("links", data.get("edges", []))
+    return graph, tr("graph.built", nodes=len(data.get("nodes", [])), edges=len(links),
+                     seconds=f"{time.monotonic() - started:.1f}")
+
+
+def project_graph(config: dict[str, Any], paths: dict[str, Path], project: Path) -> Path | None:
+    """Build the code map when the graph server is enabled; a failure only drops that server."""
+    if "graph" not in enabled_mcp(config.get("mcp")):
+        return None
+    graph, message = build_code_graph(project, paths)
+    if graph is None:
+        print(color("33", tr("graph.unavailable", error=message)))
+    else:
+        print(f"{color('32', '✓')} {message}")
+    return graph
 
 
 MCP_TEST_TIMEOUT = 90.0  # the first run may download the server package
@@ -1252,7 +1323,7 @@ def generate_settings(
     profile: dict[str, Any], hw: dict[str, Any], target_dir: Path,
     branding_dir: Path = BRANDING_DIR, approval_mode: str = "default",
     language: str | None = None, fast: bool = False, mcp: list[str] | None = None,
-    sandbox: bool = False,
+    sandbox: bool = False, graph: Path | None = None,
 ) -> Path:
     language = language or _LANGUAGE
     ensure_private_dir(target_dir)
@@ -1351,7 +1422,7 @@ def generate_settings(
         "privacy": {"usageStatisticsEnabled": False},
         "telemetry": {"enabled": False},
     }
-    servers = mcp_servers(mcp)
+    servers = mcp_servers(mcp, graph)
     if servers:
         settings["mcpServers"] = servers
     if sandbox:
@@ -1794,6 +1865,24 @@ def cmd_mcp(args: list[str], paths: dict[str, Path]) -> int:
     return 0
 
 
+def cmd_graph(args: list[str], paths: dict[str, Path]) -> int:
+    """`alia graph [DIR]`: build or update the code map now and show where it is."""
+    if len(args) > 1:
+        raise RuntimeError(tr("args.graph_usage"))
+    project = Path(args[0]).expanduser() if args else Path.cwd()
+    if not project.is_dir():
+        raise RuntimeError(tr("args.workspace_directory", path=project))
+    graph, message = build_code_graph(project, paths)
+    if graph is None:
+        print(color("31", tr("graph.unavailable", error=message)))
+        return 1
+    print(f"{color('32', '✓')} {message}")
+    print(tr("graph.location", path=graph))
+    if "graph" not in enabled_mcp(read_config(paths["config"]).get("mcp")):
+        print(tr("graph.enable_hint"))
+    return 0
+
+
 def cmd_mcp_test(args: list[str], enabled: list[str], paths: dict[str, Path]) -> int:
     if args and args[0] not in MCP_CATALOG:
         raise RuntimeError(tr("mcp.unknown", name=args[0], names=", ".join(MCP_CATALOG)))
@@ -1802,7 +1891,8 @@ def cmd_mcp_test(args: list[str], enabled: list[str], paths: dict[str, Path]) ->
         print(tr("mcp.test_none"))
         return 0
     passed = True
-    for name, entry in mcp_servers(names).items():
+    graph = project_graph({"mcp": names}, paths, Path.cwd()) if "graph" in names else None
+    for name, entry in mcp_servers(names, graph).items():
         started = time.monotonic()
         try:
             tools = mcp_probe(entry, qwen_environment(paths))
@@ -1823,7 +1913,7 @@ def cmd_mcp_test(args: list[str], enabled: list[str], paths: dict[str, Path]) ->
 def prepare_runtime(
     profiles: list[dict[str, Any]], hw: dict[str, Any], paths: dict[str, Path],
     approval_mode: str = "default", fast: bool = False, wait_gpu: float = 0,
-    sandbox: bool = False,
+    sandbox: bool = False, project: Path | None = None,
 ) -> dict[str, Any] | None:
     config = read_config(paths["config"])
     if sandbox:
@@ -1867,9 +1957,10 @@ def prepare_runtime(
                 wait_for_health(pid, paths, process=process, profile_id=profile["id"])
     if sandbox:
         print(f"{color('32', '✓')} {tr('sandbox.active')}")
+    graph = project_graph(config, paths, project or Path.cwd())
     generate_settings(
         profile, hw, paths["qwen_home"], approval_mode=approval_mode,
-        language=_LANGUAGE, fast=fast, mcp=config.get("mcp"), sandbox=sandbox,
+        language=_LANGUAGE, fast=fast, mcp=config.get("mcp"), sandbox=sandbox, graph=graph,
     )
     return profile
 
@@ -2009,7 +2100,7 @@ def cmd_web(
 ) -> int:
     port, open_browser, workspace, approval_mode, fast, wait_gpu = parse_web_args(args)
     warn_approval_mode(approval_mode)
-    if prepare_runtime(profiles, hw, paths, approval_mode, fast, wait_gpu) is None:
+    if prepare_runtime(profiles, hw, paths, approval_mode, fast, wait_gpu, project=workspace) is None:
         return 1
     url = f"http://{HOST}:{port}/"
     print(f"{color('1;36', tr('web.title'))}  {url}")
@@ -2084,6 +2175,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if argv and argv[0] == "mcp":
             return cmd_mcp(argv[1:], paths)
+        if argv and argv[0] == "graph":
+            return cmd_graph(argv[1:], paths)
         if argv and argv[0] == "stop":
             if len(argv) != 1:
                 raise RuntimeError(tr("args.stop_usage"))

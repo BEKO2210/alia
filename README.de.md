@@ -136,6 +136,12 @@ Qwen Code hat keinen eigenen Browser, und die eingebaute Websuche braucht einen 
 
 Jeder MCP-Tool-Aufruf läuft durch die normale Bestätigung; `--yolo` genehmigt sie ohne Nachfrage. Die erste Sitzung lädt die fest versionierten Pakete herunter. `alia mcp test [NAME]` startet die aktiven Server (oder nur NAME) genau wie eine Sitzung und listet ihre Tools; für einen ersten Download wartet es bis zu 90 s. Alia lädt die MCP-Tool-Schemas vorab (`alwaysLoadTools`), damit das Modell sie ohne Umweg über `tool_search` aufrufen kann.
 
+
+### Code-Karte (opt-in)
+
+`alia mcp enable graph` gibt dem Agenten eine Code-Karte des Projekts: wer eine Funktion aufruft, was sie aufruft und der Weg zwischen zwei Symbolen, mit Datei und Zeile, in ein paar hundert Zeichen statt ganzer Dateien. Vor jeder Sitzung von `alia` oder `alia web` indiziert Alia das Projekt (bzw. den `--workspace` von `alia web`) mit [graphify](https://github.com/Graphify-Labs/graphify) 0.9.92 (`graphifyy` auf PyPI, Apache-2.0; Alia ist nicht mit Graphify Labs verbunden). Indiziert wird nur Code, lokal per tree-sitter: kein LLM, kein Netzwerk, keine Telemetrie, das Abfrage-Log von graphify ist aus. Updates laufen inkrementell (etwa 1 s für Alias eigene 700 Symbole). Der Graph liegt unter `~/.local/state/alia/graphs`, nicht im Projekt. `alia graph [ORDNER]` baut oder aktualisiert ihn von Hand und zeigt, wo er liegt. Benötigt `uvx` (uv).
+
+Der Agent bekommt fünf Lese-Tools: `get_node`, `get_neighbors`, `shortest_path`, `god_nodes`, `graph_stats`. `query_graph` von graphify bleibt draußen, weil es sein Token-Budget ignoriert (8,7K Token für eine Frage zu Alias Repo), die Pull-Request-Tools ebenfalls, weil sie GitHub aufrufen. Am meisten hilft die Karte in mittleren und großen Repositories; in kleinen Projekten ist grep genauso günstig. Ihr Effekt auf die Erfolgsquote des Agenten ist noch nicht gemessen. Im Home-Verzeichnis und in `/` wird nicht indiziert.
 ### Sandbox (opt-in)
 
 `alia --sandbox` sperrt die Befehle des Agenten mit bubblewrap ein: Sie dürfen nur im Projekt schreiben und haben kein Netzwerk; das Modell selbst spricht weiter mit dem lokalen Server. Host-Dateien wie `~/.ssh` bleiben lesbar, und Tools, die Netz brauchen (etwa `pip install`), scheitern. Installiere `bwrap` (Paket `bubblewrap`); `alia doctor` zeigt, ob es verfügbar ist. Qwen Code 0.25.1 unterstützt die Sandbox weder mit MCP-Servern noch in `alia web`, daher bricht Alia in beiden Fällen mit einer Fehlermeldung ab. Starte sie aus einem Projektverzeichnis unterhalb deines Home-Verzeichnisses: Qwen Code lehnt einen Workspace ab, der `$HOME` selbst ist, darüber liegt oder sich mit Alias Qwen-Zustand oder der Qwen-Code-Installation überschneidet; Alia prüft das vorher. Weil `/rewind` in der Sandbox keine Dateien wiederherstellen kann, speichert Alia offene Änderungen an versionierten Dateien vor der Sitzung in `refs/alia/pre-session` (nicht versionierte Dateien sind nicht enthalten) und zeigt den Befehl zum Wiederherstellen. Details: [SECURITY.md](SECURITY.md).
@@ -199,6 +205,7 @@ python3 -m unittest discover -s tests -v
 
 - [Qwen Code](https://github.com/QwenLM/qwen-code), Apache-2.0
 - [llama.cpp](https://github.com/ggml-org/llama.cpp), MIT
+- [graphify](https://github.com/Graphify-Labs/graphify) (optionale Code-Karte, von PyPI als `graphifyy` installiert), Apache-2.0; „graphify“ ist eine Marke von Graphify Labs, Alia ist nicht damit verbunden
 - Qwen-Modelle und GGUF-Repositories unter ihren jeweiligen Lizenzen
 
 Siehe [`LICENSE`](LICENSE) und [`NOTICE`](NOTICE). Alia startet externe Komponenten, verteilt sie aber nicht weiter.
