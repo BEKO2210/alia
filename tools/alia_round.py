@@ -20,6 +20,11 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import alia_jail  # noqa: E402
+from evolution_attribution import (  # noqa: E402
+    ALIA_AUTHOR_EMAIL,
+    ALIA_AUTHOR_NAME,
+    verify_attribution,
+)
 
 
 class RoundError(RuntimeError):
@@ -159,35 +164,125 @@ def resolved_productive(value: Path | None) -> Path:
     return Path(launcher).resolve().parent
 
 
-SPARSE_PATTERNS = "/*\n!/evolution/\n"
+# Host git never runs with configuration, hooks or attributes the agent could have written: no system/global
+# config, no hooks, no fsmonitor, no signing. Repository config of runner-owned repositories is ours.
+SEALED_GIT = ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "commit.gpgsign=false",
+              "-c", "core.attributesFile=/dev/null", "-c", "protocol.allow=never", "-c", "protocol.file.allow=always"]
+
+
+def sealed_env(home: Path, extra: dict[str, str] | None = None) -> dict[str, str]:
+    return {"PATH": alia_jail.PATH, "HOME": str(home), "LC_ALL": "C", "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_TERMINAL_PROMPT": "0", **(extra or {})}
+
+
+def sealed_git(args: list[str], cwd: Path, home: Path, extra: dict[str, str] | None = None,
+               **kwargs: Any) -> subprocess.CompletedProcess[Any]:
+    return command([*SEALED_GIT, *args], cwd, env=sealed_env(home, extra), **kwargs)
 
 
 def create_worktree(repo: Path, work: Path, start_commit: str, round_path: str) -> None:
-    """Give Alia a standalone repository holding only the start commit, without evolution/.
+    """Give Alia a fresh one-commit repository of the start tree without evolution/.
 
-    A `git worktree` would share the object store, so `git show` could reveal the frozen acceptance tests;
-    a depth-1 fetch of the start commit carries no other history. The start commit must not contain this
-    round's folder, so the tests are not even in that single commit.
+    Built from `git archive`, so it shares nothing with the integration repository: no object store, no
+    history, no evolution/ blobs (old rounds and examples included), no FETCH_HEAD naming the source path.
+    The start commit must not contain this round's folder.
     """
     if work.exists():
         raise RoundError(f"private worktree already exists: {work}")
-    exists = subprocess.run(["git", "cat-file", "-e", f"{start_commit}:{round_path}"], cwd=repo, check=False,
-                            capture_output=True)
+    home = work.parent
+    exists = sealed_git(["cat-file", "-e", f"{start_commit}:{round_path}"], repo, home, check=False,
+                        capture_output=True)
     if exists.returncode == 0:
         raise RoundError(f"start_commit already contains {round_path}; start from the commit before the round data")
-    work.parent.mkdir(parents=True, exist_ok=True)
-    command(["git", "init", "-q", str(work)], work.parent)
-    command(["git", "config", "core.sparseCheckout", "true"], work)
-    (work / ".git" / "info").mkdir(parents=True, exist_ok=True)
-    (work / ".git" / "info" / "sparse-checkout").write_text(SPARSE_PATTERNS, encoding="utf-8")
-    upload_pack = "git -c uploadpack.allowAnySHA1InWant=true upload-pack"
-    command(["git", "fetch", "-q", "--depth", "1", "--upload-pack", upload_pack, str(repo), start_commit], work,
-            capture_output=True, text=True)
-    command(["git", "checkout", "-q", "--detach", start_commit], work, capture_output=True, text=True)
+    work.mkdir(parents=True)
+    archive = sealed_git(["archive", "--format=tar", start_commit, "--", ".", ":(exclude)evolution"], repo, home,
+                         capture_output=True)
+    command(["tar", "-x", "-C", str(work)], work, input=archive.stdout)
+    identity = {"GIT_AUTHOR_NAME": "Alia round start", "GIT_AUTHOR_EMAIL": "start@alia.invalid",
+                "GIT_COMMITTER_NAME": "Alia round start", "GIT_COMMITTER_EMAIL": "start@alia.invalid"}
+    sealed_git(["init", "-q"], work, home, capture_output=True)
+    sealed_git(["add", "-A"], work, home, capture_output=True)
+    sealed_git(["commit", "-q", "--no-verify", "-m", "start"], work, home, identity, capture_output=True)
     if (work / "evolution").exists():
-        raise RoundError("sparse checkout exposed evolution data")
-    if git_text(work, "rev-list", "--all", "--count").strip() != "1":
-        raise RoundError("private repository holds more than the start commit")
+        raise RoundError("agent copy contains evolution data")
+
+
+def copy_agent_tree(work: Path, result: Path) -> tuple[list[str], list[str]]:
+    """Copy the agent's files without its .git and without following links.
+
+    Returns (links that point outside the work copy, which are not copied; other skipped entries: the top-level
+    .git, nested .git directories, special files).
+    """
+    escaping: list[str] = []
+    skipped: list[str] = []
+    root = work.resolve()
+    for current, dirs, files in os.walk(work, followlinks=False):
+        here = Path(current)
+        relative_dir = here.relative_to(work)
+        keep = []
+        for name in sorted(dirs):
+            source, relative = here / name, (relative_dir / name).as_posix()
+            if source.is_symlink():
+                files.append(name)  # handled as a link below
+            elif name == ".git":
+                if relative_dir != Path("."):
+                    skipped.append(relative)
+            else:
+                (result / relative).mkdir(parents=True, exist_ok=True)
+                keep.append(name)
+        dirs[:] = keep
+        for name in files:
+            source, relative = here / name, (relative_dir / name).as_posix()
+            target = result / relative
+            if source.is_symlink():
+                link = os.readlink(source)
+                if os.path.isabs(link) or not inside(source.parent / link, root):
+                    escaping.append(relative)
+                else:
+                    os.symlink(link, target)
+            elif source.is_file():
+                shutil.copy2(source, target, follow_symlinks=False)
+            else:
+                skipped.append(relative)
+    return sorted(escaping), sorted(skipped)
+
+
+def collect_changes(repo: Path, private_round: Path, start: str, number: int, home: Path
+                    ) -> tuple[list[str], int, int, str | None, list[str]]:
+    """Commit the copied result in a runner-owned repository; never run git inside the agent's repository.
+
+    Returns (changed paths, lines added, lines removed, agent commit or None, paths the agent wrote under
+    evolution/, which the commit leaves out and the caller treats as out of scope).
+    """
+    result = private_round / "result"
+    scratch = private_round / "result.git"
+    sealed_git(["init", "-q", "--bare", str(scratch)], private_round, home, capture_output=True)
+    sealed_git(["fetch", "-q", str(repo), f"{start}:refs/start"], scratch, home, capture_output=True)
+    tree = ["--git-dir", str(scratch), "--work-tree", str(result)]
+    sealed_git([*tree, "update-ref", "--no-deref", "HEAD", start], result, home, capture_output=True)
+    sealed_git([*tree, "read-tree", start], result, home, capture_output=True)
+    evolution = sorted(path.relative_to(result).as_posix() for path in (result / "evolution").rglob("*")
+                       if not path.is_dir()) if (result / "evolution").exists() else []
+    sealed_git([*tree, "add", "-A", "--", ".", ":(exclude)evolution"], result, home, capture_output=True)
+    numstat = sealed_git([*tree, "diff", "--cached", "--no-renames", "--numstat", start, "--"], result, home,
+                         capture_output=True, text=True).stdout
+    paths, added, removed = [], 0, 0
+    for line in numstat.splitlines():
+        plus, minus, path = line.split("\t", 2)
+        paths.append(path)
+        added += int(plus) if plus.isdigit() else 0
+        removed += int(minus) if minus.isdigit() else 0
+    if not paths:
+        return [], 0, 0, None, evolution
+    identity = {"GIT_AUTHOR_NAME": ALIA_AUTHOR_NAME, "GIT_AUTHOR_EMAIL": ALIA_AUTHOR_EMAIL,
+                "GIT_COMMITTER_NAME": ALIA_AUTHOR_NAME, "GIT_COMMITTER_EMAIL": ALIA_AUTHOR_EMAIL}
+    message = f"feat(evolution): Alia round {number:02d}\n\nAlia-Round: {number:02d}"
+    sealed_git([*tree, "commit", "-q", "--no-verify", "-m", message], result, home, identity, capture_output=True)
+    commit = sealed_git([*tree, "rev-parse", "HEAD"], result, home, capture_output=True, text=True).stdout.strip()
+    # Keep Alia's commit reachable in the integration repository for review, attribution and the PR.
+    sealed_git(["fetch", "-q", str(scratch), f"{commit}:refs/evolution/round-{number:02d}"], repo, home,
+               capture_output=True)
+    return sorted(paths), added, removed, commit, evolution
 
 
 # Strings whose appearance in the transcript means Alia looked outside its copy. The labels are public;
@@ -341,7 +436,7 @@ def run_agent(
             started = time.monotonic()
             process = subprocess.Popen(
                 args, cwd=work, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr,
-                start_new_session=True, close_fds=True,
+                start_new_session=True, close_fds=True, env=alia_jail.HOST_ENV if jail else None,
             )
             exit_code = process.wait(timeout=limit + 90)
         except subprocess.TimeoutExpired:
@@ -406,50 +501,9 @@ def stream_counts(path: Path) -> tuple[int | None, dict[str, Any] | None]:
     return calls, result
 
 
-def changed_paths(work: Path, start: str) -> list[str]:
-    tracked = git_text(work, "diff", "--name-only", start, "--").splitlines()
-    untracked = git_text(work, "ls-files", "--others", "--exclude-standard").splitlines()
-    return sorted(set(filter(None, tracked + untracked)))
-
-
-def diff_counts(work: Path, start: str, paths: list[str]) -> tuple[int, int]:
-    added = removed = 0
-    output = git_text(work, "diff", "--numstat", start, "--")
-    tracked = set()
-    for line in output.splitlines():
-        plus, minus, path = line.split("\t", 2)
-        tracked.add(path)
-        if plus.isdigit():
-            added += int(plus)
-        if minus.isdigit():
-            removed += int(minus)
-    for relative in set(paths) - tracked:
-        try:
-            added += len((work / relative).read_text(encoding="utf-8").splitlines())
-        except (OSError, UnicodeDecodeError):
-            pass
-    return added, removed
-
-
 def out_of_scope(paths: list[str], allowed: list[str]) -> list[str]:
     prefixes = [item.rstrip("/") + "/" for item in allowed]
     return [path for path in paths if not any(path == prefix[:-1] or path.startswith(prefix) for prefix in prefixes)]
-
-
-def commit_changes(work: Path, number: int, paths: list[str]) -> str | None:
-    if not paths:
-        return None
-    command(["git", "add", "-A"], work)
-    message = f"feat(evolution): Alia round {number:02d}\n\nAlia-Round: {number:02d}"
-    env = os.environ.copy()
-    env.update({
-        "GIT_AUTHOR_NAME": "Alia (Qwen3.6-35B, local)",
-        "GIT_AUTHOR_EMAIL": "alia@alia.invalid",
-        "GIT_COMMITTER_NAME": "Alia (Qwen3.6-35B, local)",
-        "GIT_COMMITTER_EMAIL": "alia@alia.invalid",
-    })
-    command(["git", "commit", "-m", message], work, env=env, capture_output=True, text=True)
-    return git_text(work, "rev-parse", "HEAD")
 
 
 def parse_unittest(output: str) -> tuple[int | None, int | None]:
@@ -478,11 +532,12 @@ def run_tests(
 ) -> tuple[int | None, int | None, dict[str, int] | None, str]:
     acceptance_run = private_round / "acceptance-run"
     shutil.copytree(folder / "acceptance", acceptance_run)
-    env = os.environ.copy()
-    env["SITE_ROOT"] = str(work / "site")
+    # -I: no current directory or PYTHON* variables on the path, so nothing the agent wrote can shadow a module.
+    env = {"PATH": alia_jail.PATH, "LC_ALL": "C.UTF-8", "SITE_ROOT": str(work / "site")}
     unit = subprocess.run(
-        [sys.executable, "-m", "unittest", "discover", "-s", str(acceptance_run), "-v"],
-        cwd=work,
+        [sys.executable, "-I", "-m", "unittest", "discover", "-s", str(acceptance_run), "-t", str(acceptance_run),
+         "-v"],
+        cwd=acceptance_run,
         env=env,
         capture_output=True,
         text=True,
@@ -569,23 +624,32 @@ def execute(args: argparse.Namespace) -> None:
                 args.gpu_max_wait, productive, jail=not args.no_jail,
             )
             verify_frozen(repo, folder, data)
+            # Breaches first, from the transcript the jail wrote; nothing after this runs agent-controlled code.
+            breaches = isolation_breaches(transcript, breach_markers(repo, folder, private_round))
             calls, _result_event = stream_counts(transcript)
-            paths = changed_paths(work, start)
+            result_tree = private_round / "result"
+            result_tree.mkdir()
+            escaping, skipped = copy_agent_tree(work, result_tree)
+            # The agent's .git may hold hooks or config aimed at whoever runs git there next; disarm it.
+            if (work / ".git").is_dir():
+                os.rename(work / ".git", work / "agent-git.untrusted")
+            if escaping:
+                breaches = sorted({*breaches, "symlink-escape"})
+            paths, added, removed, agent_commit, evolution_paths = collect_changes(
+                repo, private_round, start, args.number, private_round)
             allowed = data.get("allowed_paths", ["site/"])
             if not isinstance(allowed, list) or not all(isinstance(item, str) for item in allowed):
                 raise RoundError("allowed_paths must be a list of strings")
-            outside = out_of_scope(paths, allowed)
-            added, removed = diff_counts(work, start, paths)
-            agent_commit = commit_changes(work, args.number, paths)
-            passed, total, site_checks, _ = run_tests(repo, work, folder, private_round)
+            outside = sorted({*out_of_scope(paths, allowed), *evolution_paths, *skipped})
+            passed, total, site_checks, _ = run_tests(repo, result_tree, folder, private_round)
             status = final_status(
                 data.get("status", "planned"), exit_code, paths, passed, total, site_checks, outside
             )
-            breaches = isolation_breaches(transcript, breach_markers(repo, folder, private_round))
             if breaches:
                 status = "invalid"
             data["status"] = status
             data["agent_commit"] = agent_commit
+            data.pop("attribution", None)
             run = data.setdefault("run", {})
             run.update({
                 "started": started,
@@ -618,6 +682,20 @@ def execute(args: argparse.Namespace) -> None:
     print(f"round {args.number:02d}: {data['status']}; acceptance {passed}/{total}; site {site_checks}")
 
 
+def verify(args: argparse.Namespace) -> bool:
+    repo = repo_root()
+    folder = find_round(repo, args.number)
+    data = read_round(folder)
+    private_root = (args.private_root or Path("~/alia-evolution-private")).expanduser().resolve()
+    attribution = verify_attribution(repo, folder, data, args.head, private_root)
+    data["attribution"] = attribution
+    write_round(folder, data)
+    for name, result in attribution["checks"].items():
+        print(f"{name}: {'ok' if result['ok'] else 'CONTRADICTION'} - {result['detail']}")
+    print(f"attribution: {'verified' if attribution['verified'] else 'not verified'}")
+    return attribution["verified"]
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="action", required=True)
@@ -634,6 +712,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     run_parser.add_argument("--agent-cmd", nargs="+")
     run_parser.add_argument("--no-jail", action="store_true",
                             help="dry run only: run the fake agent without bubblewrap (CI without user namespaces)")
+    verify_parser = sub.add_parser("verify")
+    verify_parser.add_argument("number", type=int, metavar="NN")
+    verify_parser.add_argument("--head", required=True)
+    verify_parser.add_argument("--private-root", type=Path)
     return parser.parse_args(argv)
 
 
@@ -642,8 +724,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.action == "freeze":
             freeze(repo_root(), args.number)
-        else:
+        elif args.action == "run":
             execute(args)
+        else:
+            return 0 if verify(args) else 1
         return 0
     except RoundError as exc:
         print(f"error: {exc}", file=sys.stderr)

@@ -113,6 +113,7 @@ class AliaRoundTests(unittest.TestCase):
         return repo, folder
 
     steal_targets = ()
+    mode_script = ""
 
     def make_agent(self):
         agent = self.root / "fake_agent.py"
@@ -123,7 +124,9 @@ class AliaRoundTests(unittest.TestCase):
             "(root / 'site/agent.txt').write_text('agent change\\n')\n"
             "if sys.argv[1] == 'outside': (root / 'outside.txt').write_text('outside\\n')\n"
             "if sys.argv[1] == 'peek': print(json.dumps({'type': 'tool_result', 'output': sys.argv[2]}))\n"
-            "if sys.argv[1] == 'steal':\n"
+            "if sys.argv[1] == 'script':\n    pass\n"
+            + "".join(f"    {line}\n" for line in self.mode_script.splitlines())
+            + "if sys.argv[1] == 'steal':\n"
             f"    for target in {list(self.steal_targets)!r}:\n"
             "        try: (root / 'site' / ('stolen-' + pathlib.Path(target).name)).write_bytes(pathlib.Path(target).read_bytes())\n"
             "        except OSError: pass\n"
@@ -165,6 +168,9 @@ class AliaRoundTests(unittest.TestCase):
 
     def test_full_dry_run_passes_and_keeps_productive_checkout_unchanged(self):
         repo, folder = self.make_repo(acceptance_passes=True)
+        before_run = json.loads((folder / "round.json").read_text(encoding="utf-8"))
+        before_run["attribution"] = {"verified": True}
+        (folder / "round.json").write_text(json.dumps(before_run), encoding="utf-8")
         productive = self.make_productive()
         before = self.snapshot(productive)
         completed = self.invoke(repo, productive)
@@ -174,6 +180,7 @@ class AliaRoundTests(unittest.TestCase):
         self.assertEqual(data["status"], "passed")
         self.assertEqual(data["result"]["acceptance_passed"], 1)
         self.assertEqual(data["result"]["site_checks"], {"failures": 0, "known": 2, "fixed": 1})
+        self.assertNotIn("attribution", data)
         self.assertNotIn("TRANSCRIPT_SECRET", json.dumps(data))
         work = self.root / "private/01-example/work"
         self.assertFalse((work / "evolution").exists())
@@ -192,12 +199,55 @@ class AliaRoundTests(unittest.TestCase):
         completed = self.invoke(repo, self.make_productive())
         self.assertEqual(completed.returncode, 0, completed.stderr + completed.stdout)
         work = self.root / "private/01-example/work"
-        start = json.loads((repo / "evolution/rounds/01-example/round.json").read_text(encoding="utf-8"))["start_commit"]
-        # Start commit plus Alia's own commit, nothing else; no shared object store with the repo.
-        self.assertEqual(run(["git", "rev-list", "--all", "--count"], work).stdout.strip(), "2")
-        self.assertEqual(run(["git", "rev-parse", "HEAD~1"], work).stdout.strip(), start)
-        self.assertFalse((work / ".git/objects/info/alternates").exists())
-        self.assertTrue((work / ".git").is_dir())
+        data = json.loads((repo / "evolution/rounds/01-example/round.json").read_text(encoding="utf-8"))
+        # A fresh one-commit repository built from `git archive`: no shared history, no FETCH_HEAD.
+        agent_git = work / "agent-git.untrusted"  # disarmed after the run
+        self.assertFalse((work / ".git").exists())
+        self.assertEqual(run(["git", "--git-dir", str(agent_git), "rev-list", "--all", "--count"], work).stdout.strip(), "1")
+        self.assertFalse((agent_git / "FETCH_HEAD").exists())
+        self.assertFalse((agent_git / "objects/info/alternates").exists())
+        self.assertFalse((work / "evolution").exists())
+        # Alia's commit is built by the runner in its own repository and kept in the integration repo.
+        agent = data["agent_commit"]
+        self.assertEqual(run(["git", "rev-parse", "refs/evolution/round-01"], repo).stdout.strip(), agent)
+        self.assertEqual(run(["git", "rev-parse", f"{agent}~1"], repo).stdout.strip(), data["start_commit"])
+        self.assertIn("Alia-Round: 01", run(["git", "show", "-s", "--format=%B", agent], repo).stdout)
+
+    def test_agent_git_config_hooks_and_filters_never_run_on_the_host(self):
+        repo, folder = self.make_repo(acceptance_passes=True)
+        canary = self.root / "host-canary"
+        self.mode_script = (
+            "git = root / '.git'\n"
+            "(git / 'hooks').mkdir(exist_ok=True)\n"
+            f"payload = '#!/bin/sh\\ntouch {canary}\\n'\n"
+            "for hook in ('pre-commit', 'commit-msg', 'post-commit', 'pre-auto-gc'):\n"
+            "    (git / 'hooks' / hook).write_text(payload); (git / 'hooks' / hook).chmod(0o755)\n"
+            "(root / 'payload.sh').write_text(payload); (root / 'payload.sh').chmod(0o755)\n"
+            "with open(git / 'config', 'a') as c:\n"
+            "    c.write('[core]\\n fsmonitor = ' + str(root / 'payload.sh') + '\\n[filter \"x\"]\\n clean = '"
+            " + str(root / 'payload.sh') + '\\n[gpg]\\n program = ' + str(root / 'payload.sh') + '\\n')\n"
+            "(root / '.gitattributes').write_text('* filter=x diff=x\\n')\n"
+        )
+        completed = self.invoke(repo, self.make_productive(), "script")
+        self.assertEqual(completed.returncode, 0, completed.stderr + completed.stdout)
+        self.assertFalse(canary.exists(), "agent-written git config or hook ran on the host")
+        data = json.loads((folder / "round.json").read_text(encoding="utf-8"))
+        self.assertIn("site/agent.txt", data["result"]["files_changed"])
+
+    def test_escaping_symlink_and_evolution_writes_are_caught(self):
+        repo, folder = self.make_repo(acceptance_passes=True)
+        self.mode_script = (
+            "import os\n"
+            "os.symlink('/etc/hostname', root / 'site' / 'host.txt')\n"
+            "(root / 'evolution' / 'rounds').mkdir(parents=True)\n"
+            "(root / 'evolution' / 'rounds' / 'fake.json').write_text('{}')\n"
+        )
+        completed = self.invoke(repo, self.make_productive(), "script")
+        self.assertEqual(completed.returncode, 0, completed.stderr + completed.stdout)
+        data = json.loads((folder / "round.json").read_text(encoding="utf-8"))
+        self.assertEqual(data["status"], "invalid")
+        self.assertIn("symlink-escape", data["result"]["isolation_breaches"])
+        self.assertIn("evolution/rounds/fake.json", data["result"]["out_of_scope_paths"])
 
     def test_refuses_start_commit_containing_the_round(self):
         repo, folder = self.make_repo()

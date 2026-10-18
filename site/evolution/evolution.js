@@ -26,6 +26,9 @@ const DE = {
   "round.reviews": "Prüfungen",
   "round.outOfScope": "Außerhalb des Umfangs",
   "round.breaches": "Isolationsverstöße",
+  "round.share": "Anteil von Alia: {alia} von {total} geänderten Zeilen",
+  "round.verified": "verifiziert",
+  "round.notVerified": "nicht verifiziert",
   "before.title": "Vor der Self-Evolution",
   "before.text": "Zuvor schrieb Alia anhand menschlicher Prompts eine Architektur-Übersicht.",
   "before.link": "Architektur-Seite ansehen",
@@ -39,7 +42,9 @@ Object.assign(EN, {
   "status.planned": "planned", "status.running": "running", "status.passed": "passed",
   "status.failed": "failed", "status.aborted": "aborted", "status.invalid": "invalid",
   "round.interventions": "Interventions", "round.reviews": "Reviews",
-  "round.outOfScope": "Out of scope", "round.breaches": "Isolation breaches"
+  "round.outOfScope": "Out of scope", "round.breaches": "Isolation breaches",
+  "round.share": "Alia's share: {alia} of {total} changed lines",
+  "round.verified": "verified", "round.notVerified": "not verified"
 });
 let language = "en";
 let roundData = [];
@@ -104,7 +109,24 @@ function renderRounds() {
       ? "—" : `${result.acceptance_passed}/${result.acceptance_total}`;
     addText(meta, "span", `${language === "de" ? "Abnahme" : "Acceptance"} ${acceptance}`);
     if (round.run?.wall_seconds != null) addText(meta, "span", `${round.run.wall_seconds} s`);
+    const attribution = round.attribution;
+    const verified = attribution?.verified === true;
+    addText(
+      meta,
+      "span",
+      label(verified ? "round.verified" : "round.notVerified"),
+      `attribution-badge ${verified ? "verified" : "not-verified"}`,
+    );
     card.append(meta);
+    if (attribution) {
+      const total = attribution.alia_lines + attribution.other_lines;
+      addText(
+        card,
+        "p",
+        label("round.share").replace("{alia}", attribution.alia_lines).replace("{total}", total),
+        "round-share",
+      );
+    }
     if (value(round.summary)) addText(card, "p", value(round.summary), "round-summary");
     addList(card, label("round.interventions"), round.interventions, (row, item) => {
       row.append(document.createTextNode(`${item.by}: ${item.what}`));

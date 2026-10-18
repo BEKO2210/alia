@@ -57,10 +57,16 @@ def jail_args(work: Path, home: Path, read_only: list[Path] | tuple[Path, ...] =
     return args + ["--chdir", str(work)]
 
 
+# The environment bwrap itself starts with. `--clearenv` only cleans the inner command; bwrap stays PID 1 of the
+# new PID namespace and its /proc/1/environ is readable from inside, so bwrap must not inherit the host's.
+HOST_ENV = {"PATH": PATH, "LANG": "C.UTF-8"}
+
+
 def run_jailed(prefix: list[str], argv: list[str], **kwargs) -> subprocess.CompletedProcess:
     # close_fds (the default) plus stdin from /dev/null: no host file descriptor reaches the agent except
     # stdout/stderr, which the caller points at private files outside the jail.
-    return subprocess.run([*prefix, "--", *argv], stdin=subprocess.DEVNULL, close_fds=True, check=False, **kwargs)
+    return subprocess.run([*prefix, "--", *argv], stdin=subprocess.DEVNULL, close_fds=True, check=False,
+                          env=HOST_ENV, **kwargs)
 
 
 PROBE = r'''
@@ -96,6 +102,13 @@ for base in ("/", os.path.expanduser("~")):
                 pass
 out["canary_files"] = sorted(set(hits))
 out["env_leaks"] = sorted(k for k, v in os.environ.items() if any(m in v for m in targets["markers"]))
+def environ(pid):
+    try:
+        with open(f"/proc/{pid}/environ", "rb") as handle:
+            return [item.split(b"=", 1)[0].decode() for item in handle.read().split(b"\0") if item]
+    except OSError:
+        return []
+out["pid1_env_keys"] = sorted(environ(1))
 out["fds"] = sorted(f"{fd}->{os.readlink(f'/proc/self/fd/{fd}')}" for fd in os.listdir("/proc/self/fd")
                     if os.path.exists(f"/proc/self/fd/{fd}"))
 cwds = []
@@ -219,6 +232,7 @@ def leaks(result: dict, canary: str) -> list[str]:
     found += ["git alternates expose hidden blob"] if result["git_alternates_blob"] else []
     found += [f"canary in {path}" for path in result["canary_files"]]
     found += [f"env {key}" for key in result["env_leaks"]]
+    found += [f"pid1 env {key}" for key in result["pid1_env_keys"] if key not in HOST_ENV]
     found += ["X11 socket"] if result["x11_abstract_socket"] else []
     found += ["D-Bus session"] if result["dbus_session"] else []
     found += ["host port 11434"] if result["host_ollama_port"] else []

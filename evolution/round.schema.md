@@ -17,7 +17,12 @@
 - `interventions`: objects with `by`, nullable `commit`, and `what`.
 - `reviews`: objects with `by`, `verdict`, and `file`.
 - `summary`: `{en, de}` strings.
+- `attribution` is optional for non-passed rounds and required for passed rounds. It contains `verified`, the
+  full `checked_head` commit, named `checks` (`transcript_hash`, `agent_commit_shape`,
+  `transcript_covers_diff`, `transcript_tool_calls`, `foreign_commits_declared`, and `share`) with exact
+  `{ok, detail}` results, plus non-negative `alia_lines` and `other_lines`. `verified` is true exactly when all
+  checks pass. Details are public and must not contain private absolute paths.
 
 The generator validates hashes, folder identity, types, status semantics, and public-data privacy before publishing.
-A `passed` round requires exit code zero, at least one passing acceptance test with all tests passing, zero
+A `passed` round requires verified attribution, exit code zero, at least one passing acceptance test with all tests passing, zero
 site-suite failures, at least one in-scope changed file, and no out-of-scope paths or isolation breaches.

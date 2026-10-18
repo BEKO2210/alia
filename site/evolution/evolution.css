@@ -10,6 +10,10 @@
 .round-status { text-transform: capitalize; color: var(--mut); }
 .round-status.passed { color: var(--green); }
 .round-status.failed, .round-status.aborted, .round-status.invalid { color: var(--red); }
+.attribution-badge { border: 1px solid currentColor; border-radius: 999px; padding: 1px 8px; }
+.attribution-badge.verified { color: var(--green); }
+.attribution-badge.not-verified { color: var(--red); }
+.round-share { color: var(--mut); font-size: 14px; margin: -4px 0 12px; }
 .round-summary { margin: 0 0 12px; }
 .round-detail { color: var(--mut); margin: 8px 0; font-size: 14px; }
 .round-detail strong { color: inherit; }

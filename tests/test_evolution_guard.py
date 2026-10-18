@@ -32,6 +32,12 @@ class EvolutionGuardTests(unittest.TestCase):
     def test_infrastructure_branch_uses_engine_denylist(self):
         self.assertEqual(blocked(["tools/alia_round.py", "alia"], "evolution/round-0"), ["alia"])
 
+    def test_round_detected_by_content_not_only_branch_name(self):
+        engine = ["site/style.css", "tools/alia_round.py"]
+        self.assertEqual(blocked(engine, "fix/css", "fix css\n\nAlia-Round: 01\n"), ["tools/alia_round.py"])
+        self.assertEqual(blocked(["evolution/rounds/01-x/round.json", "alia"], "feature/x"), ["alia"])
+        self.assertEqual(blocked(engine, "feature/x", "unrelated"), [])
+
     def test_main_exit_codes(self):
         for text, branch, code in (("site/a.css\n", "evolution/round-2", 0), ("ci.yml\n", "evolution/round-2", 1)):
             with mock.patch("sys.stdin", io.StringIO(text)), redirect_stdout(io.StringIO()), \

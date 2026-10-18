@@ -35,9 +35,24 @@
     "files_changed": ["site/example.html"],
     "lines_added": 1,
     "lines_removed": 0,
-    "out_of_scope_paths": []
+    "out_of_scope_paths": [],
+    "isolation_breaches": []
   },
   "interventions": [],
+  "attribution": {
+    "verified": true,
+    "checked_head": "4444444444444444444444444444444444444444",
+    "checks": {
+      "transcript_hash": {"ok": true, "detail": "Artificial transcript hash matches."},
+      "agent_commit_shape": {"ok": true, "detail": "Artificial commit shape matches."},
+      "transcript_covers_diff": {"ok": true, "detail": "Artificial tool call covers the diff."},
+      "transcript_tool_calls": {"ok": true, "detail": "Artificial tool-call count matches."},
+      "foreign_commits_declared": {"ok": true, "detail": "Artificial range has no foreign commits."},
+      "share": {"ok": true, "detail": "Alia 1 line; interventions 0; final diff 1 line."}
+    },
+    "alia_lines": 1,
+    "other_lines": 0
+  },
   "reviews": [],
   "summary": {"en": "Artificial test data; never run.", "de": "Künstliche Testdaten; nie ausgeführt."},
   "merged_commit": null

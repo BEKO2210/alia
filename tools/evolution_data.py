@@ -12,6 +12,7 @@ import re
 import subprocess
 import sys
 import unicodedata
+import urllib.parse
 from pathlib import Path
 from typing import Any
 
@@ -23,9 +24,15 @@ EMAIL_RE = re.compile(r"(?<![\w.+-])[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", re.IGNORECA
 IP_RE = re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])")
 IPV6_RE = re.compile(r"(?<![\w:])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}(?![\w:])", re.IGNORECASE)
 PATH_RE = re.compile(r"(?<![\w.-])(?:/home|/Users|/root|/tmp|[A-Za-z]:\\Users)(?=[/\\]|\b)", re.IGNORECASE)
+ABSOLUTE_PATH_RE = re.compile(r"(?:^|[\s=(\"'])/(?!/)\S+|(?:^|[\s=(\"'])[A-Za-z]:[/\\]\S+")
+HOME_TILDE_RE = re.compile(r"(?<![\w.-])~[\w.-]*/")
 TOKEN_RE = re.compile(
     r"(?:sk-|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|hf_|xox[abpr]-|AKIA[0-9A-Z]{12,}|Bearer )"
 )
+ATTRIBUTION_CHECKS = {
+    "transcript_hash", "agent_commit_shape", "transcript_covers_diff", "transcript_tool_calls",
+    "foreign_commits_declared", "share",
+}
 
 
 class ValidationError(ValueError):
@@ -43,7 +50,7 @@ def sha256(path: Path) -> str:
 def require(value: Any, expected: Any, field: str, nullable: bool = False) -> Any:
     if value is None and nullable:
         return value
-    if not isinstance(value, expected) or isinstance(value, bool):
+    if not isinstance(value, expected) or (isinstance(value, bool) and expected is not bool):
         names = expected.__name__ if isinstance(expected, type) else str(expected)
         raise ValidationError(f"{field} must be {names}{' or null' if nullable else ''}")
     return value
@@ -106,7 +113,11 @@ def validate_round(folder: Path) -> dict[str, Any]:
         check_sha(data[field], field, git=True, nullable=True)
     validate_run(data["run"])
     validate_result(data["result"])
+    if "attribution" in data:
+        validate_attribution(data["attribution"])
     if data["status"] == "passed":
+        if "attribution" not in data or not data["attribution"]["verified"]:
+            raise ValidationError("passed round requires verified attribution")
         if data["run"]["exit_code"] != 0:
             raise ValidationError("passed round has a non-zero or unknown exit code")
         passed = data["result"]["acceptance_passed"]
@@ -120,8 +131,18 @@ def validate_round(folder: Path) -> dict[str, Any]:
             raise ValidationError("passed round has no changed files")
         if data["result"]["out_of_scope_paths"] != []:
             raise ValidationError("passed round has out-of-scope changes or isolation breaches")
-        if "isolation_breaches" in data["result"] and data["result"]["isolation_breaches"] != []:
-            raise ValidationError("passed round has out-of-scope changes or isolation breaches")
+        if data["result"].get("isolation_breaches") != []:
+            raise ValidationError("passed round has out-of-scope changes or isolation breaches (isolation_breaches must be recorded and empty)")
+    if data["status"] not in {"planned", "running"}:
+        # Recompute the scope from the changed files instead of trusting the stored list.
+        allowed = data.get("allowed_paths", ["site/"])
+        if not isinstance(allowed, list) or not all(isinstance(item, str) and item for item in allowed):
+            raise ValidationError("allowed_paths must be a list of path prefixes")
+        prefixes = tuple(item.rstrip("/") + "/" for item in allowed)
+        changed = data["result"]["files_changed"] or []
+        outside = sorted(path for path in changed if ".." in path.split("/") or not path.startswith(prefixes))
+        if not set(outside) <= set(data["result"]["out_of_scope_paths"] or []):
+            raise ValidationError(f"out_of_scope_paths does not list changed files outside {list(allowed)}")
     validate_records(data["interventions"], ("by", "commit", "what"), "interventions")
     for index, item in enumerate(data["interventions"]):
         check_sha(item["commit"], f"interventions[{index}].commit", git=True, nullable=True)
@@ -219,14 +240,41 @@ def validate_records(value: Any, keys: tuple[str, ...], field: str) -> None:
             require(item[key], str, f"{field}[{index}].{key}", nullable=key == "commit")
 
 
+def validate_attribution(value: Any) -> None:
+    require(value, dict, "attribution")
+    expected = {"verified", "checked_head", "checks", "alia_lines", "other_lines"}
+    if set(value) != expected:
+        raise ValidationError("attribution must contain only verified, checked_head, checks, alia_lines and other_lines")
+    require(value["verified"], bool, "attribution.verified")
+    check_sha(value["checked_head"], "attribution.checked_head", git=True)
+    checks = require(value["checks"], dict, "attribution.checks")
+    if set(checks) != ATTRIBUTION_CHECKS:
+        raise ValidationError(f"attribution.checks must contain exactly {sorted(ATTRIBUTION_CHECKS)}")
+    for name, result in checks.items():
+        require(result, dict, f"attribution.checks.{name}")
+        if set(result) != {"ok", "detail"}:
+            raise ValidationError(f"attribution.checks.{name} must contain only ok and detail")
+        require(result["ok"], bool, f"attribution.checks.{name}.ok")
+        detail = require(result["detail"], str, f"attribution.checks.{name}.detail")
+        if ABSOLUTE_PATH_RE.search(privacy_text(detail)):
+            raise ValidationError(f"attribution.checks.{name}.detail must not contain absolute paths")
+    if value["verified"] != all(result["ok"] for result in checks.values()):
+        raise ValidationError("attribution.verified must equal the combined check results")
+    for field in ("alia_lines", "other_lines"):
+        amount = require(value[field], int, f"attribution.{field}")
+        if amount < 0:
+            raise ValidationError(f"attribution.{field} must not be negative")
+
+
 PUBLIC_KEYS = (
     "schema", "round", "slug", "title", "level", "status", "task_sha256", "acceptance", "agent", "start_commit",
-    "agent_commit", "run", "result", "interventions", "reviews", "summary", "merged_commit",
+    "agent_commit", "run", "result", "interventions", "reviews", "summary", "merged_commit", "attribution",
 )
 
 
 def public_round(data: dict[str, Any]) -> dict[str, Any]:
-    public = {key: data[key] for key in PUBLIC_KEYS if key not in {"acceptance", "agent", "run", "result", "interventions", "reviews"}}
+    nested = {"acceptance", "agent", "run", "result", "interventions", "reviews", "attribution"}
+    public = {key: data[key] for key in PUBLIC_KEYS if key not in nested}
     public["acceptance"] = {
         "files": data["acceptance"]["files"],
         "frozen_commit": data["acceptance"]["frozen_commit"],
@@ -238,12 +286,32 @@ def public_round(data: dict[str, Any]) -> dict[str, Any]:
         public["result"]["isolation_breaches"] = data["result"]["isolation_breaches"]
     public["interventions"] = [{key: item[key] for key in ("by", "commit", "what")} for item in data["interventions"]]
     public["reviews"] = [{key: item[key] for key in ("by", "verdict", "file")} for item in data["reviews"]]
+    if "attribution" in data:
+        attribution = data["attribution"]
+        public["attribution"] = {
+            "verified": attribution["verified"],
+            "checked_head": attribution["checked_head"],
+            "checks": {
+                name: {"ok": result["ok"], "detail": result["detail"]}
+                for name, result in attribution["checks"].items()
+            },
+            "alia_lines": attribution["alia_lines"],
+            "other_lines": attribution["other_lines"],
+        }
     return public
 
 
 def privacy_text(text: str) -> str:
-    normalized = unicodedata.normalize("NFKC", text).replace("∕", "/").replace("⁄", "/")
-    return "".join(character for character in normalized if unicodedata.category(character) != "Cf")
+    """Normalise before matching: percent-decoding, NFKC, every slash-like code point to "/", no format chars."""
+    normalized = unicodedata.normalize("NFKC", urllib.parse.unquote(text))
+    out = []
+    for character in normalized:
+        if unicodedata.category(character) == "Cf":
+            continue
+        name = unicodedata.name(character, "")
+        out.append("/" if character != "/" and ("SOLIDUS" in name or "SLASH" in name) and "BACK" not in name
+                   else character)
+    return "".join(out)
 
 
 def published_strings(value: Any):
@@ -260,8 +328,10 @@ def published_strings(value: Any):
 
 def privacy_check(text: str) -> None:
     text = privacy_text(text)
-    if PATH_RE.search(text):
+    if PATH_RE.search(text) or HOME_TILDE_RE.search(text):
         raise ValidationError("privacy gate: home or temporary path")
+    if "-----BEGIN " in text and "PRIVATE KEY" in text:
+        raise ValidationError("privacy gate: private key")
     if TOKEN_RE.search(text):
         raise ValidationError("privacy gate: token")
     for address in EMAIL_RE.findall(text):
@@ -305,7 +375,36 @@ def verify_git_freeze(repo: Path, folder: Path, data: dict[str, Any]) -> None:
             raise ValidationError(f"frozen git bytes differ: {repo_relative}")
 
 
-def generate(rounds_dir: Path, repo: Path | None = None) -> bytes:
+TERMINAL_FAILURES = {"failed", "aborted", "invalid"}
+
+
+def check_against_base(repo: Path, folder: Path, data: dict[str, Any], base: str) -> None:
+    """A round that the base branch records as failed, aborted or invalid can never be relabelled."""
+    relative = folder.relative_to(repo).as_posix()
+    shown = subprocess.run(["git", "show", f"{base}:{relative}/round.json"], cwd=repo, capture_output=True,
+                           text=True, check=False)
+    if shown.returncode:
+        return
+    try:
+        before = json.loads(shown.stdout).get("status")
+    except (json.JSONDecodeError, AttributeError):
+        return
+    if before in TERMINAL_FAILURES and data["status"] != before:
+        raise ValidationError(f"{relative}: status {before} on {base} cannot change to {data['status']}")
+
+
+def check_agent_commit(repo: Path, folder: Path, data: dict[str, Any]) -> None:
+    """Public re-check of the git part of the attribution (the transcript part needs the private copy)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from evolution_attribution import verify_attribution  # noqa: PLC0415
+
+    result = verify_attribution(repo, folder, data, "HEAD", repo / ".no-private-transcripts")
+    shape = result["checks"]["agent_commit_shape"]
+    if not shape["ok"]:
+        raise ValidationError(f"{folder.name}: agent_commit does not match the round: {shape['detail']}")
+
+
+def generate(rounds_dir: Path, repo: Path | None = None, base: str | None = None) -> bytes:
     folders = [folder for folder in rounds_dir.iterdir() if folder.is_dir() and (folder / "round.json").is_file()]
     rounds = [validate_round(folder) for folder in folders]
     if repo is not None:
@@ -313,6 +412,10 @@ def generate(rounds_dir: Path, repo: Path | None = None) -> bytes:
         for folder, data in zip(folders, rounds, strict=True):
             if data["status"] != "planned":
                 verify_git_freeze(repo, folder.resolve(), data)
+            if data["status"] == "passed":
+                check_agent_commit(repo, folder.resolve(), data)
+            if base:
+                check_against_base(repo, folder.resolve(), data, base)
     rounds.sort(key=lambda item: item["round"])
     numbers = [item["round"] for item in rounds]
     if len(numbers) != len(set(numbers)):
@@ -329,6 +432,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--rounds", type=Path)
     parser.add_argument("--out", type=Path, default=Path("site/evolution/data/rounds.json"))
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--base", help="git ref whose failed/aborted/invalid rounds must keep their status")
     return parser.parse_args(argv)
 
 
@@ -342,7 +446,7 @@ def main(argv: list[str] | None = None) -> int:
             ).stdout.strip()
             repo = Path(root).resolve()
         rounds = args.rounds or repo / "evolution/rounds"
-        content = generate(rounds, repo=repo)
+        content = generate(rounds, repo=repo, base=args.base if repo else None)
         if args.check:
             existing = args.out.read_bytes() if args.out.exists() else b""
             if existing != content:
