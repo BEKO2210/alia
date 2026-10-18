@@ -5,7 +5,7 @@
     | python3 tools/evolution_guard.py --branch "$HEAD_REF" --messages messages.txt
 
 It runs on every pull request. A PR is an Alia round PR when its branch is `evolution/round-N...` (N >= 1),
-OR any commit message carries an `Alia-Round:` trailer, OR it changes `evolution/rounds/` - so renaming the
+OR any commit message carries an `Alia-Round:` trailer, OR it changes a round folder `evolution/rounds/NN-slug/` - so renaming the
 branch does not switch the guard off. Round PRs may only change an allowlist: the site, the round folders and
 the known-defect baseline; everything else, including CI, the tests and this guard, is refused.
 Other `evolution/*` branches (infrastructure, reviewed by a human) may not touch the Alia engine; all other
@@ -23,6 +23,7 @@ ROUND_ALLOWED_FILES = {"sitetests/known_defects.json"}
 ROUND_ALLOWED_PREFIXES = ("site/", "evolution/rounds/")
 ROUND_BRANCH = re.compile(r"^evolution/round-(\d+)(?:-|$)")
 ROUND_TRAILER = re.compile(r"^Alia-Round:", re.MULTILINE)
+ROUND_FOLDER = re.compile(r"^evolution/rounds/\d+-")  # round data, not e.g. evolution/rounds/.gitkeep
 
 
 def normalize(paths: list[str]) -> list[str]:
@@ -46,7 +47,7 @@ def is_round_branch(branch: str) -> bool:
 
 def is_round_pr(paths: list[str], branch: str, messages: str) -> bool:
     return (is_round_branch(branch) or bool(ROUND_TRAILER.search(messages))
-            or any(path.startswith("evolution/rounds/") for path in normalize(paths)))
+            or any(ROUND_FOLDER.match(path) for path in normalize(paths)))
 
 
 def blocked(paths: list[str], branch: str, messages: str = "") -> list[str]:

@@ -37,6 +37,8 @@ class EvolutionGuardTests(unittest.TestCase):
         self.assertEqual(blocked(engine, "fix/css", "fix css\n\nAlia-Round: 01\n"), ["tools/alia_round.py"])
         self.assertEqual(blocked(["evolution/rounds/01-x/round.json", "alia"], "feature/x"), ["alia"])
         self.assertEqual(blocked(engine, "feature/x", "unrelated"), [])
+        # The empty-folder placeholder is infrastructure, not round data.
+        self.assertEqual(blocked(["evolution/rounds/.gitkeep", "tools/alia_round.py"], "evolution/round-0"), [])
 
     def test_main_exit_codes(self):
         for text, branch, code in (("site/a.css\n", "evolution/round-2", 0), ("ci.yml\n", "evolution/round-2", 1)):
