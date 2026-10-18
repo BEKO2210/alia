@@ -60,6 +60,13 @@ measurement values are unchanged.
   (incl. `--cache-ram 2048`), ctx 65536, 4K/32K/60K, 5 reps: 66.2 / 57.8 / 51.4 tok/s
   generation, 2,964 / 2,695 / 2,424 tok/s prompt. Source of the published 9B values;
   replaces `-211736`.
+- `llamacpp-20261018-005132.jsonl` — **variant** of the `rtx12-16gb-qwen36-35b-q4` profile on a
+  Colab T4 (16 GB VRAM, 12.7 GB RAM, 2 vCPUs) with Alia's pinned release b11639, run from
+  `../colab_35b_profiles.ipynb`: the profile's `server_args` and ctx 32768 plus `--no-repack --no-host`,
+  because with the exact args the server is OOM-killed while loading (the profile needs 30 GB RAM).
+  `--fit` kept 13.9 GB on the GPU and streamed the remaining experts from the mmap'd file.
+  4K/16K/28K, 3 reps: 14.2 / 14.5 / 9.6 tok/s generation, 629 / 629 / 367 tok/s prompt.
+  Not a profile metric: the flags and the host differ from the profile.
 
 For measurement caveats and an independent recount, see
 `../reviews/grok-bench-review.md`.
