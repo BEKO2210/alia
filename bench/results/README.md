@@ -67,6 +67,14 @@ measurement values are unchanged.
   `--fit` kept 13.9 GB on the GPU and streamed the remaining experts from the mmap'd file.
   4K/16K/28K, 3 reps: 14.2 / 14.5 / 9.6 tok/s generation, 629 / 629 / 367 tok/s prompt.
   Not a profile metric: the flags and the host differ from the profile.
+- `llamacpp-20261018-011518.jsonl` — `rtx24gb-qwen36-35b-q4` with exactly its `server_args` (incl. `-ngl 99`,
+  `--cache-ram 2048`) and ctx 32768 on an NVIDIA L4 (22.5 GiB usable, Colab), release b11639, 4K/16K/28K, 3 reps:
+  62.4 / 57.7 / 53.2 tok/s generation, 3,027 / 2,958 / 2,744 tok/s prompt, peak VRAM 22,048 MiB with every layer
+  on the GPU. Source of the published 24 GB values.
+- `llamacpp-20261018-012109.jsonl` — `rtx12-16gb-qwen36-35b-q4` with exactly its `server_args` and ctx 32768 on a
+  Tesla T4 with 53 GB RAM (Colab High-RAM), release b11639, 4K/16K/28K, 3 reps: 31.8 / 29.1 / 27.1 tok/s
+  generation, 661 / 628 / 591 tok/s prompt; `--fit` kept 13.9 GB on the GPU, runner RSS peaked at 24.1 GB.
+  Source of the published 12–16 GB values.
 
 For measurement caveats and an independent recount, see
 `../reviews/grok-bench-review.md`.

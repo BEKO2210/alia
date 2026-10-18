@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The `rtx12-16gb-qwen36-35b-q4` and `rtx24gb-qwen36-35b-q4` profiles are measured with their exact launch configuration (Colab T4 with High-RAM: 31.8 / 29.1 / 27.1 tok/s; NVIDIA L4: 62.4 / 57.7 / 53.2 tok/s at 4K / 16K / 28K) and are no longer marked unmeasured, so matching machines get them automatically without a warning.
+- `alia profiles` and the banner show 16K and 28K speeds for profiles whose 32K context cannot be filled to 32K.
+
 ### Added
 
 - `bench/colab_35b_profiles.ipynb` measures the 35B Q4 profile that matches the Colab GPU (L4/A100: `rtx24gb`, T4 with High-RAM: `rtx12-16gb`) with its exact `server_args`, shows live progress, and disconnects the runtime after a result. The first run (a `--no-repack --no-host` variant of the 12–16 GB profile, because Colab's 12.7 GB RAM cannot hold the exact profile) generated 14.2 / 14.5 / 9.6 tok/s at 4K / 16K / 28K context.

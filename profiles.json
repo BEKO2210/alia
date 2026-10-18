@@ -347,8 +347,25 @@
       "min_p": 0,
       "presence_penalty": 0
     },
-    "unmeasured": true,
-    "note_key": "profile.note.12_16gb"
+    "measured": {
+      "tg_tps_4k": 31.8,
+      "tg_tps_16k": 29.1,
+      "tg_tps_28k": 27.1,
+      "pp_tps_4k": 661,
+      "pp_tps_16k": 628,
+      "pp_tps_28k": 591,
+      "llama_cpp": "a0e6dc7 (release b11639)",
+      "source": "Exact launch configuration on a Tesla T4 (15 GiB VRAM) with 53 GB RAM (Colab High-RAM): bench/results/llamacpp-20261018-012109.jsonl, ctx 32768. --fit kept 13.9 GB on the GPU; runner RSS peaked at 24.1 GB.",
+      "notes": "The runner holds 22-24 GB in RAM, which is why the profile asks for 30 GB. With Colab's standard 12.7 GB the exact profile is OOM-killed while loading; a --no-repack --no-host variant reached 14.2 / 14.5 / 9.6 tok/s (bench/results/llamacpp-20261018-005132.jsonl). The profile ctx is 32768, so the deepest point is 28K.",
+      "metric_sources": {
+        "tg_tps_4k": "bench/results/llamacpp-20261018-012109.jsonl, ctx 32768, llama.cpp release b11639 (a0e6dc7), exact profile server_args incl. --cache-ram 2048 (no -ngl, --fit places the layers), unsloth GGUF, Tesla T4 with 53 GB RAM (Colab High-RAM), 3 reps",
+        "tg_tps_16k": "bench/results/llamacpp-20261018-012109.jsonl, ctx 32768, llama.cpp release b11639 (a0e6dc7), exact profile server_args incl. --cache-ram 2048 (no -ngl, --fit places the layers), unsloth GGUF, Tesla T4 with 53 GB RAM (Colab High-RAM), 3 reps",
+        "tg_tps_28k": "bench/results/llamacpp-20261018-012109.jsonl, ctx 32768, llama.cpp release b11639 (a0e6dc7), exact profile server_args incl. --cache-ram 2048 (no -ngl, --fit places the layers), unsloth GGUF, Tesla T4 with 53 GB RAM (Colab High-RAM), 3 reps",
+        "pp_tps_4k": "bench/results/llamacpp-20261018-012109.jsonl, ctx 32768, llama.cpp release b11639 (a0e6dc7), exact profile server_args incl. --cache-ram 2048 (no -ngl, --fit places the layers), unsloth GGUF, Tesla T4 with 53 GB RAM (Colab High-RAM), 3 reps",
+        "pp_tps_16k": "bench/results/llamacpp-20261018-012109.jsonl, ctx 32768, llama.cpp release b11639 (a0e6dc7), exact profile server_args incl. --cache-ram 2048 (no -ngl, --fit places the layers), unsloth GGUF, Tesla T4 with 53 GB RAM (Colab High-RAM), 3 reps",
+        "pp_tps_28k": "bench/results/llamacpp-20261018-012109.jsonl, ctx 32768, llama.cpp release b11639 (a0e6dc7), exact profile server_args incl. --cache-ram 2048 (no -ngl, --fit places the layers), unsloth GGUF, Tesla T4 with 53 GB RAM (Colab High-RAM), 3 reps"
+      }
+    }
   },
   {
     "id": "rtx24gb-qwen36-35b-q4",
@@ -393,7 +410,24 @@
       "min_p": 0,
       "presence_penalty": 0
     },
-    "unmeasured": true,
-    "note_key": "profile.note.24gb"
+    "measured": {
+      "tg_tps_4k": 62.4,
+      "tg_tps_16k": 57.7,
+      "tg_tps_28k": 53.2,
+      "pp_tps_4k": 3027,
+      "pp_tps_16k": 2958,
+      "pp_tps_28k": 2744,
+      "llama_cpp": "a0e6dc7 (release b11639)",
+      "source": "Exact launch configuration on an NVIDIA L4 (22.5 GiB usable VRAM, Colab): bench/results/llamacpp-20261018-011518.jsonl, ctx 32768. Peak VRAM 22,048 MiB, all layers on the GPU.",
+      "notes": "Measured on an L4 (about 300 GB/s memory bandwidth); RTX 3090/4090-class cards have roughly three times the bandwidth, so generation there should be faster. The profile ctx is 32768, so the deepest point is 28K.",
+      "metric_sources": {
+        "tg_tps_4k": "bench/results/llamacpp-20261018-011518.jsonl, ctx 32768, llama.cpp release b11639 (a0e6dc7), exact profile server_args incl. -ngl 99 and --cache-ram 2048, unsloth GGUF, NVIDIA L4 (Colab), 3 reps",
+        "tg_tps_16k": "bench/results/llamacpp-20261018-011518.jsonl, ctx 32768, llama.cpp release b11639 (a0e6dc7), exact profile server_args incl. -ngl 99 and --cache-ram 2048, unsloth GGUF, NVIDIA L4 (Colab), 3 reps",
+        "tg_tps_28k": "bench/results/llamacpp-20261018-011518.jsonl, ctx 32768, llama.cpp release b11639 (a0e6dc7), exact profile server_args incl. -ngl 99 and --cache-ram 2048, unsloth GGUF, NVIDIA L4 (Colab), 3 reps",
+        "pp_tps_4k": "bench/results/llamacpp-20261018-011518.jsonl, ctx 32768, llama.cpp release b11639 (a0e6dc7), exact profile server_args incl. -ngl 99 and --cache-ram 2048, unsloth GGUF, NVIDIA L4 (Colab), 3 reps",
+        "pp_tps_16k": "bench/results/llamacpp-20261018-011518.jsonl, ctx 32768, llama.cpp release b11639 (a0e6dc7), exact profile server_args incl. -ngl 99 and --cache-ram 2048, unsloth GGUF, NVIDIA L4 (Colab), 3 reps",
+        "pp_tps_28k": "bench/results/llamacpp-20261018-011518.jsonl, ctx 32768, llama.cpp release b11639 (a0e6dc7), exact profile server_args incl. -ngl 99 and --cache-ram 2048, unsloth GGUF, NVIDIA L4 (Colab), 3 reps"
+      }
+    }
   }
 ]

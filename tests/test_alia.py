@@ -57,11 +57,12 @@ class ProfileMatchingTests(unittest.TestCase):
         # The point of the profile: Qwen Code compacts at ~98K instead of ~32.5K.
         self.assertGreater(alia.qwen_compaction_thresholds(pinned["ctx"])[0], 95000)
 
-    def test_24gb_machine_falls_back_to_unmeasured(self):
+    def test_24gb_machine_gets_the_measured_full_gpu_profile(self):
         hw = {"gpu_name": "RTX 4090", "vram_gb": 24.0, "ram_gb": 63.0}
-        profile, _, warning = alia.choose_profile(self.profiles, hw)
+        profile, reason, warning = alia.choose_profile(self.profiles, hw)
         self.assertEqual(profile["id"], "rtx24gb-qwen36-35b-q4")
-        self.assertTrue(warning)
+        self.assertIn("measured", reason)
+        self.assertFalse(warning)
 
     def test_no_nvidia_gpu_has_no_profile(self):
         profile, reason, warning = alia.choose_profile(
@@ -820,6 +821,20 @@ class SettingsTests(unittest.TestCase):
                 self.assertIn("llm-output-language: auto", output_rule)
                 self.assertIn("same language as the user's input", output_rule)
                 self.assertNotIn("German", output_rule)
+
+    def test_banner_speed_falls_back_to_28k_for_32k_context_profiles(self):
+        profile = {**alia.load_profiles(ROOT / "profiles.json")[0], "measured": {"tg_tps_4k": 62.4, "tg_tps_28k": 53.2}}
+        with tempfile.TemporaryDirectory() as directory:
+            output = alia.generate_settings(profile, {"gpu_name": "Test GPU"}, Path(directory), ROOT / "branding",
+                                            language="en")
+            subtitle = json.loads(output.read_text(encoding="utf-8"))["ui"]["customBannerSubtitle"]
+        self.assertIn("53.2 tok/s measured", subtitle)
+
+    def test_cmd_profiles_shows_16k_and_28k_speeds(self):
+        profile = {**alia.load_profiles(ROOT / "profiles.json")[0], "measured": {"tg_tps_4k": 62.4, "tg_tps_16k": 57.7, "tg_tps_28k": 53.2}}
+        with io.StringIO() as output, redirect_stdout(output):
+            alia.cmd_profiles([profile], {"gpu_name": "RTX", "vram_gb": 8, "ram_gb": 16}, profile["id"])
+            self.assertIn("4K 62.4 / 16K 57.7 / 28K 53.2", output.getvalue())
 
     def test_approval_mode_is_written_for_web_and_tui(self):
         profile = alia.load_profiles(ROOT / "profiles.json")[0]
