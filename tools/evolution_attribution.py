@@ -124,18 +124,37 @@ def _command_tokens(command: str) -> set[str]:
         return set()
 
 
-def _call_names_path(call: dict[str, Any], path: str) -> bool:
+def _transcript_cwd(transcript: Path) -> str | None:
+    """The agent's working directory from Qwen Code's `system`/`init` event."""
+    try:
+        lines = transcript.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict) and event.get("type") == "system" and isinstance(event.get("cwd"), str):
+            return event["cwd"].rstrip("/")
+    return None
+
+
+def _call_names_path(call: dict[str, Any], path: str, cwd: str | None) -> bool:
+    """Exact names only: the repo-relative path, `./path`, or `<agent cwd>/path`.
+
+    No basenames and no suffix matches: `echo a.txt` or `decoy/site/a.txt` must not cover `site/a.txt`.
+    A file Alia changed through a command that never names it (a glob, a `cd` first) stays uncovered, which
+    makes the attribution fail closed rather than credit Alia for an unexplained change.
+    """
     input_data = call.get("input")
     if not isinstance(input_data, dict):
         return False
-    for value in _strings(input_data):
-        if value == path or value.endswith("/" + path):
-            return True
+    wanted = {path, f"./{path}"} | ({f"{cwd}/{path}"} if cwd else set())
+    if any(value in wanted for value in _strings(input_data)):
+        return True
     command = input_data.get("command")
-    if isinstance(command, str):
-        wanted = {path, Path(path).name, f"./{path}"}
-        return bool(wanted & _command_tokens(command))
-    return False
+    return isinstance(command, str) and bool(wanted & _command_tokens(command))
 
 
 def _check(ok: bool, success: str, failure: str) -> dict[str, Any]:
@@ -198,7 +217,8 @@ def verify_attribution(
     )
 
     calls = _tool_uses(transcript)
-    uncovered = [path for path in agent_paths if not any(_call_names_path(call, path) for call in calls)]
+    cwd = _transcript_cwd(transcript)
+    uncovered = [path for path in agent_paths if not any(_call_names_path(call, path, cwd) for call in calls)]
     transcript_available = actual_hash is not None
     coverage_ok = transcript_available and agent_exists and not uncovered
     checks["transcript_covers_diff"] = _check(

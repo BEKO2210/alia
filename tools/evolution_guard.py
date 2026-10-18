@@ -4,7 +4,8 @@
   git diff --no-renames --name-only origin/main...HEAD \
     | python3 tools/evolution_guard.py --branch "$HEAD_REF" --messages messages.txt
 
-It runs on every pull request. A PR is an Alia round PR when its branch is `evolution/round-N...` (N >= 1),
+It runs on every pull request. A PR is an Alia round PR when its branch starts with `evolution/round-` (except
+`evolution/round-0`, the infrastructure),
 OR any commit message carries an `Alia-Round:` trailer, OR it changes a round folder `evolution/rounds/NN-slug/` - so renaming the
 branch does not switch the guard off. Round PRs may only change an allowlist: the site, the round folders and
 the known-defect baseline; everything else, including CI, the tests and this guard, is refused.
@@ -21,7 +22,8 @@ ENGINE_FILES = {"alia", "profiles.json", "install.sh", "tests/test_alia.py", ".g
 ENGINE_PREFIXES = ("i18n/", "bench/")
 ROUND_ALLOWED_FILES = {"sitetests/known_defects.json"}
 ROUND_ALLOWED_PREFIXES = ("site/", "evolution/rounds/")
-ROUND_BRANCH = re.compile(r"^evolution/round-(\d+)(?:-|$)")
+ROUND_BRANCH = re.compile(r"^evolution/round-")
+INFRASTRUCTURE_ROUND = "evolution/round-0"  # round 0 builds this infrastructure; every other round-* is Alia's
 ROUND_TRAILER = re.compile(r"^Alia-Round:", re.MULTILINE)
 ROUND_FOLDER = re.compile(r"^evolution/rounds/\d+-")  # round data, not e.g. evolution/rounds/.gitkeep
 
@@ -31,18 +33,24 @@ def normalize(paths: list[str]) -> list[str]:
 
 
 def protected_paths(paths: list[str]) -> list[str]:
-    return sorted(path for path in normalize(paths) if path in ENGINE_FILES or path.startswith(ENGINE_PREFIXES))
+    # A git-quoted path ("i18n/caf\303\251.json") cannot be matched reliably: refuse it (CI passes -z anyway).
+    return sorted(path for path in normalize(paths)
+                  if path in ENGINE_FILES or path.startswith(ENGINE_PREFIXES) or path.startswith('"'))
 
 
 def outside_round_allowlist(paths: list[str]) -> list[str]:
     return sorted(path for path in normalize(paths)
-                  if ".." in path.split("/")
+                  if ".." in path.split("/") or path.startswith('"')
                   or not (path in ROUND_ALLOWED_FILES or path.startswith(ROUND_ALLOWED_PREFIXES)))
 
 
 def is_round_branch(branch: str) -> bool:
-    match = ROUND_BRANCH.match(branch)
-    return bool(match) and int(match.group(1)) >= 1
+    return bool(ROUND_BRANCH.match(branch)) and branch != INFRASTRUCTURE_ROUND
+
+
+def split_paths(text: str) -> list[str]:
+    """NUL-separated (`git diff -z`) or one path per line."""
+    return text.split("\0") if "\0" in text else text.splitlines()
 
 
 def is_round_pr(paths: list[str], branch: str, messages: str) -> bool:
@@ -64,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--messages", type=argparse.FileType("r", encoding="utf-8"),
                         help="file with the PR's commit messages")
     args = parser.parse_args(argv)
-    paths = sys.stdin.read().splitlines()
+    paths = split_paths(sys.stdin.read())
     messages = args.messages.read() if args.messages else ""
     round_pr = is_round_pr(paths, args.branch, messages)
     refused = blocked(paths, args.branch, messages)

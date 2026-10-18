@@ -89,6 +89,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # --rerun-acceptance needs Alia's commits
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -102,6 +104,7 @@ jobs:
         run: |
           python -m sitetests --strict --out site-report
           python -m unittest tests.test_evolution_page -v
+          python tools/evolution_data.py --rerun-acceptance
       - name: Upload site report
         if: always()
         uses: actions/upload-artifact@v7
@@ -123,12 +126,16 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           HEAD_REF: ${{ github.head_ref }}
         run: |
-          # Run the guard as it is on the base branch, so a PR cannot weaken it. Bootstrap: the PR that
-          # introduces the guard falls back to its own copy.
-          git show "origin/$BASE_REF:tools/evolution_guard.py" > "$RUNNER_TEMP/guard.py" 2>/dev/null \
-            || cp tools/evolution_guard.py "$RUNNER_TEMP/guard.py"
+          # Run the guard as it is on the base branch, so a PR cannot weaken it. Only the PR that introduces
+          # the guard (evolution/round-0) may fall back to its own copy; any other PR fails without it.
+          if ! git show "origin/$BASE_REF:tools/evolution_guard.py" > "$RUNNER_TEMP/guard.py" 2>/dev/null; then
+            if [ "$HEAD_REF" != "evolution/round-0" ]; then
+              echo "::error::base branch has no tools/evolution_guard.py"; exit 1
+            fi
+            cp tools/evolution_guard.py "$RUNNER_TEMP/guard.py"
+          fi
           git log --format=%B "origin/$BASE_REF..HEAD" > "$RUNNER_TEMP/messages.txt"
-          git diff --no-renames --name-only "origin/$BASE_REF...HEAD" \
+          git diff -z --no-renames --name-only "origin/$BASE_REF...HEAD" \
             | python3 "$RUNNER_TEMP/guard.py" --branch "$HEAD_REF" --messages "$RUNNER_TEMP/messages.txt"
       - name: Failed rounds stay failed
         env:
