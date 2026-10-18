@@ -1,0 +1,8 @@
+.legal { padding: 88px 0 0; max-width: 760px; }
+.legal h1 { font-size: clamp(34px, 5vw, 52px); }
+.legal h2 { font-size: 21px; margin: 40px 0 10px; }
+.legal p, .legal address { color: var(--mut); line-height: 1.7; margin: 0 0 12px; }
+.legal address { font-style: normal; display: flex; flex-direction: column; }
+.legal a { color: var(--blue); display: inline-flex; align-items: center; min-height: 24px; }
+.legal code { font-family: var(--mono); font-size: .92em; }
+.legal .stand { margin-top: 40px; font-size: 14px; }

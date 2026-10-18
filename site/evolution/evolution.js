@@ -33,7 +33,9 @@ const DE = {
   "before.text": "Zuvor schrieb Alia anhand menschlicher Prompts eine Architektur-Übersicht.",
   "before.link": "Architektur-Seite ansehen",
   "foot.note": "Lokaler Agent. Öffentliche Belege. Menschliche Freigabe.",
-  "foot.back": "Hauptseite"
+  "foot.back": "Hauptseite",
+  "foot.imprint": "Impressum",
+  "foot.privacy": "Datenschutz"
 };
 
 const nodes = [...document.querySelectorAll("[data-i18n]")];

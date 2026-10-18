@@ -233,6 +233,8 @@ h2 { font-size: clamp(30px, 4.4vw, 50px); line-height: 1.08; font-weight: 600; l
 .foot a { color: var(--mut); text-decoration: none; }
 .foot a:hover { color: var(--fg); }
 .foot .brand img { border-radius: 5px; }
+.legal-links { display: flex; gap: 18px; }
+.legal-links a { display: inline-flex; align-items: center; min-height: 24px; }
 
 /* responsive */
 @media (max-width: 980px) {
