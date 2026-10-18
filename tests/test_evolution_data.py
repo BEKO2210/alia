@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.evolution_data import privacy_check, ValidationError, generate, main, validate_round
+from tools.evolution_data import privacy_check, rerun_acceptance, ValidationError, generate, main, validate_round
 
 
 EXAMPLES = Path(__file__).parents[1] / "evolution/examples"
@@ -233,8 +233,61 @@ class EvolutionDataTests(unittest.TestCase):
                        "-----BEGIN OPENSSH PRIVATE KEY-----"):
             with self.subTest(sample=sample), self.assertRaisesRegex(ValidationError, "privacy gate"):
                 privacy_check(sample)
-        for harmless in ("site/style.css", "100% done", "a/b ~ c"):
+        for sample in ("cache/home/person/.ssh/id_ed25519", "/var/tmp/secret", "-----BEGIN OPENSSH",
+                       "%252Fhome%252Fperson", "C:/Users/person/x"):
+            with self.subTest(sample=sample), self.assertRaisesRegex(ValidationError, "privacy gate"):
+                privacy_check(sample)
+        for harmless in ("site/style.css", "100% done", "a/b ~ c", "site/home.html", "users guide"):
             privacy_check(harmless)
+
+    def test_allowed_paths_must_stay_inside_site_and_are_published(self):
+        folder, path, data = self.data(2)
+        data["allowed_paths"] = ["tools/", "site/"]
+        self.write_data(path, data)
+        with self.assertRaisesRegex(ValidationError, "inside site/"):
+            validate_round(folder)
+        data["allowed_paths"] = ["site/evolution/"]
+        data["result"]["files_changed"] = ["site/evolution/x.html"]
+        self.write_data(path, data)
+        output = json.loads(generate(self.rounds))
+        self.assertEqual(output[1]["allowed_paths"], ["site/evolution/"])
+
+    def test_rerun_acceptance_reproduces_stored_counts(self):
+        repo = self.root / "rerun"
+        repo.mkdir()
+
+        def run(*args):
+            return subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True).stdout
+
+        run("init", "-q")
+        run("config", "user.name", "Fixture")
+        run("config", "user.email", "fixture@example.invalid")
+        (repo / "site").mkdir()
+        (repo / "site/index.html").write_text("start\n", encoding="utf-8")
+        run("add", ".")
+        run("commit", "-qm", "start")
+        (repo / "site/fixed.txt").write_text("fixed\n", encoding="utf-8")
+        run("add", ".")
+        run("commit", "-qm", "agent")
+        agent = run("rev-parse", "HEAD").strip()
+        rounds = repo / "rounds"
+        shutil.copytree(self.rounds / next(p.name for p in self.rounds.iterdir() if p.name.startswith("02-")),
+                        rounds / "02-example-failed")
+        folder = rounds / "02-example-failed"
+        test = folder / "acceptance/test_example.py"
+        test.write_text("import os, unittest\nfrom pathlib import Path\n\nclass T(unittest.TestCase):\n"
+                        "    def test_fixed(self):\n"
+                        "        self.assertTrue((Path(os.environ['SITE_ROOT']) / 'fixed.txt').exists())\n",
+                        encoding="utf-8")
+        data = json.loads((folder / "round.json").read_text(encoding="utf-8"))
+        data["acceptance"]["files"] = {"acceptance/test_example.py": hashlib.sha256(test.read_bytes()).hexdigest()}
+        data["agent_commit"] = agent
+        data["result"]["acceptance_passed"], data["result"]["acceptance_total"] = 1, 1
+        self.write_data(folder / "round.json", data)
+        self.assertEqual(rerun_acceptance(repo, rounds), [])
+        data["result"]["acceptance_passed"], data["result"]["acceptance_total"] = 0, 1
+        self.write_data(folder / "round.json", data)
+        self.assertIn("reproduced 1/1, stored 0/1", rerun_acceptance(repo, rounds)[0])
 
     def test_invalid_round_is_published_with_breach_labels(self):
         folder, path, data = self.data(2)

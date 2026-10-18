@@ -158,6 +158,26 @@ class EvolutionAttributionTests(unittest.TestCase):
         self.assertFalse(result["checks"]["foreign_commits_declared"]["ok"])
         self.assertIn("outside the range", result["checks"]["foreign_commits_declared"]["detail"])
 
+    def test_basename_or_suffix_does_not_cover_a_path(self):
+        cwd = "/jail/work"
+        for call_input in ({"command": "echo agent.txt"}, {"file_path": "decoy/site/agent.txt"},
+                           {"file_path": "/elsewhere/site/agent.txt"}):
+            events = [{"type": "system", "subtype": "init", "cwd": cwd},
+                      {"type": "assistant", "message": {"content": [
+                          {"type": "tool_use", "name": "x", "input": call_input}]}}]
+            self.transcript.write_text("".join(json.dumps(e) + "\n" for e in events), encoding="utf-8")
+            self.data["run"]["transcript_sha256"] = self.hash_transcript()
+            with self.subTest(call_input=call_input):
+                self.assertFalse(self.verify()["checks"]["transcript_covers_diff"]["ok"])
+        for call_input in ({"file_path": f"{cwd}/site/agent.txt"}, {"command": "sed -i s/a/b/ ./site/agent.txt"}):
+            events = [{"type": "system", "subtype": "init", "cwd": cwd},
+                      {"type": "assistant", "message": {"content": [
+                          {"type": "tool_use", "name": "x", "input": call_input}]}}]
+            self.transcript.write_text("".join(json.dumps(e) + "\n" for e in events), encoding="utf-8")
+            self.data["run"]["transcript_sha256"] = self.hash_transcript()
+            with self.subTest(call_input=call_input):
+                self.assertTrue(self.verify()["checks"]["transcript_covers_diff"]["ok"])
+
     def test_tool_call_count_mismatch_fails(self):
         self.data["run"]["tool_calls"] = 2
         result = self.verify()
