@@ -1272,7 +1272,8 @@ def generate_settings(
     shutil.copyfile(branding_dir / "logo-mark.svg", target_branding / "logo-mark.svg")
     (target_branding / "logo-mark.svg").chmod(0o600)
     measured = profile.get("measured", {})
-    tg = measured.get("tg_tps_32k")
+    # deep-context speed: 32K, or 28K for profiles whose ctx is 32K and so cannot be filled to 32K
+    tg = measured.get("tg_tps_32k", measured.get("tg_tps_28k"))
     tg_text = f"{tg:g}" if isinstance(tg, (int, float)) else "—"
     subtitle = tr_for(
         language,
@@ -1528,7 +1529,7 @@ def cmd_profiles(profiles: list[dict[str, Any]], hw: dict[str, Any], selected: s
                 if isinstance(base, (int, float)):
                     context = measured.get(f"{prefix}_context")
                     values.append(f"{base:g}" + (f" @{context}" if context else ""))
-                for context in ("4k", "32k", "60k"):
+                for context in ("4k", "16k", "28k", "32k", "60k"):
                     value = measured.get(f"{prefix}_tps_{context}")
                     if isinstance(value, (int, float)):
                         values.append(f"{context.upper()} {value:g}")

@@ -69,8 +69,6 @@
   "profile.title.fast": "Qwen3.5 9B Q4_K_M (fast)",
   "profile.title.12_16gb": "Qwen3.6 35B-A3B Q4_K_XL (12–16 GB)",
   "profile.title.24gb": "Qwen3.6 35B-A3B Q4_K_XL (24 GB, GPU)",
-  "profile.note.12_16gb": "Not yet measured on this hardware; the flags are a conservative starting point.",
-  "profile.note.24gb": "Not yet measured; the target is full GPU offload, depending on the driver and free VRAM.",
   "version.not_found": "not found",
   "doctor.title": "ALIA DOCTOR",
   "doctor.no_gpu": "no NVIDIA GPU",

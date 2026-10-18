@@ -76,7 +76,7 @@ The first start prints the exact `hf download` command and asks `Download now? [
 | 35B IQ3_XXS default | 14.07 GB | 16 GB | 19 minutes |
 | Ornith-1.5 35B-A3B quality | 14.37 GB + template | 16 GB | 20 minutes |
 | 9B Q4_K_M fast | 5.7 GB | 7 GB | 8 minutes |
-| 35B Q4_K_XL, unmeasured | 20.8 GB | 23 GB | 28 minutes |
+| 35B Q4_K_XL (12–16 GB and 24 GB) | 20.8 GB | 23 GB | 28 minutes |
 
 Actual time depends on Hugging Face and your connection. An interrupted undersized GGUF is rejected on the next start. Downloaded files go under `~/.local/share/alia/models`. A documented generic candidate such as `~/models/gguf/Qwen3.5-9B-Q4_K_M.gguf` can avoid a second download.
 
@@ -148,8 +148,8 @@ Every MCP tool call goes through the normal approval prompt; `--yolo` approves t
 | `rtx8gb-16gb-ornith15-35b-quality` | 8 GB VRAM, 16 GB RAM | Ornith-1.5 35B-A3B I-Mini, 14.37 GB + template | — | — | agent tasks 16/16, 248 s mean, 41.8 gen tok/s |
 | `rtx8gb-16gb-qwen36-35b-128k` | 8 GB VRAM, 16 GB RAM | same GGUF as the default, ctx 131,072 | — | — | agent tasks 3/3, 44.1 gen tok/s (≈20 % below the default's 54.6) |
 | `rtx8gb-qwen35-9b-fast` | 8 GB VRAM, 12 GB RAM | 9B Q4_K_M, 5.7 GB | 66.2 / 57.8 | 2,964 / 2,695 | measured, launch config |
-| `rtx12-16gb-qwen36-35b-q4` | 12–16 GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20.8 GB | — | — | unmeasured; never run on target hardware |
-| `rtx24gb-qwen36-35b-q4` | 20+ GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20.8 GB | — | — | unmeasured; never run on target hardware |
+| `rtx12-16gb-qwen36-35b-q4` | 12–16 GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20.8 GB | 31.8 / 29.1 @28K | 661 / 591 @28K | measured on a Tesla T4 with 53 GB RAM (Colab), launch config, ctx 32K; the runner holds up to 24 GB RAM |
+| `rtx24gb-qwen36-35b-q4` | 20+ GB VRAM, 32 GB RAM | 35B Q4_K_XL, 20.8 GB | 62.4 / 53.2 @28K | 3,027 / 2,744 @28K | measured on an NVIDIA L4 (Colab), launch config, ctx 32K, 22.0 GB VRAM peak; faster cards (RTX 3090/4090) should beat it |
 
 Automatic selection prefers the highest-ranked matching measured profile and warns before using an unmeasured or manually pinned mismatch. Benchmark methodology and limitations are in [`bench/REPORT.md`](bench/REPORT.md), raw-data inventory in [`bench/results/README.md`](bench/results/README.md), and independent review in [`bench/reviews/grok-bench-review.md`](bench/reviews/grok-bench-review.md).
 

@@ -69,8 +69,6 @@
   "profile.title.fast": "Qwen3.5 9B Q4_K_M (schnell)",
   "profile.title.12_16gb": "Qwen3.6 35B-A3B Q4_K_XL (12–16 GB)",
   "profile.title.24gb": "Qwen3.6 35B-A3B Q4_K_XL (24 GB, GPU)",
-  "profile.note.12_16gb": "Noch nicht auf dieser Hardware vermessen; Flags sind ein konservativer Ausgangspunkt.",
-  "profile.note.24gb": "Noch nicht vermessen; Ziel ist vollständiges GPU-Offload, abhängig von Treiber und freiem VRAM.",
   "version.not_found": "nicht gefunden",
   "doctor.title": "ALIA-DIAGNOSE",
   "doctor.no_gpu": "keine NVIDIA-GPU",
