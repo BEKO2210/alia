@@ -62,7 +62,7 @@ measurement values are unchanged.
   replaces `-211736`.
 - `llamacpp-20261018-005132.jsonl` — **variant** of the `rtx12-16gb-qwen36-35b-q4` profile on a
   Colab T4 (16 GB VRAM, 12.7 GB RAM, 2 vCPUs) with Alia's pinned release b11639, run from
-  `../colab_t4_35b.ipynb`: the profile's `server_args` and ctx 32768 plus `--no-repack --no-host`,
+  `../colab_35b_profiles.ipynb`: the profile's `server_args` and ctx 32768 plus `--no-repack --no-host`,
   because with the exact args the server is OOM-killed while loading (the profile needs 30 GB RAM).
   `--fit` kept 13.9 GB on the GPU and streamed the remaining experts from the mmap'd file.
   4K/16K/28K, 3 reps: 14.2 / 14.5 / 9.6 tok/s generation, 629 / 629 / 367 tok/s prompt.
