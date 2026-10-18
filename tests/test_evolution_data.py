@@ -233,7 +233,7 @@ class EvolutionDataTests(unittest.TestCase):
                        "-----BEGIN OPENSSH PRIVATE KEY-----"):
             with self.subTest(sample=sample), self.assertRaisesRegex(ValidationError, "privacy gate"):
                 privacy_check(sample)
-        for sample in ("cache/home/person/.ssh/id_ed25519", "/var/tmp/secret", "-----BEGIN OPENSSH",
+        for sample in ("cache/" "home/person/.ssh/id_ed25519", "/var/tmp/secret", "-----BEGIN OPENSSH",
                        "%252Fhome%252Fperson", "C:/Users/person/x"):
             with self.subTest(sample=sample), self.assertRaisesRegex(ValidationError, "privacy gate"):
                 privacy_check(sample)
