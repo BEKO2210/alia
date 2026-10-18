@@ -1,14 +1,18 @@
 import hashlib
+from datetime import datetime
 import json
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from tools.alia_round import (
     final_status,
+    RoundError,
+    acquire_gpu_lock,
     gpu_window_fits,
     hash_file,
     out_of_scope,
@@ -342,6 +346,15 @@ class AliaRoundTests(unittest.TestCase):
         self.assertTrue(gpu_window_fits(15, 0, 900))
         self.assertFalse(gpu_window_fits(15, 1, 900))
         self.assertFalse(gpu_window_fits(5, 59, 900))
+
+    def test_gpu_lock_any_time_by_default_and_window_on_request(self):
+        lock_path = self.root / "gpu.lock"
+        lock = acquire_gpu_lock(lock_path, 900, 5)  # no window: returns at once whatever the minute
+        lock.close()
+        with mock.patch("tools.alia_round.datetime") as clock:
+            clock.now.return_value = datetime(2026, 1, 1, 12, 40, 0)
+            with self.assertRaises(RoundError), mock.patch("tools.alia_round.time.sleep"):
+                acquire_gpu_lock(lock_path, 900, 0.01, window=True)
 
     def test_clean_removes_only_private_round_folder(self):
         repo, folder = self.make_repo()

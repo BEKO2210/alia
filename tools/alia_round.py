@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -307,7 +308,9 @@ def gpu_window_fits(minute: int, second: int, duration: int) -> bool:
     return minute >= 6 and minute * 60 + second + duration <= 30 * 60
 
 
-def acquire_gpu_lock(path: Path, wall_limit: int, max_wait: int) -> Any:
+def acquire_gpu_lock(path: Path, wall_limit: int, max_wait: int, window: bool = False) -> Any:
+    """Hold the shared GPU lock. With `window`, also wait until the whole run fits between :06 and :30
+    (clear of the hourly GPU job); Belkis allowed GPU use at any time (2026-10-18), so that is opt-in."""
     started = time.monotonic()
     path.parent.mkdir(parents=True, exist_ok=True)
     while True:
@@ -324,7 +327,7 @@ def acquire_gpu_lock(path: Path, wall_limit: int, max_wait: int) -> Any:
             time.sleep(min(10, remaining))
             continue
         now = datetime.now()
-        if gpu_window_fits(now.minute, now.second, wall_limit + 60):
+        if not window or gpu_window_fits(now.minute, now.second, wall_limit + 60):
             return lock
         fcntl.flock(lock, fcntl.LOCK_UN)
         lock.close()
@@ -338,10 +341,22 @@ def acquire_gpu_lock(path: Path, wall_limit: int, max_wait: int) -> Any:
         time.sleep(min(60, delay, remaining))
 
 
+def ollama_loaded_models(url: str = "http://127.0.0.1:11434/api/ps") -> list[str]:
+    try:
+        with urllib.request.urlopen(url, timeout=3) as response:
+            return [item.get("name", "?") for item in json.loads(response.read()).get("models", [])]
+    except (OSError, ValueError):
+        return []
+
+
 def ensure_real_prerequisites() -> None:
     found = subprocess.run(["pgrep", "-x", "llama-server"], check=False, capture_output=True)
     if found.returncode == 0:
         raise RoundError("refusing: another llama-server process is running")
+    # Inside the jail (own network namespace) the launcher cannot unload Ollama models, so they must be gone.
+    loaded = ollama_loaded_models()
+    if loaded:
+        raise RoundError(f"refusing: Ollama has loaded models occupying the GPU: {', '.join(loaded)}")
     available = None
     for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
         if line.startswith("MemAvailable:"):
@@ -393,6 +408,7 @@ def run_agent(
     gpu_max_wait: int,
     productive: Path,
     jail: bool = True,
+    gpu_window: bool = False,
 ) -> tuple[int, float, Path, Path]:
     transcript = private_round / "transcript.jsonl"
     stderr_path = private_round / "agent.stderr.log"
@@ -432,7 +448,7 @@ def run_agent(
         process = None
         try:
             if not dry_run:
-                lock = acquire_gpu_lock(gpu_lock, limit, gpu_max_wait)
+                lock = acquire_gpu_lock(gpu_lock, limit, gpu_max_wait, gpu_window)
             started = time.monotonic()
             process = subprocess.Popen(
                 args, cwd=work, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr,
@@ -621,7 +637,7 @@ def execute(args: argparse.Namespace) -> None:
             started = datetime.now(UTC).isoformat().replace("+00:00", "Z")
             exit_code, wall, transcript, _ = run_agent(
                 work, folder, private_round, data, args.dry_run, args.agent_cmd, args.gpu_lock.expanduser(),
-                args.gpu_max_wait, productive, jail=not args.no_jail,
+                args.gpu_max_wait, productive, jail=not args.no_jail, gpu_window=args.gpu_window,
             )
             verify_frozen(repo, folder, data)
             # Breaches first, from the transcript the jail wrote; nothing after this runs agent-controlled code.
@@ -708,6 +724,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     run_parser.add_argument("--productive-checkout", type=Path)
     run_parser.add_argument("--gpu-lock", type=Path, default=Path("~/reel/gpu.lock"))
     run_parser.add_argument("--gpu-max-wait", type=int, default=3600)
+    run_parser.add_argument("--gpu-window", action="store_true",
+                            help="only start when the whole run fits between minute 06 and 30")
     run_parser.add_argument("--clean", action="store_true")
     run_parser.add_argument("--agent-cmd", nargs="+")
     run_parser.add_argument("--no-jail", action="store_true",
