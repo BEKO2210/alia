@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="96 112 840 840" class="hatch" width="512" height="512" role="img" aria-label="Alia">
+  <title>Alia</title>
+  <defs>
+    <linearGradient id="skin" x1="300" y1="150" x2="740" y2="620" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6EF0CF"/><stop offset=".55" stop-color="#3FC3E8"/><stop offset="1" stop-color="#4C8DF6"/>
+    </linearGradient>
+    <linearGradient id="body" x1="300" y1="500" x2="740" y2="660" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3CB8E6"/><stop offset="1" stop-color="#4F7FF0"/>
+    </linearGradient>
+    <linearGradient id="shell" x1="200" y1="560" x2="820" y2="920" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F2FCFF"/><stop offset=".45" stop-color="#B9D6FF"/><stop offset="1" stop-color="#A47CF6"/>
+    </linearGradient>
+    <linearGradient id="inside" x1="170" y1="530" x2="850" y2="530" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8FB2F8"/><stop offset="1" stop-color="#9A7EF2"/>
+    </linearGradient>
+    <linearGradient id="cap" x1="200" y1="130" x2="820" y2="660" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F2FCFF"/><stop offset=".6" stop-color="#C4D8FF"/><stop offset="1" stop-color="#B597F7"/>
+    </linearGradient>
+    <clipPath id="in-egg"><path d="M150 0 H874 V560 C874 782 716 914 512 914 C308 914 150 782 150 560 Z"/></clipPath>
+  </defs>
+  <style>
+    /* One idea: the egg hatches. 1.5 s, then an occasional blink. Final frame = static logo. */
+    .hatch .egg { transform-box: view-box; transform-origin: 512px 914px; animation: wobble .6s ease-in-out both; }
+    .hatch .crack { stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0;
+                    animation: crack .9s linear both; }
+    .hatch .cap { opacity: 0; transform-box: view-box; transform-origin: 512px 560px;
+                  animation: cap-off .95s cubic-bezier(.3,0,.7,1) both; }
+    .hatch #dragon { animation: pop .45s cubic-bezier(.34,1.56,.64,1) .82s both; }
+    .hatch #shards path { transform-box: fill-box; transform-origin: 50% 50%;
+                          animation: shard .4s cubic-bezier(.22,1,.36,1) .84s both; }
+    .hatch #eyes rect { transform-box: fill-box; transform-origin: 50% 50%;
+                        animation: blink .22s ease-in-out 1.32s, blink .22s ease-in-out 6s infinite; }
+    @keyframes wobble { 0%, 100% { rotate: 0deg; } 20% { rotate: -5deg; } 45% { rotate: 4deg; } 70% { rotate: -3deg; } 88% { rotate: 1.5deg; } }
+    @keyframes crack { 0%, 60% { opacity: 1; stroke-dashoffset: 1; } 85% { opacity: 1; stroke-dashoffset: 0; } 100% { opacity: 0; stroke-dashoffset: 0; } }
+    @keyframes cap-off { 0%, 86% { opacity: 1; translate: 0 0; rotate: 0deg; } 100% { opacity: 0; translate: -60px -220px; rotate: -24deg; } }
+    @keyframes pop { from { translate: 0 270px; } to { translate: 0 0; } }
+    @keyframes shard { from { opacity: 0; scale: .2; translate: 0 120px; } to { opacity: 1; scale: 1; translate: 0 0; } }
+    @keyframes blink { 0%, 100% { scale: 1 1; } 50% { scale: 1 .12; } }
+    @media (prefers-reduced-motion: reduce) {
+      .hatch .egg, .hatch .crack, .hatch .cap, .hatch #dragon, .hatch #shards path, .hatch #eyes rect { animation: none; }
+    }
+  </style>
+  <ellipse id="shadow" cx="520" cy="905" rx="335" ry="44" fill="#0E1233"/>
+  <g class="egg">
+  <path id="egg-back" fill="url(#inside)" d="M172 620 L176 556 L216 584 L252 528 L296 550 L360 540 L360 720 L670 720 L670 540 L734 548 L772 530 L812 578 L854 556 L858 620 Z"/>
+  <g clip-path="url(#in-egg)">
+  <g id="dragon">
+    <path fill="url(#body)" stroke="#2546B8" stroke-width="7" d="M292 690 C286 570 372 490 516 490 C664 490 744 570 738 690 Z"/>
+    <ellipse cx="570" cy="645" rx="102" ry="92" fill="#BFE6FF" opacity=".55"/>
+    <path fill="none" stroke="#2546B8" stroke-width="8" stroke-linecap="round" d="M356 602 C392 640 432 646 468 616 M690 632 C700 626 710 626 716 630"/>
+    <path fill="url(#skin)" d="M292 166 C286 138 318 122 348 136 C384 152 408 196 410 244 L378 252 C372 216 352 196 318 196 C300 196 294 182 292 166 Z"/>
+    <path fill="#45C2E6" d="M622 150 C616 124 642 108 664 122 C690 140 696 182 692 216 L664 218 C662 190 652 172 636 168 C626 166 623 160 622 150 Z"/>
+    <path fill="url(#skin)" d="M516 150 C642 150 750 200 752 338 C754 462 662 528 516 528 C370 528 278 462 280 338 C282 200 390 150 516 150 Z"/>
+    <g id="eyes" fill="#FFFFFF">
+      <rect x="432" y="312" width="66" height="80" rx="10"/>
+      <rect x="634" y="312" width="66" height="80" rx="10"/>
+    </g>
+    <path fill="none" stroke="#1E3A8A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" d="M532 404 Q546 420 560 406 Q576 392 590 406 Q604 420 620 404"/>
+  </g>
+  </g>
+  <path id="egg-front" fill="url(#shell)" d="M170 558 L216 612 L264 598 L328 642 L404 616 L470 682 L544 630 L604 690 L666 640 L726 684 L790 620 L830 600 L858 556 C874 782 716 914 512 914 C308 914 152 782 170 558 Z"/>
+  <path class="cap" fill="url(#cap)" d="M170 558 L216 612 L264 598 L328 642 L404 616 L470 682 L544 630 L604 690 L666 640 L726 684 L790 620 L830 600 L858 556 C874 330 700 128 514 128 C328 128 156 330 170 558 Z"/>
+  <path class="crack" pathLength="1" fill="none" stroke="#FFFFFF" stroke-width="10" stroke-linejoin="round" stroke-linecap="round" d="M170 558 L216 612 L264 598 L328 642 L404 616 L470 682 L544 630 L604 690 L666 640 L726 684 L790 620 L830 600 L858 556"/>
+  </g>
+  <g id="shards" fill="#F4FBFF">
+    <path d="M148 378 L210 350 C226 384 238 412 246 444 C214 446 182 438 158 426 Z"/>
+    <path fill="#CFE3FF" d="M158 426 C182 438 214 446 246 444 L240 428 C212 430 184 424 156 412 Z"/>
+    <path d="M214 266 L230 254 L244 268 L228 280 Z"/>
+    <path d="M790 270 L828 230 L848 268 L808 308 Z"/>
+    <path d="M816 416 L868 428 C858 452 846 472 830 488 C816 484 802 482 790 482 Z"/>
+  </g>
+</svg>

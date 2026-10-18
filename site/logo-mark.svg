@@ -1,1 +1,41 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Alia"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5EEAD4"/><stop offset=".5" stop-color="#5C9DFF"/><stop offset="1" stop-color="#A78BFA"/></linearGradient><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><rect width="512" height="512" rx="116" fill="url(#g)"/><rect width="512" height="512" rx="116" fill="url(#s)"/><path fill="#0B0D12" transform="translate(145.8 350.8)" d="M100.23 3.9000000000000004Q74.10000000000001 3.9000000000000004 53.5275 -8.969999999999999Q32.955 -21.84 21.1575 -44.07Q9.36 -66.3 9.36 -94.575Q9.36 -123.045 21.1575 -145.3725Q32.955 -167.70000000000002 53.5275 -180.57Q74.10000000000001 -193.44 100.23 -193.44Q119.34 -193.44 134.745 -186.03Q150.15 -178.62 159.8025 -165.555Q169.455 -152.49 170.82 -135.72V-53.82Q169.455 -37.050000000000004 159.9 -23.985000000000003Q150.345 -10.92 134.8425 -3.51Q119.34 3.9000000000000004 100.23 3.9000000000000004ZM112.32000000000001 -49.92Q131.43 -49.92 143.13 -62.4975Q154.83 -75.075 154.83 -94.77000000000001Q154.83 -108.03 149.565 -118.0725Q144.3 -128.115 134.745 -133.8675Q125.19 -139.62 112.515 -139.62Q100.035 -139.62 90.47999999999999 -133.8675Q80.925 -128.115 75.3675 -117.97500000000001Q69.81 -107.83500000000001 69.81 -94.77000000000001Q69.81 -81.705 75.27000000000001 -71.565Q80.73 -61.425000000000004 90.3825 -55.6725Q100.035 -49.92 112.32000000000001 -49.92ZM152.29500000000002 0.0V-50.895L161.26500000000001 -97.11L152.29500000000002 -142.935V-189.54000000000002H210.99V0.0Z"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="96 112 840 840" width="512" height="512" role="img" aria-label="Alia">
+  <title>Alia</title>
+  <!-- Alia hatching: the dragon that grows with every self-evolution round. Source of truth for every logo size. -->
+  <defs>
+    <linearGradient id="skin" x1="300" y1="150" x2="740" y2="620" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6EF0CF"/><stop offset=".55" stop-color="#3FC3E8"/><stop offset="1" stop-color="#4C8DF6"/>
+    </linearGradient>
+    <linearGradient id="body" x1="300" y1="500" x2="740" y2="660" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3CB8E6"/><stop offset="1" stop-color="#4F7FF0"/>
+    </linearGradient>
+    <linearGradient id="shell" x1="200" y1="560" x2="820" y2="920" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F2FCFF"/><stop offset=".45" stop-color="#B9D6FF"/><stop offset="1" stop-color="#A47CF6"/>
+    </linearGradient>
+    <linearGradient id="inside" x1="170" y1="530" x2="850" y2="530" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8FB2F8"/><stop offset="1" stop-color="#9A7EF2"/>
+    </linearGradient>
+  </defs>
+  <ellipse id="shadow" cx="520" cy="905" rx="335" ry="44" fill="#0E1233"/>
+  <path id="egg-back" fill="url(#inside)" d="M172 620 L176 556 L216 584 L252 528 L296 550 L360 540 L360 720 L670 720 L670 540 L734 548 L772 530 L812 578 L854 556 L858 620 Z"/>
+  <g id="dragon">
+    <path fill="url(#body)" stroke="#2546B8" stroke-width="7" d="M292 690 C286 570 372 490 516 490 C664 490 744 570 738 690 Z"/>
+    <ellipse cx="570" cy="645" rx="102" ry="92" fill="#BFE6FF" opacity=".55"/>
+    <path fill="none" stroke="#2546B8" stroke-width="8" stroke-linecap="round" d="M356 602 C392 640 432 646 468 616 M690 632 C700 626 710 626 716 630"/>
+    <path fill="url(#skin)" d="M292 166 C286 138 318 122 348 136 C384 152 408 196 410 244 L378 252 C372 216 352 196 318 196 C300 196 294 182 292 166 Z"/>
+    <path fill="#45C2E6" d="M622 150 C616 124 642 108 664 122 C690 140 696 182 692 216 L664 218 C662 190 652 172 636 168 C626 166 623 160 622 150 Z"/>
+    <path fill="url(#skin)" d="M516 150 C642 150 750 200 752 338 C754 462 662 528 516 528 C370 528 278 462 280 338 C282 200 390 150 516 150 Z"/>
+    <g id="eyes" fill="#FFFFFF">
+      <rect x="432" y="312" width="66" height="80" rx="10"/>
+      <rect x="634" y="312" width="66" height="80" rx="10"/>
+    </g>
+    <path fill="none" stroke="#1E3A8A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" d="M532 404 Q546 420 560 406 Q576 392 590 406 Q604 420 620 404"/>
+  </g>
+  <path id="egg-front" fill="url(#shell)" d="M170 558 L216 612 L264 598 L328 642 L404 616 L470 682 L544 630 L604 690 L666 640 L726 684 L790 620 L830 600 L858 556 C874 782 716 914 512 914 C308 914 152 782 170 558 Z"/>
+  <g id="shards" fill="#F4FBFF">
+    <path d="M148 378 L210 350 C226 384 238 412 246 444 C214 446 182 438 158 426 Z"/>
+    <path fill="#CFE3FF" d="M158 426 C182 438 214 446 246 444 L240 428 C212 430 184 424 156 412 Z"/>
+    <path d="M214 266 L230 254 L244 268 L228 280 Z"/>
+    <path d="M790 270 L828 230 L848 268 L808 308 Z"/>
+    <path d="M816 416 L868 428 C858 452 846 472 830 488 C816 484 802 482 790 482 Z"/>
+  </g>
+</svg>
