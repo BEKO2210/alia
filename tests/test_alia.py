@@ -1388,7 +1388,7 @@ class McpTests(unittest.TestCase):
             for action in ("enable", "disable"):
                 code, _, error = self._main(directory, ["mcp", action, "nope"])
                 self.assertEqual(code, 1)
-                self.assertIn("Unknown MCP server: nope (available: browser, search)", error)
+                self.assertIn("Unknown MCP server: nope (available: browser, search, graph)", error)
             self.assertFalse(alia.user_paths(Path(directory))["config"].exists())
 
     def test_usage_errors_exit_1(self):
@@ -1519,6 +1519,172 @@ for line in sys.stdin:
 """
 
 
+class GraphTests(unittest.TestCase):
+    """Code map (graphify): built under Alia's state, offered to Qwen Code only when it exists."""
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.paths = alia.user_paths(self.root)
+        self.project = self.root / "project"
+        self.project.mkdir()
+
+    def tearDown(self):
+        self.directory.cleanup()
+        alia.set_language("en")
+
+    def _fake_extract(self, nodes=3, links=2, returncode=0, write=True, text=None):
+        def run(command, env, **kwargs):
+            self.assertEqual(command[:4], ["uvx", "--from", alia.GRAPHIFY_SPEC, "graphify"])
+            self.assertEqual(command[4:], ["extract", os.path.realpath(self.project), "--code-only"])
+            self.assertEqual((env["GRAPHIFY_BACKEND"], env["GRAPHIFY_QUERY_LOG_DISABLE"]), ("none", "1"))
+            out = Path(env["GRAPHIFY_OUT"])
+            self.assertTrue(out.is_relative_to(self.paths["state"] / "graphs"))
+            (out / "graph.json").unlink(missing_ok=True)
+            if write:
+                content = text if text is not None else json.dumps(
+                    {"nodes": [{}] * nodes, "links": [{}] * links})
+                (out / "graph.json").write_text(content, encoding="utf-8")
+            return subprocess.CompletedProcess(command, returncode, "", "boom\nlast line" if returncode else "")
+        return run
+
+    def _build(self, run, which="/usr/bin/uvx"):
+        with mock.patch.object(alia.shutil, "which", return_value=which), \
+                mock.patch.object(alia.subprocess, "run", side_effect=run):
+            return alia.build_code_graph(self.project, self.paths)
+
+    def test_build_writes_under_state_and_reports_size(self):
+        graph, message = self._build(self._fake_extract())
+        self.assertEqual(graph, alia.graph_dir(self.paths, self.project) / "graph.json")
+        self.assertRegex(message, r"^Code map: 3 symbols, 2 links \(\d+\.\d s\)$")
+        self.assertEqual(alia.graph_dir(self.paths, self.project), alia.graph_dir(self.paths, self.project / "."))
+        self.assertNotEqual(alia.graph_dir(self.paths, self.project), alia.graph_dir(self.paths, self.root))
+
+    def test_build_failures_return_a_reason(self):
+        self.assertEqual(self._build(self._fake_extract(returncode=1))[0], None)
+        self.assertEqual(self._build(self._fake_extract(returncode=1)), (None, "last line"))
+        self.assertEqual(self._build(self._fake_extract(write=False))[0], None)
+        graph, reason = self._build(self._fake_extract(text="{broken"))
+        self.assertIsNone(graph)
+        self.assertTrue(reason)
+        self.assertEqual(self._build(self._fake_extract(), which=None), (None, "uvx missing"))
+
+        def silent(command, env, **kwargs):
+            return subprocess.CompletedProcess(command, 2, "", "")
+        self.assertEqual(self._build(silent), (None, "exit 2"))
+
+        def slow(command, env, **kwargs):
+            raise subprocess.TimeoutExpired(command, 300)
+        self.assertEqual(self._build(slow), (None, "indexing took longer than 300 s"))
+
+    def test_home_and_root_are_not_indexed(self):
+        for project in (self.root, Path("/")):
+            with self.subTest(project=project), mock.patch.object(alia.Path, "home", return_value=self.root):
+                graph, reason = alia.build_code_graph(project, self.paths)
+            self.assertIsNone(graph)
+            self.assertIn("start Alia inside a project directory", reason)
+
+    def test_graph_server_only_with_a_graph(self):
+        self.assertEqual(alia.mcp_servers(["graph"]), {})
+        graph = self.root / "g" / "graph.json"
+        entry = alia.mcp_servers(["graph", "search"], graph)["graph"]
+        self.assertEqual(entry["args"], ["--from", alia.GRAPHIFY_SPEC, "graphify-mcp", str(graph)])
+        self.assertEqual(entry["env"], alia.GRAPHIFY_ENV)
+        self.assertNotIn("query_graph", entry["includeTools"])
+        self.assertFalse([tool for tool in entry["includeTools"] if "pr" in tool.split("_")])
+        self.assertIs(entry["trust"], False)
+        self.assertIn("<GRAPH>", alia.MCP_CATALOG["graph"]["args"])
+
+    def test_project_graph_is_built_only_when_enabled(self):
+        with redirect_stdout(io.StringIO()) as output:
+            self.assertIsNone(alia.project_graph({"mcp": ["search"]}, self.paths, self.project))
+        self.assertEqual(output.getvalue(), "")
+        with mock.patch.object(alia, "build_code_graph", return_value=(None, "uvx missing")), \
+                redirect_stdout(io.StringIO()) as output:
+            self.assertIsNone(alia.project_graph({"mcp": ["graph"]}, self.paths, self.project))
+        self.assertIn("Code map unavailable: uvx missing. The session starts without it.", output.getvalue())
+        graph = self.root / "graph.json"
+        with mock.patch.object(alia, "build_code_graph", return_value=(graph, "Code map: 1 symbols")), \
+                redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(alia.project_graph({"mcp": ["graph"]}, self.paths, self.project), graph)
+        self.assertIn("Code map: 1 symbols", output.getvalue())
+
+    def _main(self, argv, built):
+        with mock.patch.object(alia, "user_paths", return_value=self.paths), \
+                mock.patch.object(alia, "build_code_graph", return_value=built) as build, \
+                mock.patch.object(alia.Path, "cwd", return_value=self.project), \
+                mock.patch.dict(alia.os.environ, {"ALIA_LANG": "en"}), \
+                io.StringIO() as output, io.StringIO() as error, \
+                redirect_stdout(output), redirect_stderr(error):
+            code = alia.main(argv)
+            result = code, output.getvalue(), error.getvalue(), build
+        alia.set_language("en")
+        return result
+
+    def test_alia_graph_command(self):
+        graph = self.root / "graph.json"
+        code, output, _, build = self._main(["graph"], (graph, "Code map: 2 symbols"))
+        self.assertEqual(code, 0)
+        self.assertEqual(build.call_args.args[0], self.project)
+        self.assertIn(f"Graph: {graph}", output)
+        self.assertIn("alia mcp enable graph", output)
+        alia.write_mcp_config(self.paths["config"], ["graph"])
+        code, output, _, build = self._main(["graph", str(self.project)], (graph, "Code map: 2 symbols"))
+        self.assertEqual(code, 0)
+        self.assertNotIn("alia mcp enable graph", output)
+        code, output, _, _ = self._main(["graph"], (None, "uvx missing"))
+        self.assertEqual(code, 1)
+        self.assertIn("Code map unavailable: uvx missing", output)
+        code, _, error, _ = self._main(["graph", "a", "b"], (None, ""))
+        self.assertEqual(code, 1)
+        self.assertIn("Usage: alia graph [DIR]", error)
+        code, _, error, _ = self._main(["graph", str(self.root / "missing")], (None, ""))
+        self.assertEqual(code, 1)
+        self.assertIn("is not a directory", error)
+
+    def test_runtime_and_web_pass_the_graph(self):
+        alia.write_mcp_config(self.paths["config"], ["graph"])
+        profiles = alia.load_profiles(ROOT / "profiles.json")
+        hw = {"gpu_name": "NVIDIA GeForce RTX 3070", "vram_gb": 8.0, "ram_gb": 15.5}
+        graph = self.root / "graph.json"
+        with mock.patch.object(alia, "ensure_model", return_value=Path("/m.gguf")), \
+                mock.patch.object(alia, "start_server", return_value=(4242, True, None)), \
+                mock.patch.object(alia, "generate_settings") as generate, \
+                mock.patch.object(alia, "build_code_graph", return_value=(graph, "Code map: 1 symbols")) as build, \
+                mock.patch.object(alia.Path, "cwd", return_value=self.project), \
+                redirect_stdout(io.StringIO()):
+            alia.prepare_runtime(profiles, hw, self.paths)
+            self.assertEqual(build.call_args.args[0], self.project)
+            self.assertEqual(generate.call_args.kwargs["graph"], graph)
+            workspace = self.root / "workspace"
+            alia.prepare_runtime(profiles, hw, self.paths, project=workspace)
+            self.assertEqual(build.call_args.args[0], workspace)
+        with mock.patch.object(alia, "prepare_runtime", return_value=None) as prepare:
+            self.assertEqual(alia.cmd_web(["--workspace", str(self.project)], profiles, hw, self.paths), 1)
+        self.assertEqual(prepare.call_args.kwargs["project"], self.project.resolve())
+
+    def test_generated_settings_include_the_graph(self):
+        graph = self.root / "graph.json"
+        target = self.root / "qwen-home"
+        profile = alia.load_profiles(ROOT / "profiles.json")[0]
+        output = alia.generate_settings(profile, {"gpu_name": "T"}, target, ROOT / "branding",
+                                        mcp=["graph"], graph=graph)
+        servers = json.loads(output.read_text(encoding="utf-8"))["mcpServers"]
+        self.assertEqual(servers["graph"]["args"][-1], str(graph))
+        output = alia.generate_settings(profile, {"gpu_name": "T"}, target, ROOT / "branding", mcp=["graph"])
+        self.assertNotIn("mcpServers", json.loads(output.read_text(encoding="utf-8")))
+
+    def test_mcp_test_builds_the_graph_first(self):
+        graph = self.root / "graph.json"
+        with mock.patch.object(alia, "project_graph", return_value=graph) as built, \
+                mock.patch.object(alia, "mcp_probe", return_value=["get_node", "query_graph"]), \
+                mock.patch.object(alia.Path, "cwd", return_value=self.project), \
+                redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(alia.cmd_mcp_test(["graph"], [], self.paths), 0)
+        self.assertEqual(built.call_args.args[2], self.project)
+        self.assertIn("graph: OK, 1 tools", output.getvalue())
+
+
 class McpTestCommandTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
@@ -1622,7 +1788,7 @@ class McpTestCommandTests(unittest.TestCase):
     def test_unknown_name_and_usage_errors(self):
         code, _, error = self._main(["mcp", "test", "nope"], {})
         self.assertEqual(code, 1)
-        self.assertIn("Unknown MCP server: nope (available: browser, search)", error)
+        self.assertIn("Unknown MCP server: nope (available: browser, search, graph)", error)
         code, _, error = self._main(["mcp", "test", "browser", "search"], {})
         self.assertEqual(code, 1)
         self.assertIn("alia mcp test [name]", error)

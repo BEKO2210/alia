@@ -13,6 +13,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Opt-in code map: `alia mcp enable graph` indexes the project with graphify 0.9.92 (local tree-sitter, code only, no LLM or network) before each `alia` / `alia web` session and gives the agent five read-only lookups (`get_node`, `get_neighbors`, `shortest_path`, `god_nodes`, `graph_stats`). The graph is stored under `~/.local/state/alia/graphs`; `alia graph [DIR]` builds it by hand.
+
+### Added
+
 - `bench/colab_35b_profiles.ipynb` measures the 35B Q4 profile that matches the Colab GPU (L4/A100: `rtx24gb`, T4 with High-RAM: `rtx12-16gb`) with its exact `server_args`, shows live progress, and disconnects the runtime after a result. The first run (a `--no-repack --no-host` variant of the 12–16 GB profile, because Colab's 12.7 GB RAM cannot hold the exact profile) generated 14.2 / 14.5 / 9.6 tok/s at 4K / 16K / 28K context.
 - `bench/bench_llamacpp.py --load-timeout` for slow disks.
 

@@ -134,6 +134,12 @@ Qwen Code has no browser of its own and its built-in web search needs a cloud ke
 - `browser` — headless Playwright browser ([@playwright/mcp](https://github.com/microsoft/playwright-mcp) 0.0.83): open pages, read text snapshots, click, type, and fill forms. Screenshots and JavaScript evaluation are not exposed. Requires `npx` (Node.js) and Google Chrome; without Chrome run `npx playwright install chromium` once. Output goes to `~/.cache/alia/playwright`.
 - `search` — web search and page fetch via DuckDuckGo ([duckduckgo-mcp-server](https://pypi.org/project/duckduckgo-mcp-server/) 0.7.0), no API key. Requires `uvx` (uv). It scrapes html.duckduckgo.com, so results can break or be blocked; Alia limits it to 10 searches and 10 page fetches per minute.
 
+### Code map (opt-in)
+
+`alia mcp enable graph` gives the agent a code map of the project: who calls a function, what it calls, and the path between two symbols, with file and line, in a few hundred characters instead of whole files. Before each `alia` or `alia web` session Alia indexes the project (or the `--workspace` of `alia web`) with [graphify](https://github.com/Graphify-Labs/graphify) 0.9.92 (`graphifyy` on PyPI, Apache-2.0; Alia is not affiliated with Graphify Labs). Indexing is local tree-sitter parsing of code only: no LLM, no network, no telemetry, and graphify's query log is off. Updates are incremental (about 1 s for Alia's own 700 symbols). The graph lives under `~/.local/state/alia/graphs`, not in the project. `alia graph [DIR]` builds or refreshes it by hand and prints where it is. Requires `uvx` (uv).
+
+The agent gets five read-only tools: `get_node`, `get_neighbors`, `shortest_path`, `god_nodes`, `graph_stats`. graphify's `query_graph` is left out because it ignores its token budget (8.7K tokens for one question on Alia's repo), and its pull-request tools are left out because they call GitHub. The map helps most in medium and large repositories; in small projects grep is just as cheap. Its effect on agent pass rates is not measured yet. Indexing is skipped in the home directory and `/`.
+
 Every MCP tool call goes through the normal approval prompt; `--yolo` approves them without asking. The first session downloads the pinned packages. `alia mcp test [NAME]` starts the enabled servers (or just NAME) exactly as a session would and lists their tools, waiting up to 90 s for a first download. Alia loads MCP tool schemas upfront (`alwaysLoadTools`), so the model can call them without a `tool_search` round trip.
 
 ### Sandbox (opt-in)
@@ -199,6 +205,7 @@ python3 -m unittest discover -s tests -v
 
 - [Qwen Code](https://github.com/QwenLM/qwen-code), Apache-2.0
 - [llama.cpp](https://github.com/ggml-org/llama.cpp), MIT
+- [graphify](https://github.com/Graphify-Labs/graphify) (optional code map, installed from PyPI as `graphifyy`), Apache-2.0; "graphify" is a trademark of Graphify Labs, and Alia is not affiliated with it
 - Qwen models and GGUF repositories under their respective licenses
 
 See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE). Alia launches external components; it does not redistribute them.
