@@ -95,6 +95,8 @@ const DE = {
   "evolution.sub": "Sieh zu, wie Alia diese Website verbessert",
   "foot.credit": "Gebaut auf llama.cpp, Qwen Code und Qwen3.6.",
   "foot.security": "Sicherheit",
+  "foot.imprint": "Impressum",
+  "foot.privacy": "Datenschutz",
 };
 
 const nodes = [...document.querySelectorAll("[data-i18n]")];
