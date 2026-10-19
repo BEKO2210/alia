@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "round": 1,
+  "slug": "copy-feedback",
+  "title": {
+    "en": "Confirmation after copying",
+    "de": "Bestätigung nach dem Kopieren"
+  },
+  "level": 1,
+  "status": "planned",
+  "start_commit": "653edd26f3cd06f7dfba9d4a049335cea8465c16",
+  "allowed_paths": [
+    "site/"
+  ],
+  "agent": {
+    "name": "Alia",
+    "profile": "rtx8gb-16gb-qwen36-35b",
+    "model": "Qwen3.6-35B-A3B UD-IQ3_XXS",
+    "hardware": "RTX 3070 8 GB, 15 GiB RAM"
+  },
+  "agent_commit": null,
+  "run": {
+    "wall_limit_seconds": 900
+  },
+  "result": {}
+}
