@@ -48,6 +48,7 @@ const DE = {
   "q.code": "Code-Aufgaben",
   "q.tools": "Tool-Aufrufe",
   "q.json": "JSON mit / ohne Schema",
+  "q.json2": "JSON-Schema",
   "q.pp": "Prompt-Tempo 4K / 32K",
   "q.dl": "Download",
   "q.agent.title": "Agent-Aufgaben je Profil",
