@@ -22,5 +22,12 @@
   "run": {
     "wall_limit_seconds": 900
   },
-  "result": {}
+  "result": {},
+  "task_sha256": "477cd28aee8736dfdfc21a1b05db1b00ee7c11866ee356e50e58b9504d1e5603",
+  "acceptance": {
+    "files": {
+      "acceptance/test_copy_feedback.py": "b3718ecd4bebc5d3546b69d57f0f9526370e6755d9456378a8134180cabc47d3"
+    },
+    "frozen_commit": "7e2cabfeaab160a7a1efbe5f9303e7901f7f3dc6"
+  }
 }
