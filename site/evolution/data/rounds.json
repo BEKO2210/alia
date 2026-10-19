@@ -2,9 +2,9 @@
   {
     "acceptance": {
       "files": {
-        "acceptance/test_copy_buttons.py": "79c309c569e99eaa4bd3e3952a04274d361ebd10e2087ecceffb1a4ca2e3eb56"
+        "acceptance/test_copy_buttons.py": "5ce2b05a733410c8652cd9552f93799ae69da6844e0f0e45e81b0a76d9719035"
       },
-      "frozen_commit": "22a4011c2e903cbd93036f143733cc46d0a21db3"
+      "frozen_commit": "b29b0975202ca79125e764a33001178f11457fa5"
     },
     "agent": {
       "alia_version": null,
@@ -46,8 +46,8 @@
     "start_commit": "d66ce5928a24dc68caa139eab79ac278a4e7c73b",
     "status": "planned",
     "summary": {
-      "de": "Geplant: Alia repariert die Kopier-Buttons im Installationsbereich, die auf dem Handy und in einem Desktop-Block Code verdecken.",
-      "en": "Planned: Alia fixes the copy buttons in the install section, which cover code on phones and on one desktop block."
+      "de": "Geplant, zweiter Versuch. Versuch 1 (Alias Flex-Layout, Commit a3b3493) wurde nicht gewertet: Der Runner brach an einer alten Probelauf-Referenz ab, und die Prüfung ergab, dass der eingefrorene Test im Scrollbereich verborgenen Code als verdeckt zählte. Der Test wurde vor Versuch 2 korrigiert und neu eingefroren.",
+      "en": "Planned, second attempt. Attempt 1 (Alia's flex layout, commit a3b3493) was not scored: the runner stopped on a stale dry-run ref, and review found the frozen test counted code text hidden in the scroll area as covered. The test was fixed and re-frozen before attempt 2."
     },
     "task_sha256": "90ff16063630c32bb1061ae68a920e1e1dd1ef6277c3e183fd62660f083e1600",
     "title": {

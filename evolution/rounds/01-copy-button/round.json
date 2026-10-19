@@ -49,8 +49,8 @@
   "task_sha256": "90ff16063630c32bb1061ae68a920e1e1dd1ef6277c3e183fd62660f083e1600",
   "acceptance": {
     "files": {
-      "acceptance/test_copy_buttons.py": "79c309c569e99eaa4bd3e3952a04274d361ebd10e2087ecceffb1a4ca2e3eb56"
+      "acceptance/test_copy_buttons.py": "5ce2b05a733410c8652cd9552f93799ae69da6844e0f0e45e81b0a76d9719035"
     },
-    "frozen_commit": "22a4011c2e903cbd93036f143733cc46d0a21db3"
+    "frozen_commit": "b29b0975202ca79125e764a33001178f11457fa5"
   }
 }
