@@ -66,8 +66,14 @@ MEASURE = """() => {
     headerText: header ? header.innerText : "",
     images: header ? [...header.querySelectorAll("img")].map(i => ({src: i.currentSrc || i.src,
       loaded: i.complete && i.naturalWidth > 0, ...box(i)})) : [],
-    nav: header ? [...header.querySelectorAll("nav a")].map(a => ({text: a.innerText.trim(),
-      href: a.getAttribute("href"), ...box(a)})) : [],
+    // A link counts as reachable only if it lies fully on the screen and is the element hit at its centre
+    // (a link clipped by an overflow:hidden header or covered by another element is not).
+    nav: header ? [...header.querySelectorAll("nav a")].map(a => {
+      const r = a.getBoundingClientRect(), hit = document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+      return {text: a.innerText.trim(), href: a.getAttribute("href"), ...box(a),
+              onScreen: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight,
+              reachable: !!hit && hit.closest("a") === a};
+    }) : [],
     h1: [...document.querySelectorAll("h1")].map(h => h.innerText.trim()),
     descriptions: [...document.querySelectorAll('meta[name="description"]')].map(m => m.getAttribute("content")),
     width: document.documentElement.scrollWidth,
@@ -109,6 +115,8 @@ class ShowcaseHeader(PageTest):
                 measured = self.open(width, height).evaluate(MEASURE)
                 self.assertEqual([[link["text"], link["href"]] for link in measured["nav"]], NAV)
                 for link in measured["nav"]:
+                    self.assertTrue(link["onScreen"], f"{link['href']} fully on the screen")
+                    self.assertTrue(link["reachable"], f"{link['href']} visible and not covered")
                     self.assertGreaterEqual(link["w"], 24, f"{link['href']} width")
                     self.assertGreaterEqual(link["h"], 24, f"{link['href']} height")
                 tops = [link["top"] for link in measured["nav"]]

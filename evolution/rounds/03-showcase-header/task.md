@@ -11,7 +11,7 @@ Change it so that:
   "Alia Architecture", but not as an `<h1>`;
 - the page has a `<meta name="description">` with one or two sentences about what the page shows;
 - every link in the header navigation is at least 24 × 24 CSS pixels, on phones (390 px wide) and desktops
-  (1280 px wide);
+  (1280 px wide), and fully visible on the screen (not cut off or hidden by the header);
 - on phones (390 px wide) the header is at most 200 CSS pixels tall (today it is about 307) and the four
   navigation links fit in one row; on desktops the header does not get taller than it is now;
 - the navigation links keep their text and targets, and the page does not get wider than the screen.
