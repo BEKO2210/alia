@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "round": 1,
+  "slug": "json-label",
+  "title": {
+    "en": "Labels of the JSON rows",
+    "de": "Beschriftung der JSON-Zeilen"
+  },
+  "level": 1,
+  "status": "planned",
+  "start_commit": "def92e1beb9396bcc9e9eea995651cd67606ce56",
+  "allowed_paths": [
+    "site/"
+  ],
+  "agent": {
+    "name": "Alia",
+    "profile": "rtx8gb-16gb-qwen36-35b",
+    "model": "Qwen3.6-35B-A3B UD-IQ3_XXS",
+    "hardware": "RTX 3070 8 GB, 15 GiB RAM"
+  },
+  "agent_commit": null,
+  "run": {
+    "wall_limit_seconds": 900
+  },
+  "result": {}
+}
