@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "round": 2,
+  "slug": "replay-button",
+  "title": {
+    "en": "Replay button tap target",
+    "de": "Tippfläche des Nochmal-Buttons"
+  },
+  "level": 1,
+  "status": "planned",
+  "start_commit": "def92e1beb9396bcc9e9eea995651cd67606ce56",
+  "allowed_paths": [
+    "site/"
+  ],
+  "agent": {
+    "name": "Alia",
+    "profile": "rtx8gb-16gb-qwen36-35b",
+    "model": "Qwen3.6-35B-A3B UD-IQ3_XXS",
+    "hardware": "RTX 3070 8 GB, 15 GiB RAM"
+  },
+  "agent_commit": null,
+  "run": {
+    "wall_limit_seconds": 900
+  },
+  "result": {},
+  "task_sha256": "8148df2e98f3b3f4ec24c83151593e9745dee5c65ebaa0cd95657ffdd65076cb",
+  "acceptance": {
+    "files": {
+      "acceptance/test_replay_button.py": "690c7a43bbb58472dc4faec36aa6cb8a31f3e577ad7aa7feee303ce949b381df"
+    },
+    "frozen_commit": "73bbcf8e78523bc6dcbea31b7d2c9d824a2b6025"
+  }
+}

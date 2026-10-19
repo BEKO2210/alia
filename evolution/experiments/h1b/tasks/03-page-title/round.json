@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "round": 3,
+  "slug": "page-title",
+  "title": {
+    "en": "Translated page title and description",
+    "de": "Übersetzter Seitentitel und Beschreibung"
+  },
+  "level": 1,
+  "status": "planned",
+  "start_commit": "653edd26f3cd06f7dfba9d4a049335cea8465c16",
+  "allowed_paths": [
+    "site/"
+  ],
+  "agent": {
+    "name": "Alia",
+    "profile": "rtx8gb-16gb-qwen36-35b",
+    "model": "Qwen3.6-35B-A3B UD-IQ3_XXS",
+    "hardware": "RTX 3070 8 GB, 15 GiB RAM"
+  },
+  "agent_commit": null,
+  "run": {
+    "wall_limit_seconds": 900
+  },
+  "result": {},
+  "task_sha256": "c3d8726748a8d179521df9535307206291e4de0166e81641e3bf618254ff6754",
+  "acceptance": {
+    "files": {
+      "acceptance/baseline_text.json": "a9259e1363d8dd9bcbed5284a2d33c3de3aaf5d34d3276b4dcc6a6fef38651f1",
+      "acceptance/test_page_title.py": "dc3b9121f0afcc91759b847ce739f1275d640eecdcb06d839b54e66cda1b0ca1"
+    },
+    "frozen_commit": "7e2cabfeaab160a7a1efbe5f9303e7901f7f3dc6"
+  }
+}

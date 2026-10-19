@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "round": 3,
+  "slug": "link-targets",
+  "title": {
+    "en": "Header and footer link tap targets",
+    "de": "Tippflächen der Kopf- und Fußzeilen-Links"
+  },
+  "level": 1,
+  "status": "planned",
+  "start_commit": "def92e1beb9396bcc9e9eea995651cd67606ce56",
+  "allowed_paths": [
+    "site/"
+  ],
+  "agent": {
+    "name": "Alia",
+    "profile": "rtx8gb-16gb-qwen36-35b",
+    "model": "Qwen3.6-35B-A3B UD-IQ3_XXS",
+    "hardware": "RTX 3070 8 GB, 15 GiB RAM"
+  },
+  "agent_commit": null,
+  "run": {
+    "wall_limit_seconds": 900
+  },
+  "result": {},
+  "task_sha256": "c815ff86414921766592708bf18807af2f9465c05ed96d27ddcc3a50a06bf92f",
+  "acceptance": {
+    "files": {
+      "acceptance/test_link_targets.py": "8e535154246b86d6a6b925371cbfcc22be124467a3da3971093a1678d850c568"
+    },
+    "frozen_commit": "73bbcf8e78523bc6dcbea31b7d2c9d824a2b6025"
+  }
+}
