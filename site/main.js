@@ -139,6 +139,8 @@ function selectTab(tab) {
 tabs.forEach((t, i) => {
   t.addEventListener("click", () => selectTab(t));
   t.addEventListener("keydown", (e) => {
+    if (e.key === "Home") { selectTab(tabs[0]); tabs[0].focus(); e.preventDefault(); return; }
+    if (e.key === "End") { selectTab(tabs[tabs.length - 1]); tabs[tabs.length - 1].focus(); e.preventDefault(); return; }
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
     const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
     selectTab(next); next.focus();
