@@ -45,5 +45,13 @@
     "en": "Planned: Alia tidies up the header of the architecture page it built: new logo, one h1, a description and a compact phone layout.",
     "de": "Geplant: Alia räumt die Kopfzeile ihrer Architektur-Seite auf: neues Logo, eine h1, eine Beschreibung und ein kompaktes Handy-Layout."
   },
-  "merged_commit": null
+  "merged_commit": null,
+  "task_sha256": "c2f591a9806175e3544ceeb46cf659966ff075e42519ec9bb407ba0b96d10f8b",
+  "acceptance": {
+    "files": {
+      "acceptance/baseline_text.json": "dedf055348aef57f7c6c41d87db0488a75c67540b31393ac78e18931158c487e",
+      "acceptance/test_showcase_header.py": "dab51470eb86c02825ce3369cf29f0805237b140073654eeff103eee97301049"
+    },
+    "frozen_commit": "2629a446a259a74db76c61824eb7c6884430e6bd"
+  }
 }
