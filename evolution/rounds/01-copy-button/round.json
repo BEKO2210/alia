@@ -42,8 +42,8 @@
   "interventions": [],
   "reviews": [],
   "summary": {
-    "en": "Planned: Alia fixes the copy buttons in the install section, which cover code on phones and on one desktop block.",
-    "de": "Geplant: Alia repariert die Kopier-Buttons im Installationsbereich, die auf dem Handy und in einem Desktop-Block Code verdecken."
+    "en": "Planned, second attempt. Attempt 1 (Alia's flex layout, commit a3b3493) was not scored: the runner stopped on a stale dry-run ref, and review found the frozen test counted code text hidden in the scroll area as covered. The test was fixed and re-frozen before attempt 2.",
+    "de": "Geplant, zweiter Versuch. Versuch 1 (Alias Flex-Layout, Commit a3b3493) wurde nicht gewertet: Der Runner brach an einer alten Probelauf-Referenz ab, und die Prüfung ergab, dass der eingefrorene Test im Scrollbereich verborgenen Code als verdeckt zählte. Der Test wurde vor Versuch 2 korrigiert und neu eingefroren."
   },
   "merged_commit": null,
   "task_sha256": "90ff16063630c32bb1061ae68a920e1e1dd1ef6277c3e183fd62660f083e1600",

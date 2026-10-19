@@ -39,13 +39,17 @@ MEASURE = """() => {
     const original = pre.scrollLeft;
     for (const pos of [0, Math.max(0, pre.scrollWidth - pre.clientWidth)]) {
       pre.scrollLeft = pos;
-      const br = b.getBoundingClientRect();
+      const br = b.getBoundingClientRect(), view = pre.getBoundingClientRect();
       const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
       let node;
       while ((node = walker.nextNode())) {
         const range = document.createRange();
         range.selectNodeContents(node);
-        if ([...range.getClientRects()].some(t => hit(br, t))) { out.covers.push(pos ? "right" : "left"); break; }
+        // Only the part of the text the reader can see: text scrolled out of the block is clipped, not covered.
+        const shown = [...range.getClientRects()].map(t => ({left: Math.max(t.left, view.left),
+          right: Math.min(t.right, view.right), top: Math.max(t.top, view.top), bottom: Math.min(t.bottom, view.bottom)}))
+          .filter(t => t.left < t.right && t.top < t.bottom);
+        if (shown.some(t => hit(br, t))) { out.covers.push(pos ? "right" : "left"); break; }
       }
     }
     pre.scrollLeft = original;
