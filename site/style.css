@@ -92,7 +92,12 @@ h1 { font-size: clamp(38px, 6vw, 72px); line-height: 1.02; font-weight: 600; let
 .dots i { width: 12px; height: 12px; border-radius: 50%; background: #3a3f4b; }
 .dots i:nth-child(1) { background: #ff5f57; } .dots i:nth-child(2) { background: #febc2e; } .dots i:nth-child(3) { background: #28c840; }
 .term-title { flex: 1; text-align: center; color: var(--mut2); font: 500 12.5px var(--mono); margin-right: 52px; }
-.replay { background: none; border: 1px solid var(--line2); color: var(--mut); font: 500 11.5px var(--body); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+.replay {
+  background: none; border: 1px solid var(--line2); color: var(--mut);
+  font: 500 12px var(--body); border-radius: 999px;
+  min-height: 28px; min-width: 48px;
+  padding: 4px 14px; cursor: pointer;
+}
 .replay:hover { color: var(--fg); }
 .term-body { font: 13.5px/1.7 var(--mono); padding: 18px 22px 22px; height: 488px; overflow: hidden; color: #dfe5ee; }
 .term-body .l { min-height: 1.7em; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
