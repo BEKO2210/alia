@@ -11,6 +11,8 @@ const DE = {
   "hero.cta": "Loslegen",
   "hero.github": "Auf GitHub ansehen",
   "hero.meta": "Linux · NVIDIA · getestet auf einer RTX 3070 mit 8 GB VRAM",
+  "page.title": "Alia — ein lokaler Coding\u2011Agent für die GPU, die du schon hast",
+  "page.desc": "Alia erkennt deine GPU, wählt ein vermessenes Modellprofil, startet llama.cpp und öffnet einen vollwertigen Coding\u2011Agenten im Terminal. Kein API-Key. Keine Cloud.",
   "term.replay": "Nochmal",
   "term.caption": "Drei echte Prompts auf einer RTX 3070, nichts von Hand bearbeitet: Alia schreibt ein Live-GPU-Dashboard (eine Python-Datei, nur Standardbibliothek), poliert das Layout und findet und behebt dann per grep den eigenen Fehler. Die Terminal-Teile laufen wie angegeben schneller; die Polier-Runde war langsam, weil der Server auslagerte. Der letzte Clip zeigt das Ergebnis in Echtzeit.",
   "stat.tg": "Ausgabe mit einem 35B-MoE-Modell bei 4K Kontext, exakte Startkonfiguration",
@@ -107,6 +109,9 @@ function storage(fn) { try { return fn(); } catch { return null; } }
 function setLang(lang) {
   const dict = lang === "de" ? DE : EN;
   for (const n of nodes) n.innerHTML = dict[n.dataset.i18n] ?? EN[n.dataset.i18n];
+  document.title = dict["page.title"] ?? EN["page.title"];
+  const desc = document.querySelector("meta[name=description]");
+  if (desc) desc.content = dict["page.desc"] ?? EN["page.desc"];
   document.documentElement.lang = lang;
   for (const b of document.querySelectorAll("[data-lang]")) b.setAttribute("aria-pressed", String(b.dataset.lang === lang));
   storage(() => localStorage.setItem("alia-lang", lang));
