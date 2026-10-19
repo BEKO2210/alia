@@ -1,1 +1,58 @@
-[]
+[
+  {
+    "acceptance": {
+      "files": {
+        "acceptance/test_copy_buttons.py": "79c309c569e99eaa4bd3e3952a04274d361ebd10e2087ecceffb1a4ca2e3eb56"
+      },
+      "frozen_commit": "22a4011c2e903cbd93036f143733cc46d0a21db3"
+    },
+    "agent": {
+      "alia_version": null,
+      "hardware": "RTX 3070 8 GB, 15 GiB RAM",
+      "launcher_commit": null,
+      "model": "Qwen3.6-35B-A3B UD-IQ3_XXS",
+      "name": "Alia",
+      "profile": "rtx8gb-16gb-qwen36-35b"
+    },
+    "agent_commit": null,
+    "allowed_paths": [
+      "site/"
+    ],
+    "interventions": [],
+    "level": 1,
+    "merged_commit": null,
+    "result": {
+      "acceptance_passed": null,
+      "acceptance_total": null,
+      "files_changed": [],
+      "isolation_breaches": [],
+      "lines_added": null,
+      "lines_removed": null,
+      "out_of_scope_paths": [],
+      "site_checks": null
+    },
+    "reviews": [],
+    "round": 1,
+    "run": {
+      "exit_code": null,
+      "started": null,
+      "tool_calls": null,
+      "transcript_sha256": null,
+      "wall_limit_seconds": 900,
+      "wall_seconds": null
+    },
+    "schema": 1,
+    "slug": "copy-button",
+    "start_commit": "d66ce5928a24dc68caa139eab79ac278a4e7c73b",
+    "status": "planned",
+    "summary": {
+      "de": "Geplant: Alia repariert die Kopier-Buttons im Installationsbereich, die auf dem Handy und in einem Desktop-Block Code verdecken.",
+      "en": "Planned: Alia fixes the copy buttons in the install section, which cover code on phones and on one desktop block."
+    },
+    "task_sha256": "90ff16063630c32bb1061ae68a920e1e1dd1ef6277c3e183fd62660f083e1600",
+    "title": {
+      "de": "Kopier-Buttons, die den Code nicht mehr verdecken",
+      "en": "Copy buttons that no longer cover the code"
+    }
+  }
+]

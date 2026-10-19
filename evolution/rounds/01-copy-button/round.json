@@ -45,5 +45,12 @@
     "en": "Planned: Alia fixes the copy buttons in the install section, which cover code on phones and on one desktop block.",
     "de": "Geplant: Alia repariert die Kopier-Buttons im Installationsbereich, die auf dem Handy und in einem Desktop-Block Code verdecken."
   },
-  "merged_commit": null
+  "merged_commit": null,
+  "task_sha256": "90ff16063630c32bb1061ae68a920e1e1dd1ef6277c3e183fd62660f083e1600",
+  "acceptance": {
+    "files": {
+      "acceptance/test_copy_buttons.py": "79c309c569e99eaa4bd3e3952a04274d361ebd10e2087ecceffb1a4ca2e3eb56"
+    },
+    "frozen_commit": "22a4011c2e903cbd93036f143733cc46d0a21db3"
+  }
 }
