@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "round": 2,
+  "slug": "copy-button-retry",
+  "title": {
+    "en": "Copy buttons, second try",
+    "de": "Kopier-Buttons, zweiter Anlauf"
+  },
+  "level": 1,
+  "status": "passed",
+  "start_commit": "56de4e44a24c06a6aafc67bce1fb8eb8225f25d2",
+  "allowed_paths": [
+    "site/"
+  ],
+  "agent": {
+    "name": "Alia",
+    "alia_version": "alia 0.1.0",
+    "launcher_commit": "f19b4bdcacde96c54428e572f306cfffe58fe156",
+    "profile": "rtx8gb-16gb-qwen36-35b",
+    "model": "Qwen3.6-35B-A3B UD-IQ3_XXS",
+    "hardware": "RTX 3070 8 GB, 15 GiB RAM"
+  },
+  "agent_commit": "7423cca89cf2abac5971c8b3010f358057e549f2",
+  "run": {
+    "started": "2026-10-19T06:32:17.400846Z",
+    "wall_seconds": 235.305,
+    "wall_limit_seconds": 900,
+    "exit_code": 0,
+    "tool_calls": 6,
+    "transcript_sha256": "643118ad324874c32c436c7e49d678f0ba247e0e828913794a5e58ede704387f"
+  },
+  "result": {
+    "acceptance_passed": 3,
+    "acceptance_total": 3,
+    "site_checks": {
+      "failures": 0,
+      "known": 116,
+      "fixed": 9
+    },
+    "files_changed": [
+      "site/style.css"
+    ],
+    "lines_added": 2,
+    "lines_removed": 2,
+    "out_of_scope_paths": [],
+    "isolation_breaches": []
+  },
+  "interventions": [
+    {
+      "by": "Claude (coordinator)",
+      "commit": "4ad398f0c048ade2934c3e859c451cbb8a9ffd7c",
+      "what": "Round setup: task, frozen acceptance tests and planned record (written before the run, rebased onto Alia's commit)."
+    },
+    {
+      "by": "Claude (coordinator)",
+      "commit": "eb495ff5528eddb7fb6f2510d65a4ce9a3d52f1b",
+      "what": "Freeze hashes in round.json (written before the run, rebased onto Alia's commit)."
+    },
+    {
+      "by": "Claude (coordinator)",
+      "commit": "8387603bb873169ec639076215a81956debfa917",
+      "what": "Removed the 9 copy-button overlaps Alia fixed from sitetests/known_defects.json."
+    }
+  ],
+  "reviews": [
+    {
+      "by": "Claude (coordinator)",
+      "verdict": "passed",
+      "file": "reviews/claude.md"
+    }
+  ],
+  "summary": {
+    "en": "Passed. Alia moved the copy button out of the code into the normal flow below it with a two-line CSS change: it no longer covers code on phones or desktops and still copies its block (acceptance 3/3, 9 known overlaps fixed).",
+    "de": "Bestanden. Alia holte den Kopier-Button mit einer zweizeiligen CSS-Änderung aus dem Code in den normalen Fluss darunter: Er verdeckt auf Handy und Desktop keinen Code mehr und kopiert weiter seinen Block (Abnahme 3/3, 9 bekannte Überdeckungen behoben)."
+  },
+  "merged_commit": null,
+  "task_sha256": "90ff16063630c32bb1061ae68a920e1e1dd1ef6277c3e183fd62660f083e1600",
+  "acceptance": {
+    "files": {
+      "acceptance/test_copy_buttons.py": "482ebb4fc0e9c205151c61d2329d4038c5c700d00b2016a2e809fbaed86480fc"
+    },
+    "frozen_commit": "4c0b7eb53dc0d3a0d3880b875e5338846d923511"
+  },
+  "attribution": {
+    "verified": true,
+    "checked_head": "8387603bb873169ec639076215a81956debfa917",
+    "checks": {
+      "transcript_hash": {
+        "ok": true,
+        "detail": "transcript.jsonl sha256 matches run.transcript_sha256"
+      },
+      "agent_commit_shape": {
+        "ok": true,
+        "detail": "agent_commit has one parent, the round trailer and Alia identity; 1 changed path(s) match"
+      },
+      "transcript_covers_diff": {
+        "ok": true,
+        "detail": "tool calls name all 1 path(s) changed by agent_commit"
+      },
+      "transcript_tool_calls": {
+        "ok": true,
+        "detail": "transcript contains 6 tool_use item(s), matching run.tool_calls"
+      },
+      "foreign_commits_declared": {
+        "ok": true,
+        "detail": "3 non-Alia commit(s) are declared as interventions"
+      },
+      "share": {
+        "ok": true,
+        "detail": "Alia 4 line(s); interventions 358; final diff 360 line(s)"
+      }
+    },
+    "alia_lines": 4,
+    "other_lines": 358
+  }
+}
