@@ -55,8 +55,19 @@ def hash_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def find_round(repo: Path, number: int) -> Path:
-    matches = sorted((repo / "evolution/rounds").glob(f"{number:02d}-*"))
+EXPERIMENT_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
+# Inside the jail: where the candidate harness file is mounted, and where the launcher keeps Qwen Code's home.
+HARNESS_IN_JAIL = "/run/alia-harness.md"
+QWEN_HOME_IN_HOME = ".local/state/alia/qwen-home"
+
+
+def tasks_base(experiment: str | None) -> str:
+    """Public rounds live in evolution/rounds; an experiment's tasks in evolution/experiments/<name>/tasks."""
+    return f"evolution/experiments/{experiment}/tasks" if experiment else "evolution/rounds"
+
+
+def find_round(repo: Path, number: int, experiment: str | None = None) -> Path:
+    matches = sorted((repo / tasks_base(experiment)).glob(f"{number:02d}-*"))
     if len(matches) != 1:
         raise RoundError(f"expected one folder for round {number:02d}, found {len(matches)}")
     return matches[0]
@@ -95,9 +106,14 @@ def bytecode(path: Path) -> bool:
     return "__pycache__" in path.parts or path.suffix == ".pyc"
 
 
-def round_ref(number: int, dry_run: bool) -> str:
-    """Where the runner keeps the round commit; dry runs use their own namespace and never block a real run."""
-    return f"refs/evolution/{'dry-run/' if dry_run else ''}round-{number:02d}"
+def round_ref(number: int, dry_run: bool, experiment: str | None = None, arm: str | None = None) -> str:
+    """Where the runner keeps the round commit; dry runs and experiment arms use their own namespaces, so they
+    never block a real round."""
+    if dry_run:
+        return f"refs/evolution/dry-run/round-{number:02d}"
+    if experiment:
+        return f"refs/evolution/experiments/{experiment}/{arm}/round-{number:02d}"
+    return f"refs/evolution/round-{number:02d}"
 
 
 def check_round_ref_free(repo: Path, ref: str) -> None:
@@ -106,8 +122,8 @@ def check_round_ref_free(repo: Path, ref: str) -> None:
         raise RoundError(f"{ref} already exists; delete it first if it is a leftover (git update-ref -d {ref})")
 
 
-def freeze(repo: Path, number: int) -> None:
-    folder = find_round(repo, number)
+def freeze(repo: Path, number: int, experiment: str | None = None) -> None:
+    folder = find_round(repo, number, experiment)
     data = read_round(folder)
     task = folder / "task.md"
     if not task.is_file():
@@ -264,8 +280,8 @@ def copy_agent_tree(work: Path, result: Path) -> tuple[list[str], list[str]]:
     return sorted(escaping), sorted(skipped)
 
 
-def collect_changes(repo: Path, private_round: Path, start: str, number: int, home: Path, ref: str | None = None
-                    ) -> tuple[list[str], int, int, str | None, list[str]]:
+def collect_changes(repo: Path, private_round: Path, start: str, number: int, home: Path, ref: str | None = None,
+                    message: str | None = None) -> tuple[list[str], int, int, str | None, list[str]]:
     """Commit the copied result in a runner-owned repository; never run git inside the agent's repository.
 
     Returns (changed paths, lines added, lines removed, agent commit or None, paths the agent wrote under
@@ -293,7 +309,7 @@ def collect_changes(repo: Path, private_round: Path, start: str, number: int, ho
         return [], 0, 0, None, evolution
     identity = {"GIT_AUTHOR_NAME": ALIA_AUTHOR_NAME, "GIT_AUTHOR_EMAIL": ALIA_AUTHOR_EMAIL,
                 "GIT_COMMITTER_NAME": ALIA_AUTHOR_NAME, "GIT_COMMITTER_EMAIL": ALIA_AUTHOR_EMAIL}
-    message = f"feat(evolution): Alia round {number:02d}\n\nAlia-Round: {number:02d}"
+    message = message or f"feat(evolution): Alia round {number:02d}\n\nAlia-Round: {number:02d}"
     sealed_git([*tree, "commit", "-q", "--no-verify", "-m", message], result, home, identity, capture_output=True)
     commit = sealed_git([*tree, "rev-parse", "HEAD"], result, home, capture_output=True, text=True).stdout.strip()
     # Keep Alia's commit reachable in the integration repository for review, attribution and the PR.
@@ -309,7 +325,7 @@ def collect_changes(repo: Path, private_round: Path, start: str, number: int, ho
 def breach_markers(repo: Path, folder: Path, private_round: Path) -> dict[str, str]:
     return {
         "integration-checkout": str(repo.resolve()),
-        "round-data": f"evolution/rounds/{folder.name}",
+        "round-data": folder.relative_to(repo).as_posix(),
         "acceptance-run": str(private_round / "acceptance-run"),
     }
 
@@ -427,6 +443,7 @@ def run_agent(
     productive: Path,
     jail: bool = True,
     gpu_window: bool = False,
+    harness: Path | None = None,
 ) -> tuple[int, float, Path, Path]:
     transcript = private_round / "transcript.jsonl"
     stderr_path = private_round / "agent.stderr.log"
@@ -452,6 +469,13 @@ def run_agent(
         inner = [str(launcher / "alia"), "--yolo", "--sandbox", "--", "-p", prompt, "--max-wall-time", f"{limit}s",
                  "-o", "stream-json"]
         outer = ["timeout", "--kill-after=30", str(limit + 60)]
+    if harness is not None:
+        if not jail:
+            raise RoundError("--harness needs the jail (it seeds the jail's private home)")
+        # Seed the candidate as the user-owned part of Qwen Code's global QWEN.md; the launcher keeps that part
+        # and only appends its managed environment block. The launcher itself stays untouched.
+        seed = 'mkdir -p "$1" && cp "$2" "$1/QWEN.md" && shift 2 && exec "$@"'
+        inner = ["/bin/sh", "-c", seed, "seed-harness", str(home / QWEN_HOME_IN_HOME), HARNESS_IN_JAIL, *inner]
     if jail:
         prefix = alia_jail.jail_args(work, home, read_only=binds, gpu=not dry_run)
         if not dry_run:
@@ -459,6 +483,9 @@ def run_agent(
             index = prefix.index("--chdir")
             target = str(home / ".config/alia/config.json")
             prefix[index:index] = ["--ro-bind", str(config), target]
+        if harness is not None:
+            index = prefix.index("--chdir")
+            prefix[index:index] = ["--ro-bind", str(harness), HARNESS_IN_JAIL]
         args = [*outer, *prefix, "--", *inner]
     else:
         args = [*outer, *inner]
@@ -623,14 +650,31 @@ def final_status(
     return "failed"
 
 
+def check_experiment_args(args: argparse.Namespace) -> None:
+    if args.experiment is None:
+        if args.arm is not None or (args.harness is not None and not args.dry_run):
+            raise RoundError("--arm and --harness belong to an experiment (--experiment NAME)")
+        return
+    if args.dry_run:
+        raise RoundError("an experiment arm is a real run; test the harness seeding with --dry-run --harness")
+    for label, value in (("--experiment", args.experiment), ("--arm", args.arm)):
+        if not isinstance(value, str) or not EXPERIMENT_NAME.match(value):
+            raise RoundError(f"{label} must match {EXPERIMENT_NAME.pattern}")
+
+
 def execute(args: argparse.Namespace) -> None:
+    check_experiment_args(args)
     repo = repo_root()
-    folder = find_round(repo, args.number)
+    experiment = args.experiment
+    folder = find_round(repo, args.number, experiment)
     private_root = (args.private_root or Path("~/alia-evolution-private")).expanduser().resolve()
-    private_round = private_root / folder.name
+    # An experiment arm keeps everything, its record included, in the private folder; the task folder and the
+    # public round records stay as they are.
+    private_base = private_root / "experiments" / experiment / args.arm if experiment else private_root
+    private_round = private_base / folder.name
     work = private_round / "work"
     if args.clean:
-        if private_round.resolve().parent != private_root or private_round == private_root:
+        if private_round.resolve().parent != private_base or not inside(private_round, private_root):
             raise RoundError(f"refusing to clean path outside private root: {private_round}")
         if private_round.exists():
             shutil.rmtree(private_round)
@@ -654,15 +698,20 @@ def execute(args: argparse.Namespace) -> None:
             start = data.get("start_commit")
             if not isinstance(start, str):
                 raise RoundError("round.json has no start_commit")
-            ref = round_ref(args.number, args.dry_run)
+            ref = round_ref(args.number, args.dry_run, experiment, args.arm)
             if not args.dry_run:
                 # Fail now, not after a long model run that could then not store Alia's commit.
                 check_round_ref_free(repo, ref)
             create_worktree(repo, work, start, folder.relative_to(repo).as_posix())
+            harness = None
+            if args.harness is not None:
+                # A private copy: the run uses exactly the bytes whose hash goes into the record.
+                harness = private_round / "harness.md"
+                shutil.copyfile(args.harness.expanduser(), harness)
             started = datetime.now(UTC).isoformat().replace("+00:00", "Z")
             exit_code, wall, transcript, _ = run_agent(
                 work, folder, private_round, data, args.dry_run, args.agent_cmd, args.gpu_lock.expanduser(),
-                args.gpu_max_wait, productive, jail=not args.no_jail, gpu_window=args.gpu_window,
+                args.gpu_max_wait, productive, jail=not args.no_jail, gpu_window=args.gpu_window, harness=harness,
             )
             verify_frozen(repo, folder, data)
             # Breaches first, from the transcript the jail wrote; nothing after this runs agent-controlled code.
@@ -676,8 +725,12 @@ def execute(args: argparse.Namespace) -> None:
                 os.rename(work / ".git", work / "agent-git.untrusted")
             if escaping:
                 breaches = sorted({*breaches, "symlink-escape"})
+            message = None
+            if experiment:
+                message = (f"feat(evolution): Alia, experiment {experiment} arm {args.arm}, task {args.number:02d}"
+                           f"\n\nAlia-Experiment: {experiment}/{args.arm}/{args.number:02d}")
             paths, added, removed, agent_commit, evolution_paths = collect_changes(
-                repo, private_round, start, args.number, private_round, ref)
+                repo, private_round, start, args.number, private_round, ref, message)
             allowed = data.get("allowed_paths", ["site/"])
             if not isinstance(allowed, list) or not all(isinstance(item, str) for item in allowed):
                 raise RoundError("allowed_paths must be a list of strings")
@@ -716,11 +769,19 @@ def execute(args: argparse.Namespace) -> None:
             after = productive_snapshot(productive)
             if before != after:
                 raise RoundError("productive checkout changed during the round")
-            write_round(folder, data)
+            if experiment:
+                data["experiment"] = {
+                    "name": experiment, "arm": args.arm, "ref": ref,
+                    "harness_sha256": hash_file(harness) if harness else None,
+                }
+                write_round(private_round, data)
+            else:
+                write_round(folder, data)
         except BaseException:
             print(f"private round kept for inspection: {private_round}", file=sys.stderr)
             raise
-    print(f"round {args.number:02d}: {data['status']}; acceptance {passed}/{total}; site {site_checks}")
+    name = f"experiment {experiment} arm {args.arm} task" if experiment else "round"
+    print(f"{name} {args.number:02d}: {data['status']}; acceptance {passed}/{total}; site {site_checks}")
 
 
 def verify(args: argparse.Namespace) -> bool:
@@ -742,6 +803,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     sub = parser.add_subparsers(dest="action", required=True)
     freeze_parser = sub.add_parser("freeze")
     freeze_parser.add_argument("number", type=int, metavar="NN")
+    freeze_parser.add_argument("--experiment", help="freeze a task of evolution/experiments/NAME/tasks")
     run_parser = sub.add_parser("run")
     run_parser.add_argument("number", type=int, metavar="NN")
     run_parser.add_argument("--dry-run", action="store_true")
@@ -755,6 +817,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     run_parser.add_argument("--agent-cmd", nargs="+")
     run_parser.add_argument("--no-jail", action="store_true",
                             help="dry run only: run the fake agent without bubblewrap (CI without user namespaces)")
+    run_parser.add_argument("--experiment", help="run a task of evolution/experiments/NAME/tasks as a private arm")
+    run_parser.add_argument("--arm", help="experiment arm label, e.g. a (current harness) or b (candidate)")
+    run_parser.add_argument("--harness", type=Path,
+                            help="candidate harness: seeded as the user-owned part of Qwen Code's global QWEN.md")
     verify_parser = sub.add_parser("verify")
     verify_parser.add_argument("number", type=int, metavar="NN")
     verify_parser.add_argument("--head", required=True)
@@ -766,7 +832,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         if args.action == "freeze":
-            freeze(repo_root(), args.number)
+            if args.experiment is not None and not EXPERIMENT_NAME.match(args.experiment):
+                raise RoundError(f"--experiment must match {EXPERIMENT_NAME.pattern}")
+            freeze(repo_root(), args.number, args.experiment)
         elif args.action == "run":
             execute(args)
         else:
