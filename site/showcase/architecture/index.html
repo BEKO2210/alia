@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="description" content="Alia's layered architecture: launcher, llama.cpp server, Qwen Code agent and GPU — all local, with real benchmark numbers.">
 <title>Alia — Architecture</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -76,11 +77,11 @@ header::before{
 }
 .header-inner{position:relative;z-index:1;max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap}
 .logo-wrap{flex-shrink:0}
-.logo-wrap svg{width:56px;height:56px}
-.header-text h1{font-size:2rem;font-weight:700;background:var(--grad);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo-wrap .logo-img{width:48px;height:48px;display:block}
+.header-text .header-title{font-size:1.35rem;font-weight:700;background:var(--grad);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .header-text .tagline{color:var(--fg2);font-size:.95rem;margin-top:.25rem}
-.header-nav{margin-left:auto;display:flex;gap:1.5rem;flex-wrap:wrap}
-.header-nav a{color:var(--fg2);text-decoration:none;font-size:.85rem;transition:color .2s}
+.header-nav{margin-left:auto;display:flex;gap:1.5rem;flex-wrap:nowrap}
+.header-nav a{color:var(--fg2);text-decoration:none;font-size:.85rem;transition:color .2s;min-width:24px;min-height:24px;padding:4px 0;display:inline-flex;align-items:center;justify-content:center}
 .header-nav a:hover{color:var(--cyan)}
 
 /* ── sections ────────────────────────────────── */
@@ -226,9 +227,14 @@ footer a{color:var(--blue)}
 
 /* ── responsive ──────────────────────────────── */
 @media(max-width:768px){
-  header{padding:1.25rem 1rem 1rem}
-  .header-inner{flex-direction:column;align-items:flex-start}
-  .header-nav{margin-left:0}
+  header{padding:.5rem 1rem}
+  header::before{display:none}
+  .header-inner{flex-direction:row;align-items:center;gap:.6rem;flex-wrap:nowrap}
+  .logo-wrap .logo-img{width:36px;height:36px}
+  .header-text .header-title{font-size:1rem}
+  .header-text .tagline{display:none}
+  .header-nav{gap:.6rem;font-size:.78rem}
+  .header-nav a{padding:4px 6px;font-size:.75rem}
   main{padding:1rem}
   section h2{font-size:1.15rem}
   .metrics-grid{grid-template-columns:1fr}
@@ -237,7 +243,6 @@ footer a{color:var(--blue)}
 }
 @media(max-width:480px){
   .metric-grid{grid-template-columns:1fr}
-  .header-text h1{font-size:1.5rem}
 }
 
 @media(max-width:768px){
@@ -258,20 +263,10 @@ footer a{color:var(--blue)}
 <header>
   <div class="header-inner">
     <div class="logo-wrap">
-      <svg viewBox="0 0 512 512" width="56" height="56" role="img" aria-label="Alia">
-        <defs>
-          <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#5EEAD4"/>
-            <stop offset=".5" stop-color="#5C9DFF"/>
-            <stop offset="1" stop-color="#A78BFA"/>
-          </linearGradient>
-        </defs>
-        <rect width="512" height="512" rx="116" fill="url(#logoGrad)"/>
-        <path fill="#0B0D12" transform="translate(145.8 350.8)" d="M100.23 3.9Q74.1 3.9 53.53 -8.97Q32.96 -21.84 21.16 -44.07Q9.36 -66.3 9.36 -94.575Q9.36 -123.045 21.16 -145.37Q32.96 -167.7 53.53 -180.57Q74.1 -193.44 100.23 -193.44Q119.34 -193.44 134.75 -186.03Q150.15 -178.62 159.8 -165.55Q169.45 -152.49 170.82 -135.72V-53.82Q169.45 -37.05 159.9 -23.99Q150.35 -10.92 134.84 -3.51Q119.34 3.9 100.23 3.9ZM112.32 -49.92Q131.43 -49.92 143.13 -62.48Q154.83 -75.08 154.83 -94.77Q154.83 -108.03 149.57 -118.07Q144.3 -128.12 134.75 -133.87Q125.19 -139.62 112.52 -139.62Q100.04 -139.62 90.48 -133.87Q80.93 -128.12 75.37 -117.98Q69.82 -107.84 69.82 -94.77Q69.82 -81.71 75.28 -71.57Q80.74 -61.43 90.38 -55.67Q100.04 -49.92 112.32 -49.92ZM152.3 -49.92V-142.94L161.27 -197.14H211V-49.92Z"/>
-      </svg>
+      <img src="../../logo-mark.svg" alt="Alia" width="48" height="48" class="logo-img">
     </div>
     <div class="header-text">
-      <h1>Alia Architecture</h1>
+      <div class="header-title">Alia Architecture</div>
       <p class="tagline">Your hardware. Your AI. No cloud. — Local coding agent launcher v0.1.0</p>
     </div>
     <nav class="header-nav">
