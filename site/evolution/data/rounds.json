@@ -99,5 +99,61 @@
       "de": "Kopier-Buttons, die den Code nicht mehr verdecken",
       "en": "Copy buttons that no longer cover the code"
     }
+  },
+  {
+    "acceptance": {
+      "files": {
+        "acceptance/test_copy_buttons.py": "482ebb4fc0e9c205151c61d2329d4038c5c700d00b2016a2e809fbaed86480fc"
+      },
+      "frozen_commit": "4c0b7eb53dc0d3a0d3880b875e5338846d923511"
+    },
+    "agent": {
+      "alia_version": null,
+      "hardware": "RTX 3070 8 GB, 15 GiB RAM",
+      "launcher_commit": null,
+      "model": "Qwen3.6-35B-A3B UD-IQ3_XXS",
+      "name": "Alia",
+      "profile": "rtx8gb-16gb-qwen36-35b"
+    },
+    "agent_commit": null,
+    "allowed_paths": [
+      "site/"
+    ],
+    "interventions": [],
+    "level": 1,
+    "merged_commit": null,
+    "result": {
+      "acceptance_passed": null,
+      "acceptance_total": null,
+      "files_changed": [],
+      "isolation_breaches": [],
+      "lines_added": null,
+      "lines_removed": null,
+      "out_of_scope_paths": [],
+      "site_checks": null
+    },
+    "reviews": [],
+    "round": 2,
+    "run": {
+      "exit_code": null,
+      "started": null,
+      "tool_calls": null,
+      "transcript_sha256": null,
+      "wall_limit_seconds": 900,
+      "wall_seconds": null
+    },
+    "schema": 1,
+    "slug": "copy-button-retry",
+    "start_commit": "56de4e44a24c06a6aafc67bce1fb8eb8225f25d2",
+    "status": "planned",
+    "summary": {
+      "de": "Geplant: dieselbe Aufgabe und dieselben eingefrorenen Tests wie Runde 01, die scheiterte, weil das Kopieren nicht mehr ging.",
+      "en": "Planned: the same task and frozen tests as round 01, which failed because copying broke."
+    },
+    "task_sha256": "90ff16063630c32bb1061ae68a920e1e1dd1ef6277c3e183fd62660f083e1600",
+    "title": {
+      "de": "Kopier-Buttons, zweiter Anlauf",
+      "en": "Copy buttons, second try"
+    }
   }
 ]

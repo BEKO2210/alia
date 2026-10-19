@@ -45,5 +45,12 @@
     "en": "Planned: the same task and frozen tests as round 01, which failed because copying broke.",
     "de": "Geplant: dieselbe Aufgabe und dieselben eingefrorenen Tests wie Runde 01, die scheiterte, weil das Kopieren nicht mehr ging."
   },
-  "merged_commit": null
+  "merged_commit": null,
+  "task_sha256": "90ff16063630c32bb1061ae68a920e1e1dd1ef6277c3e183fd62660f083e1600",
+  "acceptance": {
+    "files": {
+      "acceptance/test_copy_buttons.py": "482ebb4fc0e9c205151c61d2329d4038c5c700d00b2016a2e809fbaed86480fc"
+    },
+    "frozen_commit": "4c0b7eb53dc0d3a0d3880b875e5338846d923511"
+  }
 }
