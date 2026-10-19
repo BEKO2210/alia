@@ -273,27 +273,27 @@
         <ol class="steps">
           <li>
             <h3 data-i18n="inst.s1">Agent and downloader</h3>
-            <div class="code"><pre><code>npm install -g @qwen-code/qwen-code@0.25.1
-python3 -m pip install -U "huggingface_hub[cli]"</code></pre><button type="button" class="copy" data-i18n="copy">Copy</button></div>
+            <div class="code"><div class="code-head"><button type="button" class="copy" data-i18n="copy">Copy</button></div><pre><code>npm install -g @qwen-code/qwen-code@0.25.1
+python3 -m pip install -U "huggingface_hub[cli]"</code></pre></div>
           </li>
           <li>
             <h3 data-i18n="inst.s2">llama.cpp with CUDA</h3>
-            <div class="code"><pre><code>git clone https://github.com/ggml-org/llama.cpp ~/src/llama.cpp
+            <div class="code"><div class="code-head"><button type="button" class="copy" data-i18n="copy">Copy</button></div><pre><code>git clone https://github.com/ggml-org/llama.cpp ~/src/llama.cpp
 cd ~/src/llama.cpp &amp;&amp; git checkout a0e6dc7
 cmake -S . -B build -DGGML_CUDA=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j"$(nproc)" --target llama-server</code></pre><button type="button" class="copy" data-i18n="copy">Copy</button></div>
+cmake --build build -j"$(nproc)" --target llama-server</code></pre></div>
           </li>
           <li>
             <h3 data-i18n="inst.s3">Alia</h3>
-            <div class="code"><pre><code>git clone https://github.com/BEKO2210/alia
-cd alia &amp;&amp; ./install.sh &amp;&amp; alia doctor</code></pre><button type="button" class="copy" data-i18n="copy">Copy</button></div>
+            <div class="code"><div class="code-head"><button type="button" class="copy" data-i18n="copy">Copy</button></div><pre><code>git clone https://github.com/BEKO2210/alia
+cd alia &amp;&amp; ./install.sh &amp;&amp; alia doctor</code></pre></div>
           </li>
           <li>
             <h3 data-i18n="inst.s4">Start &amp; commands</h3>
-            <div class="code"><pre><code>alia        # start agent
+            <div class="code"><div class="code-head"><button type="button" class="copy" data-i18n="copy">Copy</button></div><pre><code>alia        # start agent
 alia -c     # resume session
 alia status # server PID, profile, uptime
-alia mcp    # browser &amp; web search</code></pre><button type="button" class="copy" data-i18n="copy">Copy</button></div>
+alia mcp    # browser &amp; web search</code></pre></div>
             <p class="fine" data-i18n="inst.note">The first start shows the exact model download (14.07 GB for the default profile) and asks before fetching anything. Check status with <code>alia status</code>, continue with <code>alia -c</code>, or manage tools with <code>alia mcp</code>.</p>
           </li>
         </ol>
