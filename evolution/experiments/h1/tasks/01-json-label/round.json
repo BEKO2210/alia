@@ -22,5 +22,13 @@
   "run": {
     "wall_limit_seconds": 900
   },
-  "result": {}
+  "result": {},
+  "task_sha256": "faaa2b70cfdb3d78bcf9d6b0cc39904c5799a42069abd37aaa4d5252c7417a8b",
+  "acceptance": {
+    "files": {
+      "acceptance/baseline_text.json": "2a3fac5fd7888c0337c1abfe8d1d271eecf5488a1c7ef2baa0b29eb424f0744c",
+      "acceptance/test_json_label.py": "dae8391b60ad69ef1d4e77770cd88db3d92373935d4e2462b254c44a3088ea47"
+    },
+    "frozen_commit": "73bbcf8e78523bc6dcbea31b7d2c9d824a2b6025"
+  }
 }
