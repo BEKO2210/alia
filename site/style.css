@@ -45,7 +45,7 @@ h1, h2, h3 { font-family: var(--head); letter-spacing: -.02em; margin: 0; }
 
 .wordmark { height: 22px; width: auto; border-radius: 0 !important; }
 .nav-links { display: flex; gap: 26px; margin-left: 12px; }
-.nav-links a { color: var(--mut); text-decoration: none; font-size: 14.5px; transition: color .2s; }
+.nav-links a { color: var(--mut); text-decoration: none; font-size: 14.5px; padding: 8px 0; transition: color .2s; }
 .nav-links a:hover { color: var(--fg); }
 .nav-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 .lang { display: flex; background: rgba(255, 255, 255, .04); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
@@ -231,11 +231,11 @@ h2 { font-size: clamp(30px, 4.4vw, 50px); line-height: 1.08; font-weight: 600; l
 .foot { margin-top: 96px; border-top: 1px solid var(--line); padding: 28px 0 40px; font-size: 14px; }
 .foot-in { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
 .foot-in .mut { flex: 1; }
-.foot a { color: var(--mut); text-decoration: none; }
+.foot a { color: var(--mut); text-decoration: none; padding: 6px 0; }
 .foot a:hover { color: var(--fg); }
 .foot .brand img { border-radius: 5px; }
 .legal-links { display: flex; gap: 18px; }
-.legal-links a { display: inline-flex; align-items: center; min-height: 24px; }
+.legal-links a { display: inline-flex; align-items: center; min-height: 24px; padding: 6px 0; }
 
 /* responsive */
 @media (max-width: 980px) {
