@@ -28,14 +28,20 @@
     .hatch #dragon { animation: pop .45s cubic-bezier(.34,1.56,.64,1) .82s both; }
     .hatch #shards path { transform-box: fill-box; transform-origin: 50% 50%;
                           animation: shard .4s cubic-bezier(.22,1,.36,1) .84s both; }
-    .hatch #eyes rect { transform-box: fill-box; transform-origin: 50% 50%;
-                        animation: blink .22s ease-in-out 1.32s, blink .22s ease-in-out 6s infinite; }
+    /* Blinks are quick (150 ms: lids close in 50 ms, open in 80 ms) and rare: one after hatching, then a 26 s
+       cycle with an irregular rhythm (single, single, double), about one blink every 8-9 s. */
+    .hatch #eyes rect { transform-box: fill-box; transform-origin: 50% 65%;
+                        animation: blink .15s linear 1.4s, blinks 26s linear 7s infinite; }
     @keyframes wobble { 0%, 100% { rotate: 0deg; } 20% { rotate: -5deg; } 45% { rotate: 4deg; } 70% { rotate: -3deg; } 88% { rotate: 1.5deg; } }
     @keyframes crack { 0%, 60% { opacity: 1; stroke-dashoffset: 1; } 85% { opacity: 1; stroke-dashoffset: 0; } 100% { opacity: 0; stroke-dashoffset: 0; } }
     @keyframes cap-off { 0%, 86% { opacity: 1; translate: 0 0; rotate: 0deg; } 100% { opacity: 0; translate: -60px -220px; rotate: -24deg; } }
     @keyframes pop { from { translate: 0 270px; } to { translate: 0 0; } }
     @keyframes shard { from { opacity: 0; scale: .2; translate: 0 120px; } to { opacity: 1; scale: 1; translate: 0 0; } }
-    @keyframes blink { 0%, 100% { scale: 1 1; } 50% { scale: 1 .12; } }
+    @keyframes blink { 0%, 100% { scale: 1 1; } 33%, 47% { scale: 1 .1; } }
+    @keyframes blinks {
+      0%, .58%, 42.31%, 42.89%, 73.08%, 73.66%, 74.42%, 75%, 100% { scale: 1 1; }
+      .19%, .27%, 42.5%, 42.58%, 73.27%, 73.35%, 74.61%, 74.69% { scale: 1 .1; }
+    }
     @media (prefers-reduced-motion: reduce) {
       .hatch .egg, .hatch .crack, .hatch .cap, .hatch #dragon, .hatch #shards path, .hatch #eyes rect { animation: none; }
     }
