@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "round": 3,
+  "slug": "showcase-header",
+  "title": {
+    "en": "Header of the architecture page",
+    "de": "Kopfzeile der Architektur-Seite"
+  },
+  "level": 1,
+  "status": "planned",
+  "start_commit": "653edd26f3cd06f7dfba9d4a049335cea8465c16",
+  "allowed_paths": [
+    "site/showcase/"
+  ],
+  "agent": {
+    "name": "Alia",
+    "alia_version": null,
+    "launcher_commit": null,
+    "profile": "rtx8gb-16gb-qwen36-35b",
+    "model": "Qwen3.6-35B-A3B UD-IQ3_XXS",
+    "hardware": "RTX 3070 8 GB, 15 GiB RAM"
+  },
+  "agent_commit": null,
+  "run": {
+    "started": null,
+    "wall_seconds": null,
+    "wall_limit_seconds": 900,
+    "exit_code": null,
+    "tool_calls": null,
+    "transcript_sha256": null
+  },
+  "result": {
+    "acceptance_passed": null,
+    "acceptance_total": null,
+    "site_checks": null,
+    "files_changed": [],
+    "lines_added": null,
+    "lines_removed": null,
+    "out_of_scope_paths": [],
+    "isolation_breaches": []
+  },
+  "interventions": [],
+  "reviews": [],
+  "summary": {
+    "en": "Planned: Alia tidies up the header of the architecture page it built: new logo, one h1, a description and a compact phone layout.",
+    "de": "Geplant: Alia räumt die Kopfzeile ihrer Architektur-Seite auf: neues Logo, eine h1, eine Beschreibung und ein kompaktes Handy-Layout."
+  },
+  "merged_commit": null
+}
