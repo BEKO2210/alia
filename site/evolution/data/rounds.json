@@ -215,5 +215,106 @@
       "de": "Kopier-Buttons, zweiter Anlauf",
       "en": "Copy buttons, second try"
     }
+  },
+  {
+    "acceptance": {
+      "files": {
+        "acceptance/baseline_text.json": "dedf055348aef57f7c6c41d87db0488a75c67540b31393ac78e18931158c487e",
+        "acceptance/test_showcase_header.py": "ff410f9201b2435ad515c278114dc52beefcdafaa3d3a96b0baf4b2ba4f80556"
+      },
+      "frozen_commit": "095b4270bfde6179c2afa06e6c340fab98474c36"
+    },
+    "agent": {
+      "alia_version": "alia 0.1.0",
+      "hardware": "RTX 3070 8 GB, 15 GiB RAM",
+      "launcher_commit": "f19b4bdcacde96c54428e572f306cfffe58fe156",
+      "model": "Qwen3.6-35B-A3B UD-IQ3_XXS",
+      "name": "Alia",
+      "profile": "rtx8gb-16gb-qwen36-35b"
+    },
+    "agent_commit": "4fc80d09af4a5f323282398170aa122de84bdae7",
+    "allowed_paths": [
+      "site/showcase/"
+    ],
+    "attribution": {
+      "alia_lines": 17,
+      "checked_head": "4fc80d09af4a5f323282398170aa122de84bdae7",
+      "checks": {
+        "agent_commit_shape": {
+          "detail": "agent_commit has one parent, the round trailer and Alia identity; 1 changed path(s) match",
+          "ok": true
+        },
+        "foreign_commits_declared": {
+          "detail": "0 non-Alia commit(s) are declared as interventions",
+          "ok": true
+        },
+        "share": {
+          "detail": "Alia 17 line(s); interventions 0; final diff 17 line(s)",
+          "ok": true
+        },
+        "transcript_covers_diff": {
+          "detail": "tool calls name all 1 path(s) changed by agent_commit",
+          "ok": true
+        },
+        "transcript_hash": {
+          "detail": "transcript.jsonl sha256 matches run.transcript_sha256",
+          "ok": true
+        },
+        "transcript_tool_calls": {
+          "detail": "transcript contains 17 tool_use item(s), matching run.tool_calls",
+          "ok": true
+        }
+      },
+      "other_lines": 0,
+      "verified": true
+    },
+    "interventions": [],
+    "level": 1,
+    "merged_commit": null,
+    "result": {
+      "acceptance_passed": 0,
+      "acceptance_total": 4,
+      "files_changed": [
+        "site/showcase/architecture/index.html"
+      ],
+      "isolation_breaches": [],
+      "lines_added": 5,
+      "lines_removed": 12,
+      "out_of_scope_paths": [],
+      "site_checks": {
+        "failures": 13,
+        "fixed": 2,
+        "known": 114
+      }
+    },
+    "reviews": [
+      {
+        "by": "Claude (coordinator)",
+        "file": "reviews/claude.md",
+        "verdict": "failed"
+      }
+    ],
+    "round": 3,
+    "run": {
+      "exit_code": 1,
+      "started": "2026-10-19T15:31:38.648117Z",
+      "tool_calls": 17,
+      "transcript_sha256": "b5b4bb0815d2e4271c3c22e9e60bd065882b2b8f59ac1d52d2473b78d12f9d2f",
+      "wall_limit_seconds": 900,
+      "wall_seconds": 310.389
+    },
+    "schema": 1,
+    "slug": "showcase-header",
+    "start_commit": "653edd26f3cd06f7dfba9d4a049335cea8465c16",
+    "status": "failed",
+    "summary": {
+      "de": "Gescheitert. Alia ergänzte eine Seitenbeschreibung, aber der Logo-Pfad zeigt auf eine fehlende Datei, das Logo verlinkt auf eine erfundene Domain, und Navigation und Handy-Kopfzeile blieben unverändert; der Schleifenschutz beendete den Lauf (Abnahme 0/4). Versuch 1 wird nicht gewertet: Er bestand einen Test, der über den Handy-Rand laufende Links übersah; der Test wurde korrigiert und neu eingefroren.",
+      "en": "Failed. Alia added a page description, but the logo path points to a missing file, the logo links to an invented domain, and the navigation and phone header stayed unchanged; the loop guard ended the run (acceptance 0/4). Attempt 1 is not scored: it passed a test that missed links running off the phone screen; the test was fixed and re-frozen."
+    },
+    "task_sha256": "5680440e95fe1a37a79d5f9915ffcefa2eb3df7a33e177c7d3949bf7257ac18a",
+    "title": {
+      "de": "Kopfzeile der Architektur-Seite",
+      "en": "Header of the architecture page"
+    }
   }
 ]
