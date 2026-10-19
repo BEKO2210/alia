@@ -1,12 +1,16 @@
 # Round 01: copy buttons
 
-**EN:** Planned. Alia gets the task in `task.md` and must make the install section's copy buttons stop covering
-code at 390 and 1280 px in English and German, without changing the commands. The acceptance tests were frozen
-before the run.
+**EN:** Failed (attempt 2, the scored run). Alia moved each copy button into a new header row above the code. The
+buttons no longer cover code on phones or desktops, but Alia did not update `site/main.js`, which looks for the code
+next to the button, so clicking a button copied nothing. The frozen acceptance tests caught it: 1 of 3 passed.
+Attribution is verified (23 of 23 changed lines by Alia, no interventions). Nothing from this round is merged into
+the site; the task will be retried as a new round.
 
-**DE:** Geplant. Alia bekommt die Aufgabe aus `task.md` und muss dafür sorgen, dass die Kopier-Buttons im
-Installationsbereich bei 390 und 1280 px auf Englisch und Deutsch keinen Code mehr verdecken, ohne die Befehle zu
-ändern. Die Abnahmetests wurden vor dem Lauf eingefroren.
+**DE:** Gescheitert (Versuch 2, der gewertete Lauf). Alia verschob jeden Kopier-Button in eine neue Kopfzeile über
+dem Code. Die Buttons verdecken auf Handy und Desktop keinen Code mehr, aber Alia passte `site/main.js` nicht an,
+das den Code neben dem Button sucht, sodass ein Klick nichts mehr kopierte. Die eingefrorenen Abnahmetests haben das
+erkannt: 1 von 3 bestanden. Die Urheberschaft ist verifiziert (23 von 23 geänderten Zeilen von Alia, keine
+Eingriffe). Nichts aus dieser Runde fließt in die Website; die Aufgabe wird als neue Runde wiederholt.
 
 ## Attempt 1 (not scored) / Versuch 1 (nicht gewertet)
 

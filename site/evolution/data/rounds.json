@@ -7,47 +7,92 @@
       "frozen_commit": "b29b0975202ca79125e764a33001178f11457fa5"
     },
     "agent": {
-      "alia_version": null,
+      "alia_version": "alia 0.1.0",
       "hardware": "RTX 3070 8 GB, 15 GiB RAM",
-      "launcher_commit": null,
+      "launcher_commit": "f19b4bdcacde96c54428e572f306cfffe58fe156",
       "model": "Qwen3.6-35B-A3B UD-IQ3_XXS",
       "name": "Alia",
       "profile": "rtx8gb-16gb-qwen36-35b"
     },
-    "agent_commit": null,
+    "agent_commit": "6188108f36c29c02166203d52aa00b71fa4d1672",
     "allowed_paths": [
       "site/"
     ],
+    "attribution": {
+      "alia_lines": 23,
+      "checked_head": "6188108f36c29c02166203d52aa00b71fa4d1672",
+      "checks": {
+        "agent_commit_shape": {
+          "detail": "agent_commit has one parent, the round trailer and Alia identity; 2 changed path(s) match",
+          "ok": true
+        },
+        "foreign_commits_declared": {
+          "detail": "0 non-Alia commit(s) are declared as interventions",
+          "ok": true
+        },
+        "share": {
+          "detail": "Alia 23 line(s); interventions 0; final diff 23 line(s)",
+          "ok": true
+        },
+        "transcript_covers_diff": {
+          "detail": "tool calls name all 2 path(s) changed by agent_commit",
+          "ok": true
+        },
+        "transcript_hash": {
+          "detail": "transcript.jsonl sha256 matches run.transcript_sha256",
+          "ok": true
+        },
+        "transcript_tool_calls": {
+          "detail": "transcript contains 25 tool_use item(s), matching run.tool_calls",
+          "ok": true
+        }
+      },
+      "other_lines": 0,
+      "verified": true
+    },
     "interventions": [],
     "level": 1,
     "merged_commit": null,
     "result": {
-      "acceptance_passed": null,
-      "acceptance_total": null,
-      "files_changed": [],
+      "acceptance_passed": 1,
+      "acceptance_total": 3,
+      "files_changed": [
+        "site/index.html",
+        "site/style.css"
+      ],
       "isolation_breaches": [],
-      "lines_added": null,
-      "lines_removed": null,
+      "lines_added": 12,
+      "lines_removed": 11,
       "out_of_scope_paths": [],
-      "site_checks": null
+      "site_checks": {
+        "failures": 0,
+        "fixed": 9,
+        "known": 116
+      }
     },
-    "reviews": [],
+    "reviews": [
+      {
+        "by": "Claude (coordinator)",
+        "file": "reviews/claude.md",
+        "verdict": "failed"
+      }
+    ],
     "round": 1,
     "run": {
-      "exit_code": null,
-      "started": null,
-      "tool_calls": null,
-      "transcript_sha256": null,
+      "exit_code": 0,
+      "started": "2026-10-19T03:45:12.406529Z",
+      "tool_calls": 25,
+      "transcript_sha256": "de0d69bd718a12131b5f2f38790f8dc7a6d1fe3aa19784a373399bb99fccb331",
       "wall_limit_seconds": 900,
-      "wall_seconds": null
+      "wall_seconds": 564.486
     },
     "schema": 1,
     "slug": "copy-button",
     "start_commit": "d66ce5928a24dc68caa139eab79ac278a4e7c73b",
-    "status": "planned",
+    "status": "failed",
     "summary": {
-      "de": "Geplant, zweiter Versuch. Versuch 1 (Alias Flex-Layout, Commit a3b3493) wurde nicht gewertet: Der Runner brach an einer alten Probelauf-Referenz ab, und die Prüfung ergab, dass der eingefrorene Test im Scrollbereich verborgenen Code als verdeckt zählte. Der Test wurde vor Versuch 2 korrigiert und neu eingefroren.",
-      "en": "Planned, second attempt. Attempt 1 (Alia's flex layout, commit a3b3493) was not scored: the runner stopped on a stale dry-run ref, and review found the frozen test counted code text hidden in the scroll area as covered. The test was fixed and re-frozen before attempt 2."
+      "de": "Gescheitert. Alia verschob die Kopier-Buttons in eine Kopfzeile über dem Code, wodurch nichts mehr verdeckt wird, passte aber main.js nicht an, sodass die Buttons nichts mehr kopierten (Abnahme 1/3). Versuch 1 wurde nicht gewertet; siehe summary.md.",
+      "en": "Failed. Alia moved the copy buttons into a header row above the code, which ended the overlap, but did not update main.js, so the buttons no longer copied anything (acceptance 1/3). Attempt 1 was not scored; see summary.md."
     },
     "task_sha256": "90ff16063630c32bb1061ae68a920e1e1dd1ef6277c3e183fd62660f083e1600",
     "title": {
