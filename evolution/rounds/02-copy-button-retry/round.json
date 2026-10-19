@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "round": 2,
+  "slug": "copy-button-retry",
+  "title": {
+    "en": "Copy buttons, second try",
+    "de": "Kopier-Buttons, zweiter Anlauf"
+  },
+  "level": 1,
+  "status": "planned",
+  "start_commit": "56de4e44a24c06a6aafc67bce1fb8eb8225f25d2",
+  "allowed_paths": [
+    "site/"
+  ],
+  "agent": {
+    "name": "Alia",
+    "alia_version": null,
+    "launcher_commit": null,
+    "profile": "rtx8gb-16gb-qwen36-35b",
+    "model": "Qwen3.6-35B-A3B UD-IQ3_XXS",
+    "hardware": "RTX 3070 8 GB, 15 GiB RAM"
+  },
+  "agent_commit": null,
+  "run": {
+    "started": null,
+    "wall_seconds": null,
+    "wall_limit_seconds": 900,
+    "exit_code": null,
+    "tool_calls": null,
+    "transcript_sha256": null
+  },
+  "result": {
+    "acceptance_passed": null,
+    "acceptance_total": null,
+    "site_checks": null,
+    "files_changed": [],
+    "lines_added": null,
+    "lines_removed": null,
+    "out_of_scope_paths": [],
+    "isolation_breaches": []
+  },
+  "interventions": [],
+  "reviews": [],
+  "summary": {
+    "en": "Planned: the same task and frozen tests as round 01, which failed because copying broke.",
+    "de": "Geplant: dieselbe Aufgabe und dieselben eingefrorenen Tests wie Runde 01, die scheiterte, weil das Kopieren nicht mehr ging."
+  },
+  "merged_commit": null
+}
