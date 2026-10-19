@@ -50,8 +50,8 @@ causes no new site-check failure.
 - Forbid repeating a check that gave no new information.
 - Ask Alia to remove what its own change made unused.
 
-Commits (kept as local refs `refs/evolution/experiments/h1/{a,b}/round-NN`): 01a `4413f90`, 02a `e9702d3`,
-03a `5926d4f`, 01b `216cbc5`, 02b `aaf4583`, 03b `22d3a98`. Tasks frozen at `41d8638`. Transcripts are private.
+Commits (kept as local refs `refs/evolution/experiments/h1/{a,b}/round-NN`, pushed as tags `evolution/h1-ARM-NN`): 01a `4413f90`, 02a `e9702d3`,
+03a `5926d4f`, 01b `216cbc5`, 02b `aaf4583`, 03b `22d3a98`. Tasks frozen at `73bbcf8` (hashes recorded in `41d8638`). Transcripts are private.
 
 **Side finding.** Task 01 describes a real defect of the live page. `main.js` builds its English dictionary from
 the HTML, so the second `q.json` entry overwrites the first. As a result, both cards also show "JSON schema" in
