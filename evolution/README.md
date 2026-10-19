@@ -62,3 +62,20 @@ when freezing and never copied into a run.
 The real runner acquires `~/reel/gpu.lock` itself and starts only when the configured wall-time fits in the GPU
 window. It keeps failed private copies for inspection; `python3 tools/alia_round.py run NN --clean` removes only
 that round's folder below the private root before a retry.
+
+## Harness experiments
+
+An experiment compares Alia's current harness with a candidate on the same frozen tasks, judged by the frozen
+acceptance tests, never by a model. Tasks live in `evolution/experiments/NAME/tasks/NN-slug/` with the same
+`task.md`, `acceptance/` and `round.json` as a round (`freeze NN --experiment NAME`). Each arm runs every task
+once:
+
+    python3 tools/alia_round.py run NN --experiment NAME --arm a
+    python3 tools/alia_round.py run NN --experiment NAME --arm b --harness candidate.md
+
+`--harness` seeds the candidate file as the user-owned part of Qwen Code's global `QWEN.md` in the jail's
+throw-away home; the launcher keeps that part and appends its managed environment block, exactly as it does for a
+user. The launcher and the productive checkout stay untouched. An arm keeps its commit under
+`refs/evolution/experiments/NAME/ARM/round-NN` and its record (with the harness SHA-256) in the private folder
+`experiments/NAME/ARM/NN-slug/`; the task folder and the public round records do not change. A candidate reaches
+the real launcher only through a reviewed pull request.

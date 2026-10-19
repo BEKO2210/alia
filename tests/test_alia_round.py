@@ -13,11 +13,13 @@ from tools.alia_round import (
     final_status,
     RoundError,
     acquire_gpu_lock,
+    check_experiment_args,
     check_round_ref_free,
     frozen_files,
     gpu_window_fits,
     hash_file,
     out_of_scope,
+    parse_args,
     parse_unittest,
     round_ref,
     site_report_counts,
@@ -323,6 +325,46 @@ class AliaRoundTests(unittest.TestCase):
         run(["git", "update-ref", "refs/evolution/round-01", "HEAD"], repo)
         with self.assertRaisesRegex(RoundError, "already exists"):
             check_round_ref_free(repo, "refs/evolution/round-01")
+
+    def test_experiment_arms_have_their_own_ref_namespace(self):
+        self.assertEqual(round_ref(2, dry_run=False, experiment="h1", arm="b"),
+                         "refs/evolution/experiments/h1/b/round-02")
+        self.assertEqual(round_ref(2, dry_run=True, experiment="h1", arm="b"), "refs/evolution/dry-run/round-02")
+
+    def test_experiment_arguments_are_checked(self):
+        def check(*argv):
+            check_experiment_args(parse_args(["run", "1", *argv]))
+        check()
+        check("--experiment", "h1", "--arm", "a")
+        check("--experiment", "h1", "--arm", "b", "--harness", "candidate.md")
+        check("--dry-run", "--harness", "candidate.md")
+        for argv, message in (
+            (["--harness", "candidate.md"], "belong to an experiment"),
+            (["--arm", "a"], "belong to an experiment"),
+            (["--experiment", "h1"], "--arm must match"),
+            (["--experiment", "../h1", "--arm", "a"], "--experiment must match"),
+            (["--experiment", "h1", "--arm", "a/b"], "--arm must match"),
+            (["--experiment", "h1", "--arm", "a", "--dry-run"], "real run"),
+        ):
+            with self.subTest(argv=argv), self.assertRaisesRegex(RoundError, message):
+                check(*argv)
+
+    def test_harness_is_seeded_into_the_jailed_qwen_home(self):
+        if not JAIL:
+            self.skipTest("needs bubblewrap with user namespaces")
+        repo, folder = self.make_repo(acceptance_passes=True)
+        harness = self.root / "candidate.md"
+        harness.write_text("# Candidate\n\nCheck what depends on your change.\n", encoding="utf-8")
+        self.mode_script = (
+            "seeded = pathlib.Path.home() / '.local/state/alia/qwen-home/QWEN.md'\n"
+            "(root / 'site/seen-harness.txt').write_bytes(seeded.read_bytes())"
+        )
+        completed = self.invoke(repo, self.make_productive(), "script", "--harness", str(harness))
+        self.assertEqual(completed.returncode, 0, completed.stderr + completed.stdout)
+        seen = self.root / "private/01-example/result/site/seen-harness.txt"
+        self.assertEqual(seen.read_bytes(), harness.read_bytes())
+        data = json.loads((folder / "round.json").read_text(encoding="utf-8"))
+        self.assertIn("site/seen-harness.txt", data["result"]["files_changed"])
 
     def test_byte_code_cache_is_never_frozen(self):
         _, folder = self.make_repo()
