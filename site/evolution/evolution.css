@@ -19,6 +19,7 @@
 .round-detail strong { color: inherit; }
 .round-detail ul { margin: 4px 0 0; padding-left: 20px; }
 .round-detail a { display: inline; }
+.round-detail li a { display: inline-flex; justify-content: center; min-width: 24px; min-height: 24px; }
 .round-card a, .evo-before a { color: var(--blue); display: inline-flex; align-items: center; min-height: 24px; }
 .empty { color: var(--mut); }
 .evo-before { margin-top: 96px; }

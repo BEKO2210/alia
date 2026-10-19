@@ -182,7 +182,8 @@ def validate_acceptance(value: Any, folder: Path) -> None:
     require_keys(value, ("files", "frozen_commit"), "acceptance")
     files = require(value["files"], dict, "acceptance.files")
     check_sha(value["frozen_commit"], "acceptance.frozen_commit", git=True)
-    actual = {path.relative_to(folder).as_posix(): sha256(path) for path in sorted((folder / "acceptance").rglob("*")) if path.is_file()}
+    actual = {path.relative_to(folder).as_posix(): sha256(path) for path in sorted((folder / "acceptance").rglob("*"))
+              if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"}
     if set(files) != set(actual):
         raise ValidationError(f"acceptance file list differs: recorded={sorted(files)}, actual={sorted(actual)}")
     for path, digest in files.items():
@@ -472,7 +473,7 @@ def rerun_acceptance(repo: Path, rounds_dir: Path) -> list[str]:
                 continue
             subprocess.run(["tar", "-x", "-C", str(tree)], input=archive.stdout, check=True)
             tests = Path(scratch) / "acceptance"
-            shutil.copytree(folder / "acceptance", tests)
+            shutil.copytree(folder / "acceptance", tests, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
             run = subprocess.run(
                 [sys.executable, "-E", "-P", "-m", "unittest", "discover", "-s", str(tests), "-t", str(tests)],
                 cwd=tests, capture_output=True, text=True, check=False,

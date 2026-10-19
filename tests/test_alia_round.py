@@ -13,10 +13,13 @@ from tools.alia_round import (
     final_status,
     RoundError,
     acquire_gpu_lock,
+    check_round_ref_free,
+    frozen_files,
     gpu_window_fits,
     hash_file,
     out_of_scope,
     parse_unittest,
+    round_ref,
     site_report_counts,
     stop_process_group,
     stream_counts,
@@ -211,9 +214,12 @@ class AliaRoundTests(unittest.TestCase):
         self.assertFalse((agent_git / "FETCH_HEAD").exists())
         self.assertFalse((agent_git / "objects/info/alternates").exists())
         self.assertFalse((work / "evolution").exists())
-        # Alia's commit is built by the runner in its own repository and kept in the integration repo.
+        # Alia's commit is built by the runner in its own repository and kept in the integration repo. A dry run
+        # keeps it under refs/evolution/dry-run/, so it can never block the real round's ref.
         agent = data["agent_commit"]
-        self.assertEqual(run(["git", "rev-parse", "refs/evolution/round-01"], repo).stdout.strip(), agent)
+        self.assertEqual(run(["git", "rev-parse", "refs/evolution/dry-run/round-01"], repo).stdout.strip(), agent)
+        self.assertNotEqual(run(["git", "rev-parse", "-q", "--verify", "refs/evolution/round-01"], repo,
+                                check=False).returncode, 0)
         self.assertEqual(run(["git", "rev-parse", f"{agent}~1"], repo).stdout.strip(), data["start_commit"])
         self.assertIn("Alia-Round: 01", run(["git", "show", "-s", "--format=%B", agent], repo).stdout)
 
@@ -308,6 +314,23 @@ class AliaRoundTests(unittest.TestCase):
         completed = self.invoke(repo, self.make_productive())
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("frozen git bytes differ", completed.stderr)
+
+    def test_real_round_ref_must_be_free(self):
+        repo, _ = self.make_repo()
+        self.assertEqual(round_ref(1, dry_run=False), "refs/evolution/round-01")
+        self.assertEqual(round_ref(1, dry_run=True), "refs/evolution/dry-run/round-01")
+        check_round_ref_free(repo, "refs/evolution/round-01")
+        run(["git", "update-ref", "refs/evolution/round-01", "HEAD"], repo)
+        with self.assertRaisesRegex(RoundError, "already exists"):
+            check_round_ref_free(repo, "refs/evolution/round-01")
+
+    def test_byte_code_cache_is_never_frozen(self):
+        _, folder = self.make_repo()
+        before = frozen_files(folder)
+        cache = folder / "acceptance/__pycache__"
+        cache.mkdir()
+        (cache / "test_change.cpython-312.pyc").write_bytes(b"cache")
+        self.assertEqual(frozen_files(folder), before)
 
     def test_failed_status_never_becomes_passed(self):
         checks = {"failures": 0, "known": 0, "fixed": 0}

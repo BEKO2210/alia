@@ -24,6 +24,19 @@ the private transcript hash and tool calls, the commit's parent, trailer, fixed 
 numstat, and every other commit against declared interventions. A Git author name by itself is never evidence
 that Alia made a change. A passed round is publishable only when all attribution checks are verified.
 
+A dry run keeps its commit under `refs/evolution/dry-run/round-NN` instead, so it never blocks the real run. A real
+run refuses to start while `refs/evolution/round-NN` already exists.
+
+The repository merges pull requests by squashing, which drops the round branch's own commits. Before the round PR,
+push the evidence as tags so `agent_commit`, `acceptance.frozen_commit` and the CI acceptance rerun keep working
+after the merge: `evolution/round-NN-agent` (Alia's commit) and `evolution/round-NN-frozen` (the freeze commit),
+plus `evolution/round-NN-attemptN` for unscored attempts. Push them with full refspecs
+(`git push origin refs/tags/evolution/round-NN-agent ...`); the short names clash with the local
+`refs/evolution/...` refs. These tags are never deleted.
+
+Run acceptance tests by hand with `python3 -B` (or delete `__pycache__` afterwards). Byte-code caches are ignored
+when freezing and never copied into a run.
+
 ## How Alia is kept blind to the tests
 
 - `start_commit` is the commit before the round folder is added; the runner refuses a start commit that already
