@@ -271,5 +271,10 @@ h2 { font-size: clamp(30px, 4.4vw, 50px); line-height: 1.08; font-weight: 600; l
 }
 .term-video { display: block; width: 100%; height: auto; background: #0b0d12; border-radius: 0 0 16px 16px; }
 .term-demo { position: relative; overflow: hidden; }
-.term-demo .replay { position: absolute; top: 12px; right: 14px; z-index: 2; background: rgba(12, 14, 20, .7); }
+.term-demo .replay {
+  position: absolute; top: 12px; right: 14px; z-index: 2;
+  background: rgba(12, 14, 20, .7);
+  font: 600 14px/1 var(--body); min-height: 26px;
+  padding: 4px 14px; border-radius: 999px;
+}
 .term-demo .term-video { border-radius: 16px; }
