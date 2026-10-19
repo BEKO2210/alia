@@ -97,19 +97,26 @@ const DE = {
   "foot.security": "Sicherheit",
   "foot.imprint": "Impressum",
   "foot.privacy": "Datenschutz",
+  "copy": "Kopieren",
+  "copy.copied": "Kopiert",
 };
 
 const nodes = [...document.querySelectorAll("[data-i18n]")];
 const EN = Object.fromEntries(nodes.map((n) => [n.dataset.i18n, n.innerHTML]));
+EN["copy.copied"] = "Copied";
 
 function storage(fn) { try { return fn(); } catch { return null; } }
 
-function setLang(lang) {
-  const dict = lang === "de" ? DE : EN;
+let lang = "en";
+
+function setLang(l) {
+  lang = l;
+  const dict = l === "de" ? DE : EN;
   for (const n of nodes) n.innerHTML = dict[n.dataset.i18n] ?? EN[n.dataset.i18n];
-  document.documentElement.lang = lang;
-  for (const b of document.querySelectorAll("[data-lang]")) b.setAttribute("aria-pressed", String(b.dataset.lang === lang));
-  storage(() => localStorage.setItem("alia-lang", lang));
+  document.documentElement.lang = l;
+  for (const b of document.querySelectorAll("[data-lang]")) b.setAttribute("aria-pressed", String(b.dataset.lang === l));
+  storage(() => localStorage.setItem("alia-lang", l));
+  document.dispatchEvent(new Event("langchange"));
 }
 for (const b of document.querySelectorAll("[data-lang]")) b.addEventListener("click", () => setLang(b.dataset.lang));
 const saved = storage(() => localStorage.getItem("alia-lang"));
@@ -120,9 +127,42 @@ for (const btn of document.querySelectorAll(".copy")) {
   btn.addEventListener("click", async () => {
     const text = btn.parentElement.querySelector("code").textContent;
     try { await navigator.clipboard.writeText(text); } catch { return; }
-    const old = btn.textContent;
-    btn.textContent = "✓";
-    setTimeout(() => { btn.textContent = old; }, 1400);
+
+    // Build a map of current button texts → their i18n keys so we can restore
+    const keyMap = new Map();
+    for (const b of document.querySelectorAll(".copy")) {
+      keyMap.set(b, b.dataset.i18n);
+    }
+
+    function showLabel() {
+      const key = keyMap.get(btn) || "copy";
+      const dict = lang === "de" ? DE : EN;
+      btn.textContent = dict[key] ?? EN[key];
+    }
+
+    const confirmation = lang === "de" ? "Kopiert" : "Copied";
+    btn.textContent = confirmation;
+    const timer = setTimeout(() => { showLabel(); }, 1500);
+
+    // If the user switches language while the confirmation is shown, update
+    // the button to the new language's confirmation (or restore after 1.5 s
+    // total).
+    const origSetLang = window.setLang;
+    const observeLang = () => {
+      const handler = () => {
+        clearTimeout(timer);
+        const newLang = storage(() => localStorage.getItem("alia-lang")) || "en";
+        const newConfirm = newLang === "de" ? "Kopiert" : "Copied";
+        btn.textContent = newConfirm;
+        setTimeout(() => { showLabel(); }, 1500 - (Date.now() - startTime));
+      };
+      // Attach via a one-shot listener on the document — the setLang function
+      // dispatches a custom event so we can hook into it.
+      document.removeEventListener("langchange", handler);
+      document.addEventListener("langchange", handler, { once: true });
+    };
+    const startTime = Date.now();
+    observeLang();
   });
 }
 
