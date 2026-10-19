@@ -1,6 +1,12 @@
 "use strict";
 
+const EN = Object.fromEntries(nodes.map((n) => [n.dataset.i18n, n.innerHTML]));
+EN["title"] = "Alia \u2014 a local coding agent for the GPU you already own";
+EN["desc"] = "Alia detects your GPU, picks a benchmarked model profile, starts llama.cpp and opens a full coding agent in your terminal. No API key, no cloud.";
+
 const DE = {
+  "title": "Alia \u2014 ein lokaler Coding\u2011Agent für die GPU, die du schon hast",
+  "desc": "Alia erkennt deine GPU, wählt ein vermessenes Modellprofil, startet llama.cpp und öffnet einen vollwertigen Coding\u2011Agenten im Terminal. Kein API-Key. Keine Cloud.",
   "skip": "Zum Inhalt springen",
   "nav.features": "Funktionen",
   "nav.bench": "Messwerte",
@@ -108,6 +114,9 @@ function setLang(lang) {
   const dict = lang === "de" ? DE : EN;
   for (const n of nodes) n.innerHTML = dict[n.dataset.i18n] ?? EN[n.dataset.i18n];
   document.documentElement.lang = lang;
+  document.title = dict["title"];
+  const descEl = document.querySelector("meta[name=\"description\"]");
+  if (descEl) descEl.content = dict["desc"];
   for (const b of document.querySelectorAll("[data-lang]")) b.setAttribute("aria-pressed", String(b.dataset.lang === lang));
   storage(() => localStorage.setItem("alia-lang", lang));
 }
