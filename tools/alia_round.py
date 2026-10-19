@@ -86,8 +86,24 @@ def frozen_files(folder: Path) -> dict[str, str]:
     return {
         path.relative_to(folder).as_posix(): hash_file(path)
         for path in sorted(acceptance.rglob("*"))
-        if path.is_file()
+        if path.is_file() and not bytecode(path)
     }
+
+
+def bytecode(path: Path) -> bool:
+    """Python's byte-code cache, which a local test run leaves behind; it is never part of the frozen tests."""
+    return "__pycache__" in path.parts or path.suffix == ".pyc"
+
+
+def round_ref(number: int, dry_run: bool) -> str:
+    """Where the runner keeps the round commit; dry runs use their own namespace and never block a real run."""
+    return f"refs/evolution/{'dry-run/' if dry_run else ''}round-{number:02d}"
+
+
+def check_round_ref_free(repo: Path, ref: str) -> None:
+    exists = subprocess.run(["git", "rev-parse", "-q", "--verify", ref], cwd=repo, check=False, capture_output=True)
+    if not exists.returncode:
+        raise RoundError(f"{ref} already exists; delete it first if it is a leftover (git update-ref -d {ref})")
 
 
 def freeze(repo: Path, number: int) -> None:
@@ -248,7 +264,7 @@ def copy_agent_tree(work: Path, result: Path) -> tuple[list[str], list[str]]:
     return sorted(escaping), sorted(skipped)
 
 
-def collect_changes(repo: Path, private_round: Path, start: str, number: int, home: Path
+def collect_changes(repo: Path, private_round: Path, start: str, number: int, home: Path, ref: str | None = None
                     ) -> tuple[list[str], int, int, str | None, list[str]]:
     """Commit the copied result in a runner-owned repository; never run git inside the agent's repository.
 
@@ -281,8 +297,10 @@ def collect_changes(repo: Path, private_round: Path, start: str, number: int, ho
     sealed_git([*tree, "commit", "-q", "--no-verify", "-m", message], result, home, identity, capture_output=True)
     commit = sealed_git([*tree, "rev-parse", "HEAD"], result, home, capture_output=True, text=True).stdout.strip()
     # Keep Alia's commit reachable in the integration repository for review, attribution and the PR.
-    sealed_git(["fetch", "-q", str(scratch), f"{commit}:refs/evolution/round-{number:02d}"], repo, home,
-               capture_output=True)
+    ref = ref or round_ref(number, dry_run=False)
+    # A real round never overwrites an existing ref (checked before the run); a dry run may replace its own.
+    force = "+" if ref.startswith("refs/evolution/dry-run/") else ""
+    sealed_git(["fetch", "-q", str(scratch), f"{force}{commit}:{ref}"], repo, home, capture_output=True)
     return sorted(paths), added, removed, commit, evolution
 
 
@@ -547,7 +565,7 @@ def run_tests(
     repo: Path, work: Path, folder: Path, private_round: Path
 ) -> tuple[int | None, int | None, dict[str, int] | None, str]:
     acceptance_run = private_round / "acceptance-run"
-    shutil.copytree(folder / "acceptance", acceptance_run)
+    shutil.copytree(folder / "acceptance", acceptance_run, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     # -E -P: no PYTHON* variables and no current directory on the path, so nothing the agent wrote can shadow a
     # module. Unlike -I, the user site stays, where a local Playwright for browser acceptance tests lives; the
     # agent never had write access there (jail). HOME is the runner's, for Playwright's browser cache.
@@ -636,6 +654,10 @@ def execute(args: argparse.Namespace) -> None:
             start = data.get("start_commit")
             if not isinstance(start, str):
                 raise RoundError("round.json has no start_commit")
+            ref = round_ref(args.number, args.dry_run)
+            if not args.dry_run:
+                # Fail now, not after a long model run that could then not store Alia's commit.
+                check_round_ref_free(repo, ref)
             create_worktree(repo, work, start, folder.relative_to(repo).as_posix())
             started = datetime.now(UTC).isoformat().replace("+00:00", "Z")
             exit_code, wall, transcript, _ = run_agent(
@@ -655,7 +677,7 @@ def execute(args: argparse.Namespace) -> None:
             if escaping:
                 breaches = sorted({*breaches, "symlink-escape"})
             paths, added, removed, agent_commit, evolution_paths = collect_changes(
-                repo, private_round, start, args.number, private_round)
+                repo, private_round, start, args.number, private_round, ref)
             allowed = data.get("allowed_paths", ["site/"])
             if not isinstance(allowed, list) or not all(isinstance(item, str) for item in allowed):
                 raise RoundError("allowed_paths must be a list of strings")
